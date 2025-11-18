@@ -21,6 +21,28 @@ export interface Notification {
   type: NotificationType;
 }
 
+/**
+ * Represents a single git worktree.
+ * Git worktrees allow multiple working trees attached to the same repository,
+ * enabling work on different branches simultaneously.
+ */
+export interface Worktree {
+  /** Stable identifier for this worktree (normalized absolute path) */
+  id: string;
+
+  /** Absolute path to the worktree root directory */
+  path: string;
+
+  /** Human-readable name (branch name or last path segment) */
+  name: string;
+
+  /** Git branch name if available (undefined for detached HEAD) */
+  branch?: string;
+
+  /** Whether this is the currently active worktree based on cwd */
+  isCurrent: boolean;
+}
+
 export interface YellowwoodConfig {
   editor: string;
   editorArgs: string[];
