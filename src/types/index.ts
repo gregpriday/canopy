@@ -85,6 +85,9 @@ export interface YellowwoodState {
   gitStatus: Map<string, GitStatus>;
   gitEnabled: boolean;
   notification: Notification | null;
+  commandBarActive: boolean;
+  commandBarInput: string;
+  commandHistory: string[];
   config: YellowwoodConfig;
 }
 
