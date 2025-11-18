@@ -41,6 +41,11 @@ export interface YellowwoodConfig {
   maxDepth: number | null;
   sortBy: 'name' | 'size' | 'modified' | 'type';
   sortDirection: 'asc' | 'desc';
+  ui?: {
+    leftClickAction?: 'open' | 'select';
+    compactMode?: boolean;
+    showStatusBar?: boolean;
+  };
 }
 
 export interface YellowwoodState {
@@ -81,4 +86,9 @@ export const DEFAULT_CONFIG: YellowwoodConfig = {
   maxDepth: null,
   sortBy: 'name',
   sortDirection: 'asc',
+  ui: {
+    leftClickAction: 'open',
+    compactMode: true,
+    showStatusBar: true,
+  },
 };
