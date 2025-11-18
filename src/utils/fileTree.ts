@@ -31,7 +31,7 @@ export async function buildFileTree(
     : [];
 
   // Build tree recursively
-  const nodes = await buildTreeRecursive(rootPath, config, 0, gitignorePatterns);
+  const nodes = await buildTreeRecursive(rootPath, config, 0, gitignorePatterns, rootPath);
 
   return sortNodes(nodes, config);
 }
@@ -44,7 +44,8 @@ async function buildTreeRecursive(
   dirPath: string,
   config: YellowwoodConfig,
   currentDepth: number,
-  gitignorePatterns: string[]
+  gitignorePatterns: string[],
+  rootPath: string
 ): Promise<TreeNode[]> {
   const nodes: TreeNode[] = [];
 
@@ -61,7 +62,7 @@ async function buildTreeRecursive(
     const entryPath = path.join(dirPath, entry.name);
 
     // Filter based on config and gitignore
-    if (!shouldIncludeFile(entryPath, entry.name, config, gitignorePatterns)) {
+    if (!shouldIncludeFile(entryPath, entry.name, config, gitignorePatterns, rootPath)) {
       continue;
     }
 
@@ -79,7 +80,8 @@ async function buildTreeRecursive(
             entryPath,
             config,
             currentDepth + 1,
-            gitignorePatterns
+            gitignorePatterns,
+            rootPath
           );
         } else {
           // At depth limit - no children
@@ -141,7 +143,8 @@ function shouldIncludeFile(
   filePath: string,
   fileName: string,
   config: YellowwoodConfig,
-  gitignorePatterns: string[]
+  gitignorePatterns: string[],
+  rootPath: string
 ): boolean {
   // Hidden files (starts with '.')
   if (!config.showHidden && fileName.startsWith('.')) {
@@ -152,10 +155,15 @@ function shouldIncludeFile(
     return false;
   }
 
+  // Compute relative path from root for pattern matching
+  const relativePath = path.relative(rootPath, filePath);
+
   // Check gitignore patterns
   if (config.respectGitignore && gitignorePatterns.length > 0) {
     for (const pattern of gitignorePatterns) {
-      if (matchPattern(fileName, pattern)) {
+      // Match against both filename and relative path
+      // This allows patterns like "node_modules/", "*.log", "build/*.js" to work correctly
+      if (matchPattern(fileName, pattern) || matchPattern(relativePath, pattern)) {
         return false;
       }
     }
@@ -164,7 +172,8 @@ function shouldIncludeFile(
   // Check custom ignore patterns
   if (config.customIgnores.length > 0) {
     for (const pattern of config.customIgnores) {
-      if (matchPattern(fileName, pattern)) {
+      // Match against both filename and relative path for consistency
+      if (matchPattern(fileName, pattern) || matchPattern(relativePath, pattern)) {
         return false;
       }
     }
