@@ -43,6 +43,25 @@ export interface Worktree {
   isCurrent: boolean;
 }
 
+export interface OpenerConfig {
+  /** Command to execute (editor name or path) */
+  cmd: string;
+
+  /** Arguments to pass to command */
+  args: string[];
+}
+
+export interface OpenersConfig {
+  /** Fallback opener used when no patterns match */
+  default: OpenerConfig;
+
+  /** Extension-based opener mapping */
+  byExtension: Record<string, OpenerConfig>;
+
+  /** Glob pattern-based opener mapping */
+  byGlob: Record<string, OpenerConfig>;
+}
+
 export interface YellowwoodConfig {
   editor: string;
   editorArgs: string[];
@@ -57,6 +76,7 @@ export interface YellowwoodConfig {
     format: string;
     asReference: boolean;
   };
+  openers?: OpenersConfig;
   autoRefresh: boolean;
   refreshDebounce: number;
   treeIndent: number;
@@ -101,6 +121,11 @@ export const DEFAULT_CONFIG: YellowwoodConfig = {
   copytreeDefaults: {
     format: 'xml',
     asReference: true,
+  },
+  openers: {
+    default: { cmd: 'code', args: ['-r'] },
+    byExtension: {},
+    byGlob: {},
   },
   autoRefresh: true,
   refreshDebounce: 100,

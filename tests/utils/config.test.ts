@@ -396,4 +396,252 @@ describe('loadConfig - global config', () => {
     const config = await loadConfig(tempDir);
     expect(config).toEqual(DEFAULT_CONFIG);
   });
+
+  it('deep merges openers across global and project configs', async () => {
+    // Global sets a .log extension opener
+    const globalConfig = {
+      openers: {
+        default: { cmd: 'vim', args: [] },
+        byExtension: { '.log': { cmd: 'less', args: ['+G'] } },
+        byGlob: {},
+      },
+    };
+    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    await fs.ensureDir(path.dirname(globalPath));
+    await fs.writeJSON(globalPath, globalConfig);
+
+    // Project adds a .ts extension opener
+    const projectConfig = {
+      openers: {
+        byExtension: { '.ts': { cmd: 'code', args: ['-r'] } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+
+    const config = await loadConfig(tempDir);
+    // Both extension openers should be present
+    expect(config.openers?.byExtension['.log']).toEqual({ cmd: 'less', args: ['+G'] });
+    expect(config.openers?.byExtension['.ts']).toEqual({ cmd: 'code', args: ['-r'] });
+    expect(config.openers?.default).toEqual({ cmd: 'vim', args: [] });
+  });
+
+  it('validates openers.default.cmd is a string', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 123, args: [] },
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('openers.default.cmd must be a string');
+  });
+
+  it('validates openers.default.args is an array', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: 'not-an-array' },
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('openers.default.args must be an array');
+  });
+
+  it('validates openers.byExtension values have cmd and args', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: { '.log': { cmd: 'less', args: 'not-an-array' } },
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('byExtension');
+  });
+
+  it('validates openers.byGlob values have cmd and args', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: {},
+        byGlob: { 'tests/**/*.ts': { cmd: 123, args: [] } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('byGlob');
+  });
+
+  it('accepts valid openers configuration', async () => {
+    const validConfig = {
+      openers: {
+        default: { cmd: 'code', args: ['-r'] },
+        byExtension: { '.log': { cmd: 'less', args: ['+G'] } },
+        byGlob: { 'tests/**/*.ts': { cmd: 'vitest', args: ['run'] } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), validConfig);
+
+    const config = await loadConfig(tempDir);
+    expect(config.openers).toEqual(validConfig.openers);
+  });
+
+  it('allows openers to be undefined for backward compatibility', async () => {
+    const configWithoutOpeners = { editor: 'vim' };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), configWithoutOpeners);
+
+    const config = await loadConfig(tempDir);
+    // Config should be valid (openers is optional)
+    expect(config.editor).toBe('vim');
+  });
+
+  it('validates editor must be a string', async () => {
+    const invalidConfig = { editor: 42 };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('config.editor must be a string');
+  });
+
+  it('rejects openers that is not an object', async () => {
+    const invalidConfig = { openers: null };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('config.openers must be an object');
+  });
+
+  it('rejects openers.default that is null', async () => {
+    const invalidConfig = {
+      openers: {
+        default: null,
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.default must be an object');
+  });
+
+  it('rejects openers.byExtension that is an array', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: [],
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.byExtension must be an object');
+  });
+
+  it('rejects openers.byGlob that is not an object', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: {},
+        byGlob: 'not-an-object',
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.byGlob must be an object');
+  });
+
+  it('validates args elements are strings in byExtension', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: { '.log': { cmd: 'less', args: [123] } },
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('args[0] must be a string');
+  });
+
+  it('validates both cmd and args for byExtension entries', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: { '.log': { cmd: 123, args: [] } },
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('cmd must be a string');
+  });
+
+  it('validates both cmd and args for byGlob entries', async () => {
+    const invalidConfig1 = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: {},
+        byGlob: { '*.test.ts': { cmd: 'tool', args: 'oops' } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig1);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('args must be an array');
+  });
+
+  it('validates args elements are strings in byGlob', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: [] },
+        byExtension: {},
+        byGlob: { '*.test.ts': { cmd: 'vitest', args: [true, 456] } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('args[0] must be a string');
+  });
+
+  it('deep merges byGlob across global and project configs', async () => {
+    // Global sets one glob pattern
+    const globalConfig = {
+      openers: {
+        default: { cmd: 'vim', args: [] },
+        byExtension: {},
+        byGlob: { '*.test.ts': { cmd: 'vitest', args: ['run'] } },
+      },
+    };
+    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    await fs.ensureDir(path.dirname(globalPath));
+    await fs.writeJSON(globalPath, globalConfig);
+
+    // Project adds another glob pattern
+    const projectConfig = {
+      openers: {
+        byGlob: { '*.spec.ts': { cmd: 'jest', args: [] } },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+
+    const config = await loadConfig(tempDir);
+    // Both glob patterns should be present
+    expect(config.openers?.byGlob['*.test.ts']).toEqual({ cmd: 'vitest', args: ['run'] });
+    expect(config.openers?.byGlob['*.spec.ts']).toEqual({ cmd: 'jest', args: [] });
+  });
+
+  it('validates default opener args elements are strings', async () => {
+    const invalidConfig = {
+      openers: {
+        default: { cmd: 'code', args: ['-r', 123, false] },
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('args[1] must be a string');
+  });
 });

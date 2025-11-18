@@ -109,6 +109,47 @@ function mergeConfigs(...configs: Partial<YellowwoodConfig>[]): YellowwoodConfig
         continue;
       }
 
+      if (
+        typedKey === 'openers' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        const mergedOpeners = merged.openers || { default: { cmd: '', args: [] }, byExtension: {}, byGlob: {} };
+        const v = value as any;
+
+        merged.openers = {
+          // Pass through default even if it's invalid - validation will catch it
+          default: v.default !== undefined ? v.default : mergedOpeners.default,
+          byExtension: {
+            ...mergedOpeners.byExtension,
+            // Only merge if it's a valid plain object, otherwise pass through for validation
+            ...(v.byExtension !== undefined &&
+                typeof v.byExtension === 'object' &&
+                v.byExtension !== null &&
+                !Array.isArray(v.byExtension) ? v.byExtension : {}),
+          },
+          byGlob: {
+            ...mergedOpeners.byGlob,
+            // Only merge if it's a valid plain object, otherwise pass through for validation
+            ...(v.byGlob !== undefined &&
+                typeof v.byGlob === 'object' &&
+                v.byGlob !== null &&
+                !Array.isArray(v.byGlob) ? v.byGlob : {}),
+          },
+        };
+
+        // Store invalid byExtension/byGlob for validation to catch
+        if (v.byExtension !== undefined && (typeof v.byExtension !== 'object' || v.byExtension === null || Array.isArray(v.byExtension))) {
+          (merged.openers as any).byExtension = v.byExtension;
+        }
+        if (v.byGlob !== undefined && (typeof v.byGlob !== 'object' || v.byGlob === null || Array.isArray(v.byGlob))) {
+          (merged.openers as any).byGlob = v.byGlob;
+        }
+
+        continue;
+      }
+
       (merged as any)[typedKey] = value;
     }
   }
@@ -179,6 +220,88 @@ function validateConfig(config: unknown): YellowwoodConfig {
     }
     if (typeof c.copytreeDefaults.asReference !== 'boolean') {
       errors.push('config.copytreeDefaults.asReference must be a boolean');
+    }
+  }
+
+  // Validate openers (optional field)
+  if (c.openers !== undefined) {
+    if (!c.openers || typeof c.openers !== 'object') {
+      errors.push('config.openers must be an object');
+    } else {
+      // Validate default opener
+      if (!c.openers.default || typeof c.openers.default !== 'object') {
+        errors.push('config.openers.default must be an object');
+      } else {
+        if (typeof c.openers.default.cmd !== 'string') {
+          errors.push('config.openers.default.cmd must be a string');
+        }
+        if (!Array.isArray(c.openers.default.args)) {
+          errors.push('config.openers.default.args must be an array');
+        } else {
+          // Validate each arg is a string
+          for (let i = 0; i < c.openers.default.args.length; i++) {
+            if (typeof c.openers.default.args[i] !== 'string') {
+              errors.push(`config.openers.default.args[${i}] must be a string`);
+            }
+          }
+        }
+      }
+
+      // Validate byExtension
+      if (c.openers.byExtension !== undefined) {
+        if (typeof c.openers.byExtension !== 'object' || Array.isArray(c.openers.byExtension)) {
+          errors.push('config.openers.byExtension must be an object');
+        } else {
+          for (const [ext, opener] of Object.entries(c.openers.byExtension)) {
+            if (!opener || typeof opener !== 'object') {
+              errors.push(`config.openers.byExtension.${ext} must be an object`);
+            } else {
+              const o = opener as any;
+              if (typeof o.cmd !== 'string') {
+                errors.push(`config.openers.byExtension.${ext}.cmd must be a string`);
+              }
+              if (!Array.isArray(o.args)) {
+                errors.push(`config.openers.byExtension.${ext}.args must be an array`);
+              } else {
+                // Validate each arg is a string
+                for (let i = 0; i < o.args.length; i++) {
+                  if (typeof o.args[i] !== 'string') {
+                    errors.push(`config.openers.byExtension.${ext}.args[${i}] must be a string`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Validate byGlob
+      if (c.openers.byGlob !== undefined) {
+        if (typeof c.openers.byGlob !== 'object' || Array.isArray(c.openers.byGlob)) {
+          errors.push('config.openers.byGlob must be an object');
+        } else {
+          for (const [pattern, opener] of Object.entries(c.openers.byGlob)) {
+            if (!opener || typeof opener !== 'object') {
+              errors.push(`config.openers.byGlob.${pattern} must be an object`);
+            } else {
+              const o = opener as any;
+              if (typeof o.cmd !== 'string') {
+                errors.push(`config.openers.byGlob.${pattern}.cmd must be a string`);
+              }
+              if (!Array.isArray(o.args)) {
+                errors.push(`config.openers.byGlob.${pattern}.args must be an array`);
+              } else {
+                // Validate each arg is a string
+                for (let i = 0; i < o.args.length; i++) {
+                  if (typeof o.args[i] !== 'string') {
+                    errors.push(`config.openers.byGlob.${pattern}.args[${i}] must be a string`);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 
