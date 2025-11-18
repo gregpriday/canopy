@@ -11,7 +11,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/cli.js",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [
@@ -49,6 +51,8 @@
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.6",
-    "typescript": "^5.9.3"
+    "@vitest/coverage-v8": "^4.0.10",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.10"
   }
 }
