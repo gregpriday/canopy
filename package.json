@@ -1,0 +1,54 @@
+{
+  "name": "yellowwood",
+  "version": "0.1.0",
+  "description": "Terminal-based file browser built with ink for developers working with AI agents",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "yellowwood": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/cli.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "terminal",
+    "cli",
+    "file-browser",
+    "tree",
+    "ink",
+    "copytree",
+    "ai",
+    "developer-tools"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "clipboardy": "^5.0.0",
+    "cosmiconfig": "^9.0.0",
+    "execa": "^9.6.0",
+    "fs-extra": "^11.3.2",
+    "globby": "^16.0.0",
+    "ink": "^6.5.0",
+    "ink-select-input": "^6.2.0",
+    "ink-spinner": "^5.0.0",
+    "ink-text-input": "^6.0.0",
+    "react": "^19.2.0",
+    "simple-git": "^3.30.0",
+    "supports-hyperlinks": "^4.3.0",
+    "terminal-size": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^24.10.1",
+    "@types/react": "^19.2.6",
+    "typescript": "^5.9.3"
+  }
+}
