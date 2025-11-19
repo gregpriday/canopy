@@ -122,7 +122,15 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   showFileSize: false,
   showModifiedTime: false,
   respectGitignore: true,
-  customIgnores: [],
+  customIgnores: [
+    '**/.git/**',
+    '**/node_modules/**',
+    '**/dist/**',
+    '**/build/**',
+    '**/.DS_Store',
+    '**/coverage/**',
+    '**/__pycache__/**',
+  ],
   copytreeDefaults: {
     format: 'xml',
     asReference: true,

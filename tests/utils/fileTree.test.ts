@@ -324,7 +324,8 @@ describe('buildFileTree', () => {
     expect(dir?.children).toEqual([]); // No children loaded
   });
 
-  it('handles .git directory visibility exception', async () => {
+  it('excludes .git directory always', async () => {
+    // Create .git directory and a file
     await fs.ensureDir(path.join(testDir, '.git'));
     await fs.writeFile(path.join(testDir, 'file.txt'), 'content');
 
@@ -336,7 +337,7 @@ describe('buildFileTree', () => {
     const tree = await buildFileTree(testDir, config);
 
     const names = tree.map(n => n.name);
-    expect(names).toContain('.git'); // Exception: always included
+    expect(names).not.toContain('.git'); // Now excluded by AI_CONTEXT_IGNORES
     expect(names).toContain('file.txt');
   });
 

@@ -4,6 +4,35 @@ import type { TreeNode, CanopyConfig } from '../types/index.js';
 import { Cache } from './cache.js';
 import { perfMonitor } from './perfMetrics.js';
 
+const AI_CONTEXT_IGNORES = [
+  // Version Control Internals (Noise)
+  '.git',
+  '.svn',
+  '.hg',
+  
+  // OS Metadata (Noise)
+  '.DS_Store',
+  'Thumbs.db',
+  'Desktop.ini',
+  
+  // Dependencies (Too large for context)
+  'node_modules',
+  'bower_components',
+  'jspm_packages',
+  '__pycache__',
+  '.venv',
+  'venv',
+  
+  // Build Artifacts (Derivative data)
+  'dist',
+  'build',
+  'out',
+  'coverage',
+  '.next',
+  '.nuxt',
+  '.output',
+];
+
 // Directory listing cache configuration
 const DIR_LISTING_CACHE = new Cache<string, fs.Dirent[]>({
 	maxSize: 500, // Cache up to 500 directories
@@ -233,15 +262,23 @@ function shouldIncludeFile(
   gitignorePatterns: string[],
   rootPath: string
 ): boolean {
-  // Hidden files (starts with '.')
-  if (!config.showHidden && fileName.startsWith('.')) {
-    // Exception: always include .git directory for git operations
-    if (fileName === '.git') {
-      return true;
-    }
+  // 1. HARD EXCLUSION: Always ignore specific noise files
+  // This overrides everything else.
+  if (AI_CONTEXT_IGNORES.includes(fileName)) {
     return false;
   }
 
+  // 2. HIDDEN FILE LOGIC
+  // If config.showHidden is FALSE, we hide dotfiles.
+  // EXCEPT for specific allow-listed configuration files that are critical for context.
+  if (!config.showHidden && fileName.startsWith('.')) {
+    // Optional: You could add a whitelist here if you want specific files 
+    // to show up even when hidden files are off (e.g., .env).
+    // For now, we respect the setting strictly for dotfiles not in the ignore list.
+    return false; 
+  }
+
+  // 3. CUSTOM IGNORES & GITIGNORE
   // Compute relative path from root for pattern matching
   const relativePath = path.relative(rootPath, filePath);
 

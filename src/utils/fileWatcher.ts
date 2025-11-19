@@ -336,16 +336,17 @@ export function createFileWatcher(
  * @returns Array of patterns for chokidar
  */
 export function buildIgnorePatterns(customIgnores: string[] = []): string[] {
-	// Standard patterns to always ignore
+	// Base ignored patterns for Chokidar
+	// Note: Chokidar performs better with glob strings than regex for paths
 	const standardIgnores = [
 		'**/node_modules/**',
 		'**/.git/**',
 		'**/.DS_Store',
-		'**/Thumbs.db',
-		'**/*.swp',
-		'**/*.swo',
-		'**/.vscode/**',
-		'**/.idea/**',
+		'**/dist/**',
+		'**/build/**',
+		'**/coverage/**',
+		'**/.next/**',
+		'**/__pycache__/**',
 	];
 
 	return [...standardIgnores, ...customIgnores];
