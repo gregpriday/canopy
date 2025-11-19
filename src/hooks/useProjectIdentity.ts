@@ -35,7 +35,6 @@ export function useProjectIdentity(rootPath: string) {
 
     const load = async () => {
       try {
-        const folderName = path.basename(rootPath);
         const [currentHash, cache] = await Promise.all([
           getProjectHash(rootPath),
           loadCache()
@@ -56,7 +55,8 @@ export function useProjectIdentity(rootPath: string) {
         }
 
         // Cache Miss - Generate in background without blocking UI
-        const newIdentity = await generateIdentity(folderName);
+        // Pass the full path so AI can use parent folder context
+        const newIdentity = await generateIdentity(rootPath);
 
         if (newIdentity && isMounted) {
           cache[rootPath] = {

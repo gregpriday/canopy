@@ -427,14 +427,14 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     if (!pathToString) return;
 
     try {
-      // Copy path with @ prefix
-      await copyFilePath(pathToString, activeRootPath, false);
-      const copiedPath = await clipboardy.read();
-      await clipboardy.write(`@${copiedPath}`);
+      await copyFilePath(pathToString, activeRootPath, true);
+      const relativePath = await clipboardy.read();
+      const finalCopiedPath = `@${relativePath}`;
+      await clipboardy.write(finalCopiedPath);
 
       setNotification({
         type: 'success',
-        message: 'Path copied with @ prefix',
+        message: `Copied: ${finalCopiedPath}`,
       });
     } catch (error) {
       setNotification({
