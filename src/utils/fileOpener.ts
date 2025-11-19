@@ -16,10 +16,11 @@ import type { YellowwoodConfig, OpenerConfig } from '../types/index.js';
  */
 export async function openFile(
   filePath: string,
-  config: YellowwoodConfig
+  config: YellowwoodConfig,
+  overrideOpener?: OpenerConfig
 ): Promise<void> {
   // Find the right opener for this file
-  const opener = resolveOpener(filePath, config);
+  const opener = overrideOpener ?? resolveOpener(filePath, config);
 
   // Build full command with args + filepath
   const args = [...opener.args, filePath];
