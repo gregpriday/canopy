@@ -2,6 +2,8 @@ import { resolve } from 'path';
 import { realpathSync } from 'fs';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import type { GitStatus } from '../types/index.js';
+import { GitError } from './errorTypes.js';
+import { logWarn, logError } from './logger.js';
 
 /**
  * Check if a directory is inside a git repository.
@@ -15,7 +17,8 @@ export async function isGitRepository(path: string): Promise<boolean> {
     const isRepo = await git.checkIsRepo();
     return isRepo;
   } catch (error) {
-    // Git not installed or other error
+    // Git not installed or other error - this is expected, not an error
+    logWarn('Git repository check failed', { path, error: (error as Error).message });
     return false;
   }
 }
@@ -92,9 +95,20 @@ export async function getGitStatus(cwd: string): Promise<Map<string, GitStatus>>
     // - Can be added in a future enhancement if needed
 
   } catch (error) {
-    // Not a git repo or git command failed
-    // Return empty map (no git status available)
-    console.warn('Failed to get git status:', (error as Error).message);
+    // Normalize error cause to always be an Error instance
+    const cause = error instanceof Error ? error : new Error(String(error));
+
+    // Git operation failed - wrap in GitError for better context
+    const gitError = new GitError(
+      'Failed to get git status',
+      { cwd },
+      cause
+    );
+
+    // Log before throwing so failures appear in structured logs
+    logError('Git status operation failed', gitError, { cwd });
+
+    throw gitError;
   }
 
   return statusMap;

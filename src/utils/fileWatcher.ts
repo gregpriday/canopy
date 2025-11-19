@@ -1,5 +1,7 @@
 import chokidar, { FSWatcher, ChokidarOptions } from 'chokidar';
 import path from 'path';
+import { WatcherError } from './errorTypes.js';
+import { logWarn, logError, logInfo } from './logger.js';
 
 export interface FileWatcherOptions {
 	ignored?: ChokidarOptions['ignored']; // Patterns to ignore (supports string, RegExp, function, etc.)
@@ -100,7 +102,7 @@ export function createFileWatcher(
 
 	const start = (): void => {
 		if (isActive) {
-			console.warn('File watcher is already running');
+			logWarn('File watcher is already running', { rootPath });
 			return;
 		}
 
@@ -172,7 +174,8 @@ export function createFileWatcher(
 			// Error handler
 			watcher.on('error', (error: unknown) => {
 				const err = error instanceof Error ? error : new Error(String(error));
-				console.error('File watcher error:', err.message);
+				const watcherError = new WatcherError('File watcher error', { rootPath }, err);
+				logError('File watcher error', watcherError);
 
 				// Stop watcher on fatal errors (ENOSPC, EPERM, etc.)
 				// This allows the caller to detect the failure and handle recovery
@@ -182,29 +185,35 @@ export function createFileWatcher(
 					// and allow clean restart if needed
 					if (watcher) {
 						watcher.close().catch((closeError) => {
-							console.error('Error closing watcher after error:', closeError);
+							logError('Error closing watcher after error', closeError);
 						});
 						watcher = null;
 					}
 				}
 
 				if (onError) {
-					onError(err);
+					onError(watcherError);
 				}
 			});
 
 			// Ready handler (watcher is initialized)
 			watcher.on('ready', () => {
-				console.log(`File watcher started for: ${rootPath}`);
+				logInfo('File watcher started', { rootPath });
 			});
 
 			isActive = true;
 		} catch (error) {
-			console.error('Failed to start file watcher:', (error as Error).message);
+			const watcherError = new WatcherError(
+		// Normalize error cause to always be an Error instance
+				'Failed to start file watcher',
+				{ rootPath },
+				error instanceof Error ? error : new Error(String(error))
+			);
+			logError('Failed to start file watcher', watcherError);
 			if (onError) {
-				onError(error as Error);
+				onError(watcherError);
 			}
-			throw error;
+			throw watcherError;
 		}
 	};
 
@@ -223,16 +232,22 @@ export function createFileWatcher(
 		// Close the watcher
 		try {
 			await watcher.close();
-			console.log('File watcher stopped');
+			logInfo('File watcher stopped', { rootPath });
 			watcher = null;
 			isActive = false;
 		} catch (error) {
-			console.error('Error stopping file watcher:', (error as Error).message);
+		// Normalize error cause to always be an Error instance
+			const watcherError = new WatcherError(
+				'Error stopping file watcher',
+				{ rootPath },
+				error instanceof Error ? error : undefined
+			);
+			logError('Error stopping file watcher', watcherError);
 			// Still mark as stopped even if close fails
 			watcher = null;
 			isActive = false;
 			// Rethrow so caller knows about the failure
-			throw error;
+			throw watcherError;
 		}
 	};
 

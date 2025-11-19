@@ -3,6 +3,8 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs-extra';
 import { DEFAULT_CONFIG, type YellowwoodConfig } from '../types/index.js';
+import { ConfigError } from './errorTypes.js';
+import { logWarn, logError } from './logger.js';
 
 /**
  * Loads Yellowwood configuration from project and global config files.
@@ -31,7 +33,7 @@ export async function loadConfig(cwd: string = process.cwd()): Promise<Yellowwoo
     projectConfig = projectResult?.config || {};
   } catch (error) {
     // Handle malformed JSON or other config file errors
-    console.warn(`Warning: Could not load project config:`, (error as Error).message);
+    logWarn('Could not load project config', { cwd, error: (error as Error).message });
     // Continue with empty project config (fall back to global/defaults)
   }
 
@@ -69,7 +71,7 @@ async function loadGlobalConfig(): Promise<Partial<YellowwoodConfig>> {
       return {}; // File disappeared between check and read - that's OK
     }
     // JSON parse error or permission error - log and continue with empty config
-    console.warn(`Warning: Could not load global config from ${globalPath}:`, (error as Error).message);
+    logWarn('Could not load global config', { globalPath, error: (error as Error).message });
     return {};
   }
 }
@@ -330,14 +332,17 @@ function validateConfig(config: unknown): YellowwoodConfig {
   }
 
   if (errors.length > 0) {
-    throw new Error(`Config validation failed:\n${errors.join('\n')}`);
+    throw new ConfigError(
+      `Config validation failed:\n${errors.join('\n')}`,
+      { config: c }
+    );
   }
 
   // Warn about unknown keys
   const knownKeys = Object.keys(DEFAULT_CONFIG);
   const unknownKeys = Object.keys(c).filter(key => !knownKeys.includes(key));
   if (unknownKeys.length > 0) {
-    console.warn(`Warning: Unknown config keys (will be ignored): ${unknownKeys.join(', ')}`);
+    logWarn('Unknown config keys (will be ignored)', { keys: unknownKeys });
   }
 
   return c as YellowwoodConfig;

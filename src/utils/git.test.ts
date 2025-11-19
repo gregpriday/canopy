@@ -4,6 +4,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { simpleGit } from 'simple-git';
+import { GitError } from './errorTypes.js';
 
 describe('git utilities', () => {
   let testRepoPath: string;
@@ -140,9 +141,17 @@ describe('git utilities', () => {
       expect(statusMap.size).toBe(3);
     });
 
-    it('returns empty map for non-git directory', async () => {
-      const statusMap = await getGitStatus(nonRepoPath);
-      expect(statusMap.size).toBe(0);
+    it('throws GitError for non-git directory', async () => {
+      await expect(getGitStatus(nonRepoPath)).rejects.toThrow(GitError);
+      await expect(getGitStatus(nonRepoPath)).rejects.toThrow('Failed to get git status');
+
+      // Verify error context includes cwd
+      try {
+        await getGitStatus(nonRepoPath);
+      } catch (error) {
+        expect(error).toBeInstanceOf(GitError);
+        expect((error as GitError).context?.cwd).toBe(nonRepoPath);
+      }
     });
 
     it('returns absolute paths in the map', async () => {
@@ -262,9 +271,17 @@ describe('git utilities', () => {
       const isRepo = await isGitRepository(nonexistentPath);
       expect(isRepo).toBe(false);
 
-      // getGitStatus should also handle gracefully
-      const statusMap = await getGitStatus(nonexistentPath);
-      expect(statusMap.size).toBe(0);
+      // getGitStatus should throw GitError for nonexistent directory
+      await expect(getGitStatus(nonexistentPath)).rejects.toThrow(GitError);
+      await expect(getGitStatus(nonexistentPath)).rejects.toThrow('Failed to get git status');
+
+      // Verify error context
+      try {
+        await getGitStatus(nonexistentPath);
+      } catch (error) {
+        expect(error).toBeInstanceOf(GitError);
+        expect((error as GitError).context?.cwd).toBe(nonexistentPath);
+      }
     });
 
     it('excludes ignored files from status', async () => {
