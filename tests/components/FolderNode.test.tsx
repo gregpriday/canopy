@@ -29,10 +29,6 @@ describe('FolderNode', () => {
     if (node.type === 'directory') return 'blue';
     return 'white';
   };
-  const mockRenderChild = vi.fn((child: TreeNodeType) => (
-    <div key={child.path}>{child.name}</div>
-  ));
-
   it('renders collapsed folder with ▶ icon', () => {
     const node: TreeNodeType = {
       name: 'src',
@@ -49,7 +45,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -79,7 +74,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -108,7 +102,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -136,7 +129,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -165,7 +157,6 @@ describe('FolderNode', () => {
         config={configNoGit}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -200,7 +191,6 @@ describe('FolderNode', () => {
           config={mockConfig}
           mapGitStatusMarker={mockMapGitStatusMarker}
           getNodeColor={mockGetNodeColor}
-          renderChild={mockRenderChild}
         />
       );
 
@@ -208,12 +198,9 @@ describe('FolderNode', () => {
     });
   });
 
-  it('renders children when expanded', () => {
-    // Create a fresh mock for this test to avoid accumulation
-    const freshRenderChild = vi.fn((child: TreeNodeType) => (
-      <div key={child.path}>{child.name}</div>
-    ));
-
+  it('renders folder without children (virtualization handles children)', () => {
+    // With virtualization, FolderNode no longer recursively renders children
+    // TreeView flattens the tree and renders each node individually
     const node: TreeNodeType = {
       name: 'parent',
       path: '/parent',
@@ -226,58 +213,21 @@ describe('FolderNode', () => {
       ],
     };
 
-    render(
+    const { lastFrame } = render(
       <FolderNode
         node={node}
         selected={false}
-        
-        
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={freshRenderChild}
       />
     );
 
-    // Verify that renderChild was called with both children
-    // Note: May be called multiple times due to React rendering behavior (e.g., StrictMode)
-    expect(freshRenderChild).toHaveBeenCalledWith(node.children![0]);
-    expect(freshRenderChild).toHaveBeenCalledWith(node.children![1]);
-  });
-
-  it('does not render children when collapsed', () => {
-    // Create a fresh mock for this test
-    const freshRenderChild = vi.fn((child: TreeNodeType) => (
-      <div key={child.path}>{child.name}</div>
-    ));
-
-    const node: TreeNodeType = {
-      name: 'collapsed',
-      path: '/collapsed',
-      type: 'directory',
-      depth: 0,
-      expanded: false,
-      children: [
-        { name: 'hidden.txt', path: '/collapsed/hidden.txt', type: 'file', depth: 1 },
-      ],
-    };
-
-    render(
-      <FolderNode
-        node={node}
-        selected={false}
-        
-        
-        
-        config={mockConfig}
-        mapGitStatusMarker={mockMapGitStatusMarker}
-        getNodeColor={mockGetNodeColor}
-        renderChild={freshRenderChild}
-      />
-    );
-
-    expect(freshRenderChild).not.toHaveBeenCalled();
+    const output = lastFrame();
+    // Should only render the folder itself, not children
+    expect(output).toContain('parent');
+    expect(output).not.toContain('child1.txt');
+    expect(output).not.toContain('child2.txt');
   });
 
   it('handles missing children gracefully', () => {
@@ -300,7 +250,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -329,7 +278,6 @@ describe('FolderNode', () => {
         config={customConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -355,7 +303,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColorSpy}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -392,7 +339,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 
@@ -406,7 +352,6 @@ describe('FolderNode', () => {
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
-        renderChild={mockRenderChild}
       />
     );
 

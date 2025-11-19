@@ -73,19 +73,6 @@ export function TreeNode({
   onToggle,
   config,
 }: TreeNodeProps): React.JSX.Element {
-  // Helper to recursively render child nodes
-  const renderChild = (child: TreeNodeType): React.JSX.Element => (
-    <TreeNode
-      key={child.path}
-      node={child}
-      selected={child.path === selectedPath}
-      selectedPath={selectedPath}
-      onSelect={onSelect}
-      onToggle={onToggle}
-      config={config}
-    />
-  );
-
   // Delegate to FolderNode or FileNode based on type
   if (node.type === 'directory') {
     return (
@@ -95,7 +82,6 @@ export function TreeNode({
         config={config}
         mapGitStatusMarker={mapGitStatusMarker}
         getNodeColor={getNodeColor}
-        renderChild={renderChild}
       />
     );
   }
