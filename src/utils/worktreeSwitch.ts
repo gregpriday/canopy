@@ -27,6 +27,12 @@ export interface SwitchWorktreeOptions {
     onAddDir?: (path: string) => void;
     onUnlinkDir?: (path: string) => void;
   };
+
+  /** Disable file watching (from CLI --no-watch flag) */
+  noWatch?: boolean;
+
+  /** Initial filter pattern to apply (from CLI --filter flag) */
+  initialFilter?: string;
 }
 
 export interface SwitchWorktreeResult {
@@ -55,6 +61,8 @@ export async function switchWorktree(options: SwitchWorktreeOptions): Promise<Sw
     selectedPath,
     config,
     onFileChange,
+    noWatch = false,
+    initialFilter,
   } = options;
 
   // Step 1: Stop the current watcher cleanly
@@ -64,7 +72,14 @@ export async function switchWorktree(options: SwitchWorktreeOptions): Promise<Sw
   }
 
   // Step 2: Build file tree for the new worktree
-  const newTree = await buildFileTree(targetWorktree.path, config);
+  let newTree = await buildFileTree(targetWorktree.path, config);
+
+  // Step 2.5: Apply initial filter if provided
+  if (initialFilter) {
+    // Import filter utility dynamically to avoid circular deps
+    const { filterTreeByName } = await import('./filter.js');
+    newTree = filterTreeByName(newTree, initialFilter);
+  }
 
   // Step 3: Attempt to preserve selection
   let newSelectedPath: string | null = null;
@@ -79,15 +94,19 @@ export async function switchWorktree(options: SwitchWorktreeOptions): Promise<Sw
     // If path doesn't exist in new worktree, selection is cleared (null)
   }
 
-  // Step 4: Start watcher for the new worktree
-  const newWatcher = createFileWatcher(targetWorktree.path, {
-    debounce: config.refreshDebounce,
-    ignored: config.respectGitignore ? ['**/.git/**', '**/node_modules/**'] : [],
-    ...onFileChange,
-  });
+  // Step 4: Start watcher for the new worktree (unless noWatch is true)
+  const newWatcher = noWatch
+    ? createNullWatcher() // Create a no-op watcher when watching is disabled
+    : createFileWatcher(targetWorktree.path, {
+        debounce: config.refreshDebounce,
+        ignored: config.respectGitignore ? ['**/.git/**', '**/node_modules/**'] : [],
+        ...onFileChange,
+      });
 
-  // Start the watcher immediately
-  newWatcher.start();
+  // Start the watcher immediately (no-op if noWatch)
+  if (!noWatch) {
+    newWatcher.start();
+  }
 
   // Step 5: Return everything caller needs
   return {
@@ -155,4 +174,16 @@ function findPathInTree(tree: TreeNode[], targetPath: string, worktreeRoot: stri
   }
 
   return false;
+}
+
+/**
+ * Create a no-op file watcher for when --no-watch is enabled.
+ * Returns a FileWatcher interface with methods that do nothing.
+ */
+function createNullWatcher(): FileWatcher {
+  return {
+    start: () => {},
+    stop: async () => {},
+    isWatching: () => false,
+  };
 }
