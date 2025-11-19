@@ -102,7 +102,7 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     }
 
     return attachGitStatus(tree);
-  }, [tree, gitStatusMap, gitStatusSignature]);
+  }, [tree, gitStatusSignature]);
 
   // Apply filter to tree when filterQuery changes
   const filteredTree = useMemo(() => {
