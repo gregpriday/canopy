@@ -1,8 +1,8 @@
 # Canopy
 
-> The tall tree from which you oversee your AI agents at work.
+> Rise above the forest floor. Watch your AI agents work from the canopy.
 
-A terminal-based file browser built with Ink (React for CLIs) that transforms your terminal into a lightweight IDE. Named after South Africa's tallest indigenous tree, the Outeniqua Canopy, symbolizing oversight and observation from a commanding vantage point.
+A terminal-based file browser built with Ink (React for CLIs) that transforms your terminal into a lightweight IDE. The canopy is where you get perspective—the highest vantage point in the forest, where you can see everything below.
 
 ## The Philosophy
 
@@ -21,18 +21,20 @@ Running `ls -R` or `git status` constantly breaks your flow and pulls focus from
 **Canopy sits in a narrow, balanced split in your terminal multiplexer** (Ghostty, tmux, or any terminal with split support). Think of it as the missing file tree sidebar for your terminal-based workflow:
 
 ```
-┌─────────────┬──────────────────────────────────────┐
-│   Canopy    │        AI Agent (Claude Code)        │
-│  (passive)  │           (active work)              │
-│             │                                      │
-│ 📁 src/     │ > Implementing authentication...     │
-│   📄 App.ts │                                      │
-│   M auth.ts │ [████████████░░░░░░] 60%            │
-│   A login.. │                                      │
-│ 📁 tests/   │ $ npm test                          │
-│   M auth... │ ✓ All tests passing                 │
-└─────────────┴──────────────────────────────────────┘
-   60-70 cols              Remaining space
+┌─────────────────┐  ┌──────────────────────────────────────┐
+│ Canopy          │  │ AI Agent (Claude Code)               │
+│ (passive view)  │  │ (active work)                        │
+├─────────────────┤  ├──────────────────────────────────────┤
+│                 │  │                                      │
+│ src/            │  │ > Implementing authentication...     │
+│   App.ts        │  │                                      │
+│ M auth.ts       │  │ Progress: [===========   ] 60%       │
+│ A login.ts      │  │                                      │
+│ tests/          │  │ $ npm test                           │
+│ M auth.test.ts  │  │ ✓ All tests passing                  │
+│                 │  │                                      │
+└─────────────────┘  └──────────────────────────────────────┘
+  60-70 cols           Remaining terminal width
 ```
 
 **Left pane:** Canopy provides passive observability—a real-time view of your file system
@@ -79,7 +81,7 @@ Press `c` on any file to copy its path to your clipboard. Use it to:
 - Share context between different AI sessions
 - Build up file lists for batch operations
 
-Integration with [CopyTree](https://github.com/gpriday/copytree) allows one-keystroke context extraction directly into your LLM prompts.
+Integration with [CopyTree](https://github.com/gregpriday/copytree) allows one-keystroke context extraction directly into your LLM prompts.
 
 ## Installation
 

@@ -69,13 +69,26 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
       // 2. Execute command
       const output = await runCopyTree(activeRootPath);
       
-      // 3. Parse the last non-empty line for the result message
-      const lines = output.trim().split('\n').filter(line => line.trim() !== '');
-      const lastLine = lines.length > 0 ? lines[lines.length - 1] : 'Copied!';
+      // 3. Parse the output strictly
+      // Split by newlines, trim whitespace from every line, remove empty lines
+      const lines = output
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0);
+
+      // 4. Get the last line or a fallback
+      let lastLine = lines.length > 0 ? lines[lines.length - 1] : 'Copied!';
+
+      // 5. CRITICAL: Strip ANSI codes (colors, cursor moves) that break Ink layouts
+      // This regex matches standard ANSI escape sequences
+      // eslint-disable-next-line no-control-regex
+      lastLine = lastLine.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 
       setFeedback({ message: lastLine, type: 'success' });
     } catch (error: any) {
-      setFeedback({ message: error.message, type: 'error' });
+      // Normalize error message to single line
+      const errorMsg = (error.message || 'Failed').split('\n')[0];
+      setFeedback({ message: errorMsg, type: 'error' });
     }
   };
 
@@ -175,8 +188,9 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
     >
       {feedback ? (
         // FEEDBACK MODE
-        // We assume height={2} to match the 2 lines of stats, preventing layout jump
-        <Box flexDirection="column" height={2} justifyContent="center">
+        // We explicitly set height={2} to match the stats mode height exactly.
+        // We use justifyContent="center" to vertically align the single line of text.
+        <Box height={2} justifyContent="center" width="100%">
            <Text 
              color={feedback.type === 'success' ? 'green' : 'red'}
              wrap="truncate-end"
