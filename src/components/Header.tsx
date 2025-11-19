@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text } from 'ink';
 import { relative } from 'node:path';
 import type { Worktree } from '../types/index.js';
 
@@ -20,13 +20,8 @@ export const Header: React.FC<HeaderProps> = ({
   worktreeCount = 0,
   onWorktreeClick,
 }) => {
-  // Handle keyboard input for worktree panel (w key)
-  // Only trigger when filter is not active to avoid intercepting filter input
-  useInput((input, key) => {
-    if (!filterActive && input === 'w' && onWorktreeClick && currentWorktree) {
-      onWorktreeClick();
-    }
-  });
+  // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
+  // the global useKeyboard hook to avoid conflicts with the global keyboard contract
 
   // Determine worktree display name - use branch, then name, then 'detached'
   const worktreeName = currentWorktree?.branch ?? currentWorktree?.name ?? 'detached';
