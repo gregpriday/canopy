@@ -5,15 +5,15 @@ import { Notification } from '../../src/components/Notification.js';
 import type { Notification as NotificationType } from '../../src/types/index.js';
 
 describe('Notification', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
+  // beforeEach(() => {
+  //   vi.useFakeTimers();
+  // });
 
-  afterEach(() => {
-    vi.runOnlyPendingTimers();
-    vi.useRealTimers();
-    vi.clearAllMocks();
-  });
+  // afterEach(() => {
+  //   vi.runOnlyPendingTimers();
+  //   vi.useRealTimers();
+  //   vi.clearAllMocks();
+  // });
 
   it('renders nothing when notification is null', () => {
     const onDismiss = vi.fn();
