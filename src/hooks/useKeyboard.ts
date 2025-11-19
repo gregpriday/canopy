@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useInput, useStdin } from 'ink';
 
 /**
@@ -41,6 +41,8 @@ export interface KeyboardHandlers {
   onOpenHelp?: () => void;         // ? key
   onOpenContextMenu?: () => void;  // m key
   onQuit?: () => void;             // q key
+  onForceExit?: () => void;        // Ctrl+C (second press)
+  onWarnExit?: () => void;         // Ctrl+C (first press)
 }
 
 /**
@@ -68,6 +70,7 @@ const END_SEQUENCES = new Set(['\u001B[F', '\u001BOF', '\u001B[4~', '\u001B[8~',
 
 export function useKeyboard(handlers: KeyboardHandlers): void {
   const { stdin } = useStdin();
+  const [exitConfirm, setExitConfirm] = useState(false);
 
   useEffect(() => {
     if (!stdin || (!handlers.onHome && !handlers.onEnd)) {
@@ -98,6 +101,31 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
   }, [stdin, handlers.onHome, handlers.onEnd]);
 
   useInput((input, key) => {
+    // Handle Ctrl+C (Exit)
+    if (key.ctrl && input === 'c') {
+      if (exitConfirm) {
+        // Second press: quit
+        if (handlers.onForceExit) {
+          handlers.onForceExit();
+        }
+      } else {
+        // First press: warn
+        setExitConfirm(true);
+        if (handlers.onWarnExit) {
+          handlers.onWarnExit();
+        }
+        
+        // Reset confirmation state after 2 seconds
+        setTimeout(() => setExitConfirm(false), 2000);
+      }
+      return; // Stop propagation
+    }
+
+    // Reset exit confirm if user does anything else
+    if (exitConfirm) {
+      setExitConfirm(false);
+    }
+
     // Navigation - Arrow keys
     if (key.upArrow && handlers.onNavigateUp) {
       handlers.onNavigateUp();

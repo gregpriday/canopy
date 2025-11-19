@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useApp } from 'ink';
 import { Header } from './components/Header.js';
 import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
@@ -42,6 +42,8 @@ interface AppProps {
 }
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
+  const { exit } = useApp();
+
   // Centralized lifecycle management
   const {
     status: lifecycleStatus,
@@ -552,7 +554,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     // Clear git status (cleanup)
     clearGitStatus();
     // Exit
-    process.exit(0);
+    exit();
   };
 
   // CopyTree builder placeholder
@@ -616,6 +618,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onOpenHelp: handleOpenHelp, // Always active - toggles help
     onOpenContextMenu: anyModalOpen ? undefined : handleOpenContextMenu,
     onQuit: handleQuit, // Always active - can quit from anywhere
+    onForceExit: handleQuit,
+    onWarnExit: () => {
+      setNotification({
+        type: 'warning',
+        message: 'Press Ctrl+C again to quit',
+      });
+    },
   });
 
   // Create effective config with git marker visibility applied

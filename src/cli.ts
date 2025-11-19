@@ -200,6 +200,10 @@ function showVersion(): void {
   }
 }
 
+// ANSI codes for Alternate Screen Buffer
+const ENTER_ALT_SCREEN = '\x1b[?1049h';
+const EXIT_ALT_SCREEN = '\x1b[?1049l';
+
 /**
  * Main CLI entry point.
  */
@@ -229,17 +233,31 @@ async function main(): Promise<void> {
       ...parsedArgs.configOverrides,
     };
 
+    // Enter Alternate Screen
+    process.stdout.write(ENTER_ALT_SCREEN);
+
     // Render the Ink app
-    render(
+    const { waitUntilExit } = render(
       React.createElement(App, {
         cwd: parsedArgs.cwd,
         config: finalConfig,
         noWatch: parsedArgs.noWatch,
         noGit: parsedArgs.noGit,
         initialFilter: parsedArgs.initialFilter,
-      })
+      }),
+      { exitOnCtrlC: false }
     );
+
+    await waitUntilExit();
+
+    // Exit Alternate Screen on clean exit
+    process.stdout.write(EXIT_ALT_SCREEN);
+    process.exit(0);
+
   } catch (error) {
+    // Ensure we restore screen even on error
+    process.stdout.write(EXIT_ALT_SCREEN);
+
     // Handle CLI parsing errors
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`);
