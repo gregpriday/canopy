@@ -188,14 +188,37 @@ function shouldIncludeFile(
  * For more complex patterns, consider using minimatch or globby.
  */
 function matchPattern(filename: string, pattern: string): boolean {
+  const normalizeToPosix = (value: string): string => {
+    if (!value) {
+      return '';
+    }
+    const withSlashes = value.replace(/\\/g, '/').replace(/\/+/g, '/');
+    if (withSlashes === '/') {
+      return '/';
+    }
+    return withSlashes.replace(/\/$/, '');
+  };
+
+  const normalizedFilename = normalizeToPosix(filename);
+  let normalizedPattern = normalizeToPosix(pattern);
+
+  const isDirectoryPattern = normalizedPattern.endsWith('/');
+  if (isDirectoryPattern && normalizedPattern !== '/') {
+    normalizedPattern = normalizedPattern.replace(/\/+$/, '');
+  }
+
   // Escape all regex metacharacters EXCEPT * and ?, then expand glob wildcards
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const escaped = normalizedPattern.replace(/[.+^${}()|[\]\\]/g, '\\$&');
   const regexPattern = escaped
     .replace(/\*/g, '.*')
     .replace(/\?/g, '.');
 
-  const regex = new RegExp(`^${regexPattern}$`);
-  return regex.test(filename);
+  const regexSource = isDirectoryPattern
+    ? `^${regexPattern}(?:/.*)?$`
+    : `^${regexPattern}$`;
+
+  const regex = new RegExp(regexSource);
+  return regex.test(normalizedFilename);
 }
 
 /**

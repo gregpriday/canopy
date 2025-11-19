@@ -47,19 +47,21 @@ function filterNodeByName(node: TreeNode, pattern: string, visited: Set<string> 
     return null; // Skip circular references
   }
 
-  visited.add(node.path);
-
   const nameMatches = matchesFuzzy(node.name.toLowerCase(), pattern);
 
   // For files: include if name matches
   if (node.type === 'file') {
+    visited.add(node.path);
     return nameMatches ? cloneNode(node) : null;
   }
 
   // For folders: if folder name matches, include it with all descendants
   if (nameMatches) {
-    return deepCloneNode(node);
+    // Pass visited set to preserve cycle guard (deepCloneNode will add this node)
+    return deepCloneNode(node, visited);
   }
+
+  visited.add(node.path);
 
   // For folders: check children recursively
   if (node.children) {
