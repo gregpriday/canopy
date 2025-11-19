@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text } from 'ink';
 import { Header } from './components/Header.js';
 import { TreeView } from './components/TreeView.js';
@@ -10,6 +10,9 @@ import { executeCommand } from './commands/index.js';
 import type { CommandContext } from './commands/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { getWorktrees, getCurrentWorktree } from './utils/worktree.js';
+import { useGitStatus } from './hooks/useGitStatus.js';
+import { switchWorktree } from './utils/worktreeSwitch.js';
+import type { FileWatcher } from './utils/fileWatcher.js';
 
 interface AppProps {
   cwd: string;
@@ -35,6 +38,20 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   // Worktree state
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
+  const [activeRootPath, setActiveRootPath] = useState<string>(cwd);
+
+  // File watcher ref
+  const watcherRef = useRef<FileWatcher | null>(null);
+
+  // Git status hook - tracks the active root path
+  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus } = useGitStatus(
+    activeRootPath,
+    config.showGitStatus,
+    config.refreshDebounce,
+  );
+
+  const refreshGitStatusRef = useRef(refreshGitStatus);
+  refreshGitStatusRef.current = refreshGitStatus;
 
   useEffect(() => {
     let isMounted = true;
@@ -147,8 +164,8 @@ const App: React.FC<AppProps> = ({ cwd }) => {
         filterActive,
         filterQuery,
         filteredPaths: [],
-        gitStatus: new Map(),
-        gitEnabled: config.showGitStatus,
+        gitStatus,
+        gitEnabled,
         notification,
         commandBarActive,
         commandBarInput,
@@ -175,9 +192,65 @@ const App: React.FC<AppProps> = ({ cwd }) => {
       worktrees,
       activeWorktreeId,
       switchToWorktree: async (targetWorktree: Worktree) => {
-        // For now, just update the active worktree ID
-        // Full implementation with file watcher and tree rebuilding would go here
-        setActiveWorktreeId(targetWorktree.id);
+        try {
+          setLoading(true);
+
+          // Step 1: Clear git status immediately to prevent stale markers
+          if (config.showGitStatus) {
+            clearGitStatus();
+          }
+
+          // Step 2: Switch worktree (stops old watcher, builds tree, starts new watcher)
+          const triggerGitRefresh = (_path?: string) => {
+            if (config.showGitStatus) {
+              refreshGitStatusRef.current();
+            }
+          };
+
+          const result = await switchWorktree({
+            targetWorktree,
+            currentWatcher: watcherRef.current,
+            currentTree: fileTree,
+            selectedPath,
+            config,
+            onFileChange: {
+              onAdd: triggerGitRefresh,
+              onChange: triggerGitRefresh,
+              onUnlink: triggerGitRefresh,
+              onAddDir: triggerGitRefresh,
+              onUnlinkDir: triggerGitRefresh,
+            },
+          });
+
+          // Step 3: Update state with new tree, watcher, and selection
+          setFileTree(result.tree);
+          setOriginalFileTree(result.tree);
+          setSelectedPath(result.selectedPath || '');
+          watcherRef.current = result.watcher;
+          setActiveWorktreeId(targetWorktree.id);
+          setActiveRootPath(targetWorktree.path);
+
+          // Step 4: Refresh git status for new worktree
+          // The useGitStatus hook will automatically refresh when activeRootPath changes,
+          // but we call refresh explicitly to ensure immediate update
+          if (config.showGitStatus) {
+            refreshGitStatusRef.current();
+          }
+
+          // Step 5: Show success notification
+          setNotification({
+            type: 'success',
+            message: `Switched to worktree: ${targetWorktree.name}`,
+          });
+
+        } catch (error) {
+          setNotification({
+            type: 'error',
+            message: `Failed to switch worktree: ${(error as Error).message}`,
+          });
+        } finally {
+          setLoading(false);
+        }
       },
     };
 

@@ -12,6 +12,8 @@ export interface UseGitStatusReturn {
 	gitEnabled: boolean;
 	/** Manually refresh git status (debounced) */
 	refresh: () => void;
+	/** Clear git status immediately (for worktree switches) */
+	clear: () => void;
 }
 
 /**
@@ -137,12 +139,35 @@ export function useGitStatus(
 	}, [fetchGitStatus, debounceMs]);
 
 	/**
+	 * Clear git status immediately (synchronous).
+	 * Used during worktree switches to prevent stale markers.
+	 * Invalidates any in-flight requests.
+	 */
+	const clear = useCallback(() => {
+		// Invalidate any pending requests
+		++requestIdRef.current;
+
+		// Clear any pending debounce timer
+		if (debounceTimerRef.current) {
+			clearTimeout(debounceTimerRef.current);
+			debounceTimerRef.current = null;
+		}
+
+		// Immediately clear state
+		setGitStatus(new Map());
+		setGitEnabled(false);
+	}, []);
+
+	/**
 	 * Load initial git status on mount and when cwd/enabled changes.
-	 * This is NOT debounced - we want immediate feedback on directory change.
+	 * Clear state immediately before fetching to prevent stale data.
 	 */
 	useEffect(() => {
 		// Mark component as mounted
 		isMountedRef.current = true;
+
+		// Clear state immediately when cwd changes
+		clear();
 
 		// Immediate fetch (no debounce for initial load)
 		fetchGitStatus();
@@ -156,11 +181,12 @@ export function useGitStatus(
 				debounceTimerRef.current = null;
 			}
 		};
-	}, [fetchGitStatus]);
+	}, [fetchGitStatus, clear]);
 
 	return {
 		gitStatus,
 		gitEnabled,
 		refresh,
+		clear,
 	};
 }

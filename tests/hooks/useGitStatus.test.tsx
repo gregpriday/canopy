@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { useGitStatus } from '../../src/hooks/useGitStatus.js';
 import * as gitUtils from '../../src/utils/git.js';
 import fs from 'fs-extra';
@@ -388,5 +388,197 @@ describe('useGitStatus', () => {
 		// Clean repository - no changes
 		expect(result.current.gitStatus.size).toBe(0);
 		expect(result.current.gitStatus).toBeInstanceOf(Map);
+	});
+
+	it('exposes clear method', () => {
+		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		expect(typeof result.current.clear).toBe('function');
+	});
+
+	it('clear() empties git status map immediately', async () => {
+		// Set up repo with modified files
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(
+			new Map([
+				['file1.txt', 'modified'],
+				['file2.txt', 'added'],
+			])
+		);
+
+		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		// Wait for initial load
+		await waitFor(() => {
+			expect(result.current.gitStatus.size).toBe(2);
+		});
+
+		expect(result.current.gitEnabled).toBe(true);
+
+		// Call clear
+		act(() => {
+			result.current.clear();
+		});
+
+		// Should immediately clear status
+		expect(result.current.gitStatus.size).toBe(0);
+		expect(result.current.gitEnabled).toBe(false);
+	});
+
+	it('clear() cancels pending refresh', async () => {
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(new Map());
+
+		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		await waitFor(() => {
+			expect(result.current.gitEnabled).toBe(true);
+		});
+
+		vi.clearAllMocks();
+
+		// Schedule a refresh (will be debounced for 100ms)
+		act(() => {
+			result.current.refresh();
+		});
+
+		// Immediately clear before refresh timer fires
+		act(() => {
+			result.current.clear();
+		});
+
+		// Wait longer than debounce time
+		await new Promise(resolve => setTimeout(resolve, 200));
+
+		// Refresh should have been canceled - no call to getGitStatus
+		expect(gitUtils.getGitStatus).not.toHaveBeenCalled();
+	});
+
+	it('clear() invalidates in-flight requests', async () => {
+		// Mock slow git status fetch
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockImplementation(async () => {
+			await new Promise(resolve => setTimeout(resolve, 100));
+			return new Map([['file.txt', 'modified']]);
+		});
+
+		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		// Wait for initial load to start
+		await new Promise(resolve => setTimeout(resolve, 10));
+
+		// Clear while fetch is in-flight
+		act(() => {
+			result.current.clear();
+		});
+
+		// Wait for the fetch to complete
+		await new Promise(resolve => setTimeout(resolve, 150));
+
+		// Status should remain empty (in-flight request was invalidated)
+		expect(result.current.gitStatus.size).toBe(0);
+		expect(result.current.gitEnabled).toBe(false);
+	});
+
+	it('clears status immediately when cwd changes', async () => {
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(
+			new Map([['file1.txt', 'modified']])
+		);
+
+		const { result, rerender } = renderHook(
+			({ cwd }) => useGitStatus(cwd, true),
+			{ initialProps: { cwd: testRepoPath } }
+		);
+
+		// Wait for initial load
+		await waitFor(() => {
+			expect(result.current.gitStatus.size).toBe(1);
+		});
+
+		// Mock new status for new cwd
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(
+			new Map([['file2.txt', 'added']])
+		);
+
+		// Change cwd
+		rerender({ cwd: nonRepoPath });
+
+		// Status should be immediately cleared (synchronously)
+		expect(result.current.gitStatus.size).toBe(0);
+		expect(result.current.gitEnabled).toBe(false);
+
+		// Wait for new status to load
+		await waitFor(() => {
+			expect(result.current.gitStatus.size).toBe(1);
+		});
+
+		expect(result.current.gitStatus.get('file2.txt')).toBe('added');
+	});
+
+	it('preserves clear function reference across renders', async () => {
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(new Map());
+
+		const { result, rerender } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		await waitFor(() => {
+			expect(result.current.gitEnabled).toBe(true);
+		});
+
+		const firstClear = result.current.clear;
+
+		// Trigger re-render
+		rerender();
+
+		// Clear function should be stable
+		expect(result.current.clear).toBe(firstClear);
+	});
+
+	it('allows refresh after clear when enabled remains true', async () => {
+		// Initial state: one modified file
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(
+			new Map([['file1.txt', 'modified']])
+		);
+
+		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		// Wait for initial load
+		await waitFor(() => {
+			expect(result.current.gitStatus.size).toBe(1);
+		});
+
+		// Call clear
+		act(() => {
+			result.current.clear();
+		});
+
+		// Status should be empty
+		expect(result.current.gitStatus.size).toBe(0);
+		expect(result.current.gitEnabled).toBe(false);
+
+		// Mock new status for refresh
+		vi.mocked(gitUtils.getGitStatus).mockResolvedValue(
+			new Map([
+				['file1.txt', 'modified'],
+				['file2.txt', 'added'],
+			])
+		);
+
+		// Call refresh to repopulate
+		act(() => {
+			result.current.refresh();
+		});
+
+		// Wait for refresh to complete
+		await waitFor(() => {
+			expect(result.current.gitStatus.size).toBe(2);
+		}, { timeout: 500 });
+
+		// Status should be repopulated
+		expect(result.current.gitStatus.get('file1.txt')).toBe('modified');
+		expect(result.current.gitStatus.get('file2.txt')).toBe('added');
+		expect(result.current.gitEnabled).toBe(true);
 	});
 });
