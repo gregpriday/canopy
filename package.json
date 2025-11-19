@@ -1,5 +1,5 @@
 {
-  "name": "@gregpriday/canopy",
+  "name": "@gpriday/canopy",
   "version": "0.1.0",
   "description": "Terminal-based file browser built with ink for developers working with AI agents",
   "type": "module",
