@@ -43,6 +43,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "minimatch": "^10.1.1",
+    "openai": "^6.9.1",
     "react": "^19.2.0",
     "simple-git": "^3.30.0",
     "supports-hyperlinks": "^4.3.0",

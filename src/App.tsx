@@ -20,6 +20,7 @@ import { openFile } from './utils/fileOpener.js';
 import { copyFilePath } from './utils/clipboard.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
+import { useProjectEmoji } from './hooks/useProjectEmoji.js';
 import { createFileWatcher, buildIgnorePatterns } from './utils/fileWatcher.js';
 import type { FileWatcher } from './utils/fileWatcher.js';
 import { saveSessionState } from './utils/state.js';
@@ -124,6 +125,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     noGit ? false : config.showGitStatus,
     config.refreshDebounce,
   );
+
+  const projectEmoji = useProjectEmoji(activeRootPath);
 
   const refreshGitStatusRef = useRef(refreshGitStatus);
   refreshGitStatusRef.current = refreshGitStatus;
@@ -688,6 +691,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         currentWorktree={currentWorktree}
         worktreeCount={worktrees.length}
         onWorktreeClick={() => setIsWorktreePanelOpen(true)}
+        projectEmoji={projectEmoji}
       />
       <Box flexGrow={1}>
         <TreeView

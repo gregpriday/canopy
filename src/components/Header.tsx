@@ -10,6 +10,7 @@ interface HeaderProps {
   currentWorktree?: Worktree | null;
   worktreeCount?: number;
   onWorktreeClick?: () => void;
+  projectEmoji?: string | null;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +20,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentWorktree,
   worktreeCount = 0,
   onWorktreeClick,
+  projectEmoji,
 }) => {
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
   // the global useKeyboard hook to avoid conflicts with the global keyboard contract
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <Box borderStyle="single" paddingX={1}>
+      {projectEmoji ? <Text>{projectEmoji} </Text> : null}
       <Text bold>Canopy</Text>
 
       {showWorktreeIndicator && (

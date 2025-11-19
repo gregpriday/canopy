@@ -367,4 +367,36 @@ describe('Header', () => {
       expect(output).not.toMatch(/Canopy\s+-\s+/);
     });
   });
+
+  describe('emoji rendering', () => {
+    it('renders project emoji when provided', () => {
+      const { lastFrame } = render(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          projectEmoji="🚀"
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('🚀 Canopy');
+    });
+
+    it('does not render emoji space when emoji is null', () => {
+      const { lastFrame } = render(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          projectEmoji={null}
+        />
+      );
+
+      const output = lastFrame();
+      // Should just start with Canopy (ignoring border chars)
+      expect(output).toContain('Canopy');
+      expect(output).not.toContain('🚀');
+    });
+  });
 });

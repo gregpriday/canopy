@@ -29,9 +29,7 @@ export function Notification({ notification, onDismiss }: NotificationProps): Re
   // Allow manual dismiss with ESC or Enter only while a notification is visible
   useInput(
     (_input, key) => {
-      console.log('notification useInput effect executing');
       if (!notification) return;
-      console.log('Notification useInput handler invoked');
       if (key.escape || key.return) {
         onDismiss();
       }
