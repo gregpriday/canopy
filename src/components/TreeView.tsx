@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import type { TreeNode, YellowwoodConfig } from '../types/index.js';
 import { TreeNode as TreeNodeComponent } from './TreeNode.js';
 import {
   flattenVisibleTree,
   calculateVisibleWindow,
-  calculateViewportHeight,
   findNodeIndex,
   calculateScrollToNode,
 } from '../utils/treeViewVirtualization.js';
 import { useKeyboard } from '../hooks/useKeyboard.js';
 import { useMouse } from '../hooks/useMouse.js';
+import { useViewportHeight } from '../hooks/useViewportHeight.js';
 import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 
 interface TreeViewProps {
@@ -32,30 +32,16 @@ export const TreeView: React.FC<TreeViewProps> = ({
   onToggleExpand,
   disableKeyboard = false,
 }) => {
-  const { stdout } = useStdout();
+  // Viewport height from shared hook
+  const viewportHeight = useViewportHeight();
 
-  // Viewport state
-  const [viewportHeight, setViewportHeight] = useState(() => calculateViewportHeight());
+  // Scroll state
   const [scrollOffset, setScrollOffset] = useState(0);
 
   // Track expanded folders (use controlled if provided, otherwise internal state)
   const [internalExpandedPaths, setInternalExpandedPaths] = useState<Set<string>>(new Set());
   const isControlledExpansion = controlledExpandedPaths != null && onToggleExpand != null;
   const expandedPaths = isControlledExpansion ? controlledExpandedPaths : internalExpandedPaths;
-
-  // Update viewport height on terminal resize
-  useEffect(() => {
-    const handleResize = () => {
-      setViewportHeight(calculateViewportHeight());
-    };
-
-    if (stdout) {
-      stdout.on('resize', handleResize);
-      return () => {
-        stdout.off('resize', handleResize);
-      };
-    }
-  }, [stdout]);
 
   // Flatten the tree (memoized - only recalculate when tree structure or expansion changes)
   const flattenedTree = useMemo<FlattenedNode[]>(() => {

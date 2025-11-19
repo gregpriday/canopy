@@ -6,6 +6,7 @@ import { StatusBar } from './components/StatusBar.js';
 import { CommandBar } from './components/CommandBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
+import { HelpModal } from './components/HelpModal.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import { DEFAULT_CONFIG } from './types/index.js';
 import type { YellowwoodConfig, TreeNode, Notification, Worktree } from './types/index.js';
@@ -14,6 +15,7 @@ import type { CommandContext } from './commands/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
+import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile } from './utils/fileOpener.js';
 import { copyFilePath } from './utils/clipboard.js';
 import path from 'path';
@@ -21,6 +23,15 @@ import { useGitStatus } from './hooks/useGitStatus.js';
 import { createFileWatcher, buildIgnorePatterns } from './utils/fileWatcher.js';
 import type { FileWatcher } from './utils/fileWatcher.js';
 import { saveSessionState } from './utils/state.js';
+import {
+  createFlattenedTree,
+  moveSelection,
+  jumpToStart,
+  jumpToEnd,
+  getCurrentNode,
+  getRightArrowAction,
+  getLeftArrowAction,
+} from './utils/treeNavigation.js';
 
 interface AppProps {
   cwd: string;
@@ -72,6 +83,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const [isWorktreePanelOpen, setIsWorktreePanelOpen] = useState(false);
 
+  // Modal/overlay state
+  const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // Git visibility state (separate from gitEnabled - allows toggling display without stopping git fetching)
+  const [showGitMarkers, setShowGitMarkers] = useState(config.showGitStatus && !noGit);
+
   // Sync active worktree/path from lifecycle on initialization
   useEffect(() => {
     if (lifecycleStatus === 'ready') {
@@ -117,6 +134,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Viewport height for navigation calculations
+  const viewportHeight = useViewportHeight();
+
+  // Flattened tree for keyboard navigation (memoized)
+  const flattenedTree = useMemo(
+    () => createFlattenedTree(fileTree, expandedFolders),
+    [fileTree, expandedFolders]
+  );
 
   // Cleanup watcher on unmount and save session state
   useEffect(() => {
@@ -242,21 +268,24 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setCommandBarInput('');
   };
 
-  // Handle filter clear (ESC key when filter is active)
+  // Handle filter clear / ESC key (closes modals/overlays in priority order)
   const handleClearFilter = () => {
-    if (filterActive) {
+    // Priority order: help modal, context menu, worktree panel, command bar, filter
+    if (showHelpModal) {
+      setShowHelpModal(false);
+    } else if (contextMenuOpen) {
+      setContextMenuOpen(false);
+    } else if (isWorktreePanelOpen) {
+      setIsWorktreePanelOpen(false);
+    } else if (commandBarActive) {
+      handleCloseCommandBar();
+    } else if (filterActive) {
       setFilterActive(false);
       setFilterQuery('');
       setNotification({
         type: 'info',
         message: 'Filter cleared',
       });
-    } else if (commandBarActive) {
-      // ESC in command bar closes it
-      handleCloseCommandBar();
-    } else if (isWorktreePanelOpen) {
-      // ESC in worktree panel closes it
-      setIsWorktreePanelOpen(false);
     }
   };
 
@@ -343,9 +372,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         selectedPath: selectedPath || '',
         cursorPosition: 0,
         showPreview: false,
-        showHelp: false,
-        contextMenuOpen: false,
-        contextMenuPosition: { x: 0, y: 0 },
+        showHelp: showHelpModal,
+        contextMenuOpen: contextMenuOpen,
+        contextMenuPosition,
         filterActive,
         filterQuery,
         filteredPaths: [],
@@ -435,25 +464,165 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setContextMenuOpen(true);
   };
 
+  // Navigation handlers using shared navigation logic
+  const handleNavigateUp = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = moveSelection(flattenedTree, selectedPath || '', -1);
+    selectPath(newPath);
+  };
+
+  const handleNavigateDown = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = moveSelection(flattenedTree, selectedPath || '', 1);
+    selectPath(newPath);
+  };
+
+  const handlePageUp = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = moveSelection(flattenedTree, selectedPath || '', -viewportHeight);
+    selectPath(newPath);
+  };
+
+  const handlePageDown = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = moveSelection(flattenedTree, selectedPath || '', viewportHeight);
+    selectPath(newPath);
+  };
+
+  const handleHome = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = jumpToStart(flattenedTree);
+    if (newPath) selectPath(newPath);
+  };
+
+  const handleEnd = () => {
+    if (flattenedTree.length === 0) return;
+    const newPath = jumpToEnd(flattenedTree);
+    if (newPath) selectPath(newPath);
+  };
+
+  const handleNavigateLeft = () => {
+    if (flattenedTree.length === 0) return;
+    const currentNode = getCurrentNode(flattenedTree, selectedPath || '');
+    const action = getLeftArrowAction(currentNode, flattenedTree, expandedFolders);
+
+    if (action.type === 'collapse' && action.path) {
+      toggleFolder(action.path);
+    } else if (action.type === 'parent' && action.path) {
+      selectPath(action.path);
+    }
+  };
+
+  const handleNavigateRight = () => {
+    if (flattenedTree.length === 0) return;
+    const currentNode = getCurrentNode(flattenedTree, selectedPath || '');
+    const action = getRightArrowAction(currentNode, expandedFolders);
+
+    if (action === 'expand' && currentNode) {
+      toggleFolder(currentNode.path);
+    } else if (action === 'open') {
+      handleOpenSelectedFile();
+    }
+  };
+
+  // Git marker visibility toggle
+  const handleToggleGitStatus = () => {
+    setShowGitMarkers(!showGitMarkers);
+    setNotification({
+      type: 'info',
+      message: showGitMarkers ? 'Git markers hidden' : 'Git markers shown',
+    });
+  };
+
+  // Help modal toggle
+  const handleOpenHelp = () => {
+    setShowHelpModal(!showHelpModal);
+  };
+
+  // Quit handler
+  const handleQuit = async () => {
+    // Stop file watcher
+    if (watcherRef.current) {
+      try {
+        await watcherRef.current.stop();
+      } catch (error) {
+        console.error('Error stopping watcher on quit:', error);
+      }
+    }
+    // Clear git status (cleanup)
+    clearGitStatus();
+    // Exit
+    process.exit(0);
+  };
+
+  // CopyTree builder placeholder
+  const handleOpenCopyTreeBuilder = () => {
+    setNotification({
+      type: 'info',
+      message: 'CopyTree builder coming in Phase 2',
+    });
+  };
+
+  // Filter with prefill (Ctrl+F)
+  const handleOpenFilter = () => {
+    setCommandBarActive(true);
+    setCommandBarInput('/filter ');
+  };
+
+  // Determine if keyboard handlers should be disabled (modal/overlay is open)
+  const anyModalOpen = showHelpModal || commandBarActive || contextMenuOpen || isWorktreePanelOpen;
+
   // Set up keyboard handlers
   useKeyboard({
-    onOpenCommandBar: handleOpenCommandBar,
-    onClearFilter: handleClearFilter,
-    onNextWorktree: handleNextWorktree,
-    onOpenWorktreePanel: () => setIsWorktreePanelOpen(true),
-    onOpenFile: handleOpenSelectedFile,
-    onCopyPath: handleCopySelectedPath,
-    onOpenContextMenu: handleOpenContextMenu,
-    onToggleExpand: () => {
+    // Navigation (disabled when modal open)
+    onNavigateUp: anyModalOpen ? undefined : handleNavigateUp,
+    onNavigateDown: anyModalOpen ? undefined : handleNavigateDown,
+    onNavigateLeft: anyModalOpen ? undefined : handleNavigateLeft,
+    onNavigateRight: anyModalOpen ? undefined : handleNavigateRight,
+    onPageUp: anyModalOpen ? undefined : handlePageUp,
+    onPageDown: anyModalOpen ? undefined : handlePageDown,
+    onHome: anyModalOpen ? undefined : handleHome,
+    onEnd: anyModalOpen ? undefined : handleEnd,
+
+    // File/folder actions (disabled when modal open)
+    onOpenFile: anyModalOpen ? undefined : handleOpenSelectedFile,
+    onToggleExpand: anyModalOpen ? undefined : () => {
       if (selectedPath) {
         toggleFolder(selectedPath);
       }
     },
-    onRefresh: () => {
+
+    // Commands (some work with modals)
+    onOpenCommandBar: anyModalOpen ? undefined : handleOpenCommandBar,
+    onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
+    onClearFilter: handleClearFilter, // Always active - closes modals
+
+    // Worktrees (disabled when modal open)
+    onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
+    onOpenWorktreePanel: anyModalOpen ? undefined : () => setIsWorktreePanelOpen(true),
+
+    // Git (disabled when modal open)
+    onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
+
+    // Copy (disabled when modal open)
+    onCopyPath: anyModalOpen ? undefined : handleCopySelectedPath,
+    onOpenCopyTreeBuilder: anyModalOpen ? undefined : handleOpenCopyTreeBuilder,
+
+    // UI actions
+    onRefresh: anyModalOpen ? undefined : () => {
       refreshTree();
       refreshGitStatus();
     },
+    onOpenHelp: handleOpenHelp, // Always active - toggles help
+    onOpenContextMenu: anyModalOpen ? undefined : handleOpenContextMenu,
+    onQuit: handleQuit, // Always active - can quit from anywhere
   });
+
+  // Create effective config with git marker visibility applied
+  const effectiveConfig = useMemo(
+    () => ({ ...config, showGitStatus: showGitMarkers }),
+    [config, showGitMarkers]
+  );
 
   // Show loading screen during lifecycle initialization
   if (lifecycleStatus === 'initializing') {
@@ -501,7 +670,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           fileTree={fileTree}
           selectedPath={selectedPath || ''}
           onSelect={selectPath}
-          config={config}
+          config={effectiveConfig}
           expandedPaths={expandedFolders}
           onToggleExpand={toggleFolder}
           disableKeyboard={true}
@@ -557,6 +726,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => setIsWorktreePanelOpen(false)}
         />
       )}
+      <HelpModal
+        visible={showHelpModal}
+        onClose={() => setShowHelpModal(false)}
+      />
     </Box>
   );
 };
