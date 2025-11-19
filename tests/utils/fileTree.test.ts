@@ -1,23 +1,26 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { buildFileTree } from '../../src/utils/fileTree.js';
+import { buildFileTree, clearDirCache } from '../../src/utils/fileTree.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { YellowwoodConfig } from '../../src/types/index.js';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 
+let dirCounter = 0;
+
 describe('buildFileTree', () => {
   let testDir: string;
 
   beforeEach(async () => {
     // Create temp directory for tests
-    testDir = path.join(os.tmpdir(), `yellowwood-tree-test-${Date.now()}`);
+    testDir = path.join(os.tmpdir(), `yellowwood-tree-test-${Date.now()}-${dirCounter++}`);
     await fs.ensureDir(testDir);
   });
 
   afterEach(async () => {
     // Clean up
     await fs.remove(testDir);
+    clearDirCache();
   });
 
   it('builds tree for empty directory', async () => {
@@ -29,7 +32,13 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'file1.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'file2.txt'), 'content');
 
-    const tree = await buildFileTree(testDir, DEFAULT_CONFIG);
+    const config: YellowwoodConfig = {
+      ...DEFAULT_CONFIG,
+      showFileSize: true,
+      showModifiedTime: true,
+    };
+
+    const tree = await buildFileTree(testDir, config);
 
     expect(tree).toHaveLength(2);
     expect(tree[0].name).toBe('file1.txt');
@@ -247,6 +256,7 @@ describe('buildFileTree', () => {
       ...DEFAULT_CONFIG,
       sortBy: 'size',
       sortDirection: 'asc',
+      showFileSize: true,
     };
 
     const tree = await buildFileTree(testDir, config);
@@ -265,6 +275,7 @@ describe('buildFileTree', () => {
       ...DEFAULT_CONFIG,
       sortBy: 'modified',
       sortDirection: 'asc',
+      showModifiedTime: true,
     };
 
     const tree = await buildFileTree(testDir, config);
@@ -425,6 +436,7 @@ describe('buildFileTree', () => {
       ...DEFAULT_CONFIG,
       sortBy: 'size',
       sortDirection: 'desc',
+      showFileSize: true,
     };
 
     const tree = await buildFileTree(testDir, config);
@@ -441,6 +453,7 @@ describe('buildFileTree', () => {
       ...DEFAULT_CONFIG,
       sortBy: 'modified',
       sortDirection: 'desc',
+      showModifiedTime: true,
     };
 
     const tree = await buildFileTree(testDir, config);

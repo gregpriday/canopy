@@ -145,7 +145,7 @@ async function buildTreeRecursive(
 
     try {
       // Create node with metadata
-      const node = await createTreeNode(entryPath, entry.name, currentDepth);
+      const node = await createTreeNode(entryPath, entry, currentDepth, config);
 
       // Recursively build children for directories
       if (node.type === 'directory') {
@@ -180,30 +180,39 @@ async function buildTreeRecursive(
 
 /**
  * Create a TreeNode for a file or directory.
- * Gathers metadata (size, modified time) via fs.stat.
+ * Gathers metadata (size, modified time) via fs.stat only if configured.
  */
 async function createTreeNode(
   entryPath: string,
-  entryName: string,
-  currentDepth: number
+  entry: fs.Dirent,
+  currentDepth: number,
+  config: YellowwoodConfig
 ): Promise<TreeNode> {
-  // Use lstat to not follow symlinks
-  const stat = await fs.lstat(entryPath);
+  const isDirectory = entry.isDirectory();
 
   const node: TreeNode = {
-    name: entryName,
+    name: entry.name,
     path: entryPath,
-    type: stat.isDirectory() ? 'directory' : 'file',
+    type: isDirectory ? 'directory' : 'file',
     depth: currentDepth,
     expanded: false,
   };
 
-  // Add optional metadata
-  if (stat.isFile()) {
-    node.size = stat.size;
+  // PERFORMANCE FIX: Only run fs.lstat if we strictly need metadata
+  if (config.showFileSize || config.showModifiedTime) {
+    try {
+      // Use lstat to not follow symlinks
+      const stat = await fs.lstat(entryPath);
+      if (config.showFileSize && !isDirectory) {
+        node.size = stat.size;
+      }
+      if (config.showModifiedTime) {
+        node.modified = stat.mtime;
+      }
+    } catch (e) {
+      // Ignore stat errors
+    }
   }
-
-  node.modified = stat.mtime;
 
   // Initialize children array for directories
   if (node.type === 'directory') {

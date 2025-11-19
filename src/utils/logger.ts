@@ -14,6 +14,9 @@ interface LogContext {
 // Sensitive keys that should be redacted from logs
 const SENSITIVE_KEYS = new Set(['token', 'password', 'apiKey', 'secret', 'accessToken', 'refreshToken']);
 
+// Add a check for debug mode
+const IS_DEBUG = process.env.NODE_ENV === 'development' || process.env.YELLOWWOOD_DEBUG;
+
 /**
  * Safely stringify values, handling circular references and sensitive data
  */
@@ -49,7 +52,7 @@ function safeStringify(value: unknown): string {
  * Log a debug message (development only, filtered in production)
  */
 export function logDebug(message: string, context?: LogContext): void {
-  if (process.env.NODE_ENV === 'development' || process.env.YELLOWWOOD_DEBUG) {
+  if (IS_DEBUG) {
     console.log(`[DEBUG] ${message}`, context ? safeStringify(context) : '');
   }
 }
@@ -58,14 +61,18 @@ export function logDebug(message: string, context?: LogContext): void {
  * Log an info message
  */
 export function logInfo(message: string, context?: LogContext): void {
-  console.log(`[INFO] ${message}`, context ? safeStringify(context) : '');
+  if (IS_DEBUG) {
+    console.log(`[INFO] ${message}`, context ? safeStringify(context) : '');
+  }
 }
 
 /**
  * Log a warning message
  */
 export function logWarn(message: string, context?: LogContext): void {
-  console.warn(`[WARN] ${message}`, context ? safeStringify(context) : '');
+  if (IS_DEBUG) {
+    console.warn(`[WARN] ${message}`, context ? safeStringify(context) : '');
+  }
 }
 
 /**

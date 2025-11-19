@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Box, Text, useApp } from 'ink';
+import { Box, Text, useApp, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
@@ -43,6 +43,21 @@ interface AppProps {
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
   const { exit } = useApp();
+  const { stdout } = useStdout();
+  const [height, setHeight] = useState(stdout?.rows || 24);
+
+  useEffect(() => {
+    if (!stdout) return;
+    
+    const handleResize = () => {
+      setHeight(stdout.rows);
+    };
+
+    stdout.on('resize', handleResize);
+    return () => {
+      stdout.off('resize', handleResize);
+    };
+  }, [stdout]);
 
   // Centralized lifecycle management
   const {
@@ -665,7 +680,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const showTreeLoading = treeLoading && fileTree.length === 0;
 
   return (
-    <Box flexDirection="column" height="100%">
+    <Box flexDirection="column" height={height}>
       <Header
         cwd={cwd}
         filterActive={filterActive}
