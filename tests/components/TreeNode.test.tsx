@@ -232,47 +232,6 @@ describe('TreeNode', () => {
     // but the component should use default white color instead of yellow/red
   });
 
-  it('recursively renders children when folder is expanded', () => {
-    const node: TreeNodeType = {
-      name: 'src',
-      path: '/src',
-      type: 'directory',
-      depth: 0,
-      expanded: true,
-      children: [
-        {
-          name: 'file1.txt',
-          path: '/src/file1.txt',
-          type: 'file',
-          depth: 1,
-        },
-        {
-          name: 'file2.txt',
-          path: '/src/file2.txt',
-          type: 'file',
-          depth: 1,
-        },
-      ],
-    };
-
-    const { lastFrame } = render(
-      <TreeNode
-        node={node}
-        selected={false}
-        selectedPath=""
-        onSelect={mockOnSelect}
-        onToggle={mockOnToggle}
-        config={mockConfig}
-      />
-    );
-
-    const output = lastFrame();
-    // Unicode may render as replacement character in test env
-    expect(output).toMatch(/[▼�] src/);
-    expect(output).toContain('- file1.txt');
-    expect(output).toContain('- file2.txt');
-  });
-
   it('does not render children when folder is collapsed', () => {
     const node: TreeNodeType = {
       name: 'src',
@@ -329,47 +288,6 @@ describe('TreeNode', () => {
     // Check that output contains the filename
     // (exact styling may vary, but file should be there)
     expect(lastFrame()).toContain('selected.txt');
-  });
-
-  it('recursively highlights deeply nested selected node', () => {
-    const node: TreeNodeType = {
-      name: 'root',
-      path: '/root',
-      type: 'directory',
-      depth: 0,
-      expanded: true,
-      children: [
-        {
-          name: 'child',
-          path: '/root/child',
-          type: 'directory',
-          depth: 1,
-          expanded: true,
-          children: [
-            {
-              name: 'grandchild.txt',
-              path: '/root/child/grandchild.txt',
-              type: 'file',
-              depth: 2,
-            },
-          ],
-        },
-      ],
-    };
-
-    const { lastFrame } = render(
-      <TreeNode
-        node={node}
-        selected={false}
-        selectedPath="/root/child/grandchild.txt"
-        onSelect={mockOnSelect}
-        onToggle={mockOnToggle}
-        config={mockConfig}
-      />
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('grandchild.txt');
   });
 
   it('handles node with no children array', () => {

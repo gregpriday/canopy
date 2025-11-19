@@ -8,12 +8,11 @@ interface FolderNodeProps {
   config: YellowwoodConfig;
   mapGitStatusMarker: (status: GitStatus) => string;
   getNodeColor: (node: TreeNodeType, selected: boolean, showGitStatus: boolean) => string;
-  renderChild: (child: TreeNodeType) => React.JSX.Element;
 }
 
 /**
- * FolderNode component - renders a directory node with expansion icon, name,
- * git status, and recursively renders children when expanded.
+ * FolderNode component - renders a directory node with expansion icon, name, and git status.
+ * With virtualization, child rendering is handled by TreeView, not recursively here.
  */
 export function FolderNode({
   node,
@@ -21,7 +20,6 @@ export function FolderNode({
   config,
   mapGitStatusMarker,
   getNodeColor,
-  renderChild,
 }: FolderNodeProps): React.JSX.Element {
   // Calculate indentation based on depth
   const indent = ' '.repeat(node.depth * config.treeIndent);
@@ -42,20 +40,10 @@ export function FolderNode({
   const dimmed = !selected && node.gitStatus === 'deleted';
 
   return (
-    <Box flexDirection="column">
-      {/* Folder row */}
-      <Box>
-        <Text color={color} dimColor={dimmed} bold={selected}>
-          {indent}{icon} {node.name}{gitMarker}
-        </Text>
-      </Box>
-
-      {/* Recursively render children if expanded */}
-      {node.expanded && node.children && node.children.length > 0 && (
-        <>
-          {node.children.map((child) => renderChild(child))}
-        </>
-      )}
+    <Box>
+      <Text color={color} dimColor={dimmed} bold={selected}>
+        {indent}{icon} {node.name}{gitMarker}
+      </Text>
     </Box>
   );
 }
