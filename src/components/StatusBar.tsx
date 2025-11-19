@@ -24,7 +24,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ notification, fileCount, m
               <Text color="yellow">{modifiedCount} modified</Text>
             </>
           )}
-          <Text dimColor> " Press </Text>
+          <Text dimColor> Press </Text>
           <Text bold>?</Text>
           <Text dimColor> for help</Text>
         </>
