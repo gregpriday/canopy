@@ -1,11 +1,11 @@
 {
-  "name": "yellowwood",
+  "name": "@gregpriday/canopy",
   "version": "0.1.0",
   "description": "Terminal-based file browser built with ink for developers working with AI agents",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "yellowwood": "./dist/cli.js"
+    "canopy": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

@@ -1,7 +1,7 @@
 import { execa } from 'execa';
 import path from 'path';
 import { minimatch } from 'minimatch';
-import type { YellowwoodConfig, OpenerConfig } from '../types/index.js';
+import type { CanopyConfig, OpenerConfig } from '../types/index.js';
 
 /**
  * Open a file using the configured opener.
@@ -11,12 +11,12 @@ import type { YellowwoodConfig, OpenerConfig } from '../types/index.js';
  * 3. default - fallback opener
  *
  * @param filePath - Absolute path to file to open
- * @param config - Yellowwood configuration
+ * @param config - Canopy configuration
  * @throws Error if editor command fails or is not found
  */
 export async function openFile(
   filePath: string,
-  config: YellowwoodConfig,
+  config: CanopyConfig,
   overrideOpener?: OpenerConfig
 ): Promise<void> {
   // Find the right opener for this file
@@ -69,10 +69,10 @@ export async function openFile(
  * Checks in order: byExtension, byGlob, default.
  *
  * @param filePath - Path to file
- * @param config - Yellowwood configuration
+ * @param config - Canopy configuration
  * @returns OpenerConfig to use
  */
-function resolveOpener(filePath: string, config: YellowwoodConfig): OpenerConfig {
+function resolveOpener(filePath: string, config: CanopyConfig): OpenerConfig {
   const openers = config.openers;
 
   // Handle case where openers not configured - fall back to editor/editorArgs

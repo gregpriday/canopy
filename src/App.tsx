@@ -9,7 +9,7 @@ import { WorktreePanel } from './components/WorktreePanel.js';
 import { HelpModal } from './components/HelpModal.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import { DEFAULT_CONFIG } from './types/index.js';
-import type { YellowwoodConfig, TreeNode, Notification, Worktree } from './types/index.js';
+import type { CanopyConfig, TreeNode, Notification, Worktree } from './types/index.js';
 import { executeCommand } from './commands/index.js';
 import type { CommandContext } from './commands/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
@@ -35,7 +35,7 @@ import {
 
 interface AppProps {
   cwd: string;
-  config?: YellowwoodConfig;
+  config?: CanopyConfig;
   noWatch?: boolean;
   noGit?: boolean;
   initialFilter?: string;
@@ -652,7 +652,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   if (lifecycleStatus === 'initializing') {
     return (
       <Box flexDirection="column" padding={1}>
-        <Text>Loading Yellowwood...</Text>
+        <Text>Loading Canopy...</Text>
         <Text dimColor>Initializing configuration and file tree for {cwd}</Text>
       </Box>
     );
@@ -666,7 +666,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           Initialization Error
         </Text>
         <Text> </Text>
-        <Text>Failed to initialize Yellowwood:</Text>
+        <Text>Failed to initialize Canopy:</Text>
         <Text italic color="yellow">
           {lifecycleError?.message || 'Unknown error'}
         </Text>

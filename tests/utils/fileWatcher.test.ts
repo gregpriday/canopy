@@ -11,8 +11,9 @@ describe('fileWatcher', () => {
 	let testDir: string;
 
 	beforeEach(async () => {
-		testDir = path.join(os.tmpdir(), `yellowwood-watcher-test-${Date.now()}`);
-		await fs.ensureDir(testDir);
+		const tmpDir = path.join(os.tmpdir(), `canopy-watcher-test-${Date.now()}`);
+		await fs.ensureDir(tmpDir);
+		testDir = await fs.realpath(tmpDir);
 	});
 
 	afterEach(async () => {
@@ -187,7 +188,7 @@ describe('fileWatcher', () => {
 			const onAdd = vi.fn();
 			const watcher = createFileWatcher(testDir, {
 				onAdd,
-				ignored: ['**/*.log'],
+				ignored: [(path) => path.endsWith('.log')],
 				debounce: 50,
 			});
 

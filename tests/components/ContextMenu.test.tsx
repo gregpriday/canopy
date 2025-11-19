@@ -3,7 +3,7 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ContextMenu } from '../../src/components/ContextMenu.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import type { YellowwoodConfig } from '../../src/types/index.js';
+import type { CanopyConfig } from '../../src/types/index.js';
 import * as fileOpener from '../../src/utils/fileOpener.js';
 import * as clipboard from '../../src/utils/clipboard.js';
 import { execa } from 'execa';
@@ -82,7 +82,7 @@ describe('ContextMenu', () => {
 	});
 
 	it('uses selected opener from "Open with..." menu', async () => {
-		const config: YellowwoodConfig = {
+		const config: CanopyConfig = {
 			...DEFAULT_CONFIG,
 			openers: {
 				default: { cmd: 'code', args: ['-r'] },
@@ -266,7 +266,7 @@ describe('ContextMenu', () => {
 	});
 
 	it('computes available openers based on file extension', () => {
-		const config: YellowwoodConfig = {
+		const config: CanopyConfig = {
 			...DEFAULT_CONFIG,
 			openers: {
 				default: { cmd: 'code', args: ['-r'] },

@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import type { TreeNode, YellowwoodConfig, GitStatus } from '../types/index.js';
+import type { TreeNode, CanopyConfig, GitStatus } from '../types/index.js';
 import { buildFileTree } from '../utils/fileTree.js';
 import { filterTreeByName, filterTreeByGitStatus } from '../utils/filter.js';
 
 export interface UseFileTreeOptions {
   rootPath: string;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
   filterQuery?: string | null;
   gitStatusMap?: Map<string, GitStatus>;
   gitStatusFilter?: GitStatus | GitStatus[] | null;

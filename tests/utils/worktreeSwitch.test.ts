@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { switchWorktree } from '../../src/utils/worktreeSwitch.js';
-import type { Worktree, YellowwoodConfig } from '../../src/types/index.js';
+import type { Worktree, CanopyConfig } from '../../src/types/index.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { FileWatcher } from '../../src/utils/fileWatcher.js';
 import fs from 'fs-extra';
@@ -17,7 +17,7 @@ describe('switchWorktree', () => {
 
   beforeEach(async () => {
     // Create temp directory for test repo
-    const tmpPath = path.join(os.tmpdir(), `yellowwood-switch-test-${Date.now()}`);
+    const tmpPath = path.join(os.tmpdir(), `canopy-switch-test-${Date.now()}`);
     await fs.ensureDir(tmpPath);
     testRepoPath = await fs.realpath(tmpPath);
 
@@ -45,7 +45,7 @@ describe('switchWorktree', () => {
 
     // Set up worktree paths
     mainWorktreePath = testRepoPath;
-    const tmpFeaturePath = path.join(testRepoPath, '..', 'feature-worktree');
+    const tmpFeaturePath = path.join(os.tmpdir(), `canopy-wt-feature-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
     // Create feature worktree
     await git.raw(['worktree', 'add', tmpFeaturePath, 'feature']);
@@ -365,7 +365,7 @@ describe('switchWorktree', () => {
     };
 
     // Config with showHidden = false
-    const configNoHidden: YellowwoodConfig = {
+    const configNoHidden: CanopyConfig = {
       ...DEFAULT_CONFIG,
       showHidden: false,
     };
@@ -430,7 +430,7 @@ describe('switchWorktree', () => {
     };
 
     // Test with respectGitignore = true
-    const configWithGitignore: YellowwoodConfig = {
+    const configWithGitignore: CanopyConfig = {
       ...DEFAULT_CONFIG,
       respectGitignore: true,
     };
@@ -450,7 +450,7 @@ describe('switchWorktree', () => {
     await result1.watcher.stop();
 
     // Test with respectGitignore = false
-    const configWithoutGitignore: YellowwoodConfig = {
+    const configWithoutGitignore: CanopyConfig = {
       ...DEFAULT_CONFIG,
       respectGitignore: false,
     };

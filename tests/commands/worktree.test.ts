@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { worktreeCommand } from '../../src/commands/worktree.js';
 import type { CommandContext } from '../../src/commands/types.js';
-import type { YellowwoodState, Worktree } from '../../src/types/index.js';
+import type { CanopyState, Worktree } from '../../src/types/index.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 
 // Helper to create test worktrees
@@ -25,7 +25,7 @@ function createTestContext(
   worktrees: Worktree[] = [],
   activeWorktreeId: string | null = null
 ): CommandContext {
-  const state: YellowwoodState = {
+  const state: CanopyState = {
     fileTree: [],
     expandedFolders: new Set(),
     selectedPath: '',

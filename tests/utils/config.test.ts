@@ -10,7 +10,7 @@ describe('loadConfig', () => {
 
   beforeEach(async () => {
     // Create temp directory for test files
-    tempDir = path.join(os.tmpdir(), `yellowwood-test-${Date.now()}`);
+    tempDir = path.join(os.tmpdir(), `canopy-test-${Date.now()}`);
     await fs.ensureDir(tempDir);
   });
 
@@ -24,9 +24,9 @@ describe('loadConfig', () => {
     expect(config).toEqual(DEFAULT_CONFIG);
   });
 
-  it('loads project config from .yellowwood.json', async () => {
+  it('loads project config from .canopy.json', async () => {
     const projectConfig = { editor: 'vim', treeIndent: 4 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('vim');
@@ -36,7 +36,7 @@ describe('loadConfig', () => {
 
   it('merges partial config with defaults', async () => {
     const partialConfig = { showHidden: true };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), partialConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), partialConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.showHidden).toBe(true);
@@ -45,7 +45,7 @@ describe('loadConfig', () => {
   });
 
   it('handles malformed JSON gracefully', async () => {
-    await fs.writeFile(path.join(tempDir, '.yellowwood.json'), '{ invalid json }');
+    await fs.writeFile(path.join(tempDir, '.canopy.json'), '{ invalid json }');
 
     // Should not throw, should fall back to defaults
     const config = await loadConfig(tempDir);
@@ -54,7 +54,7 @@ describe('loadConfig', () => {
 
   it('validates config types and throws on invalid values', async () => {
     const invalidConfig = { treeIndent: 'not a number' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('treeIndent must be a non-negative number');
   });
@@ -66,7 +66,7 @@ describe('loadConfig', () => {
         // asReference not specified - should keep default true
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.copytreeDefaults.format).toBe('markdown');
@@ -75,56 +75,56 @@ describe('loadConfig', () => {
 
   it('validates all boolean fields', async () => {
     const invalidConfig = { showHidden: 'yes' }; // Should be boolean
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('showHidden must be a boolean');
   });
 
   it('validates theme field accepts only valid values', async () => {
     const invalidConfig = { theme: 'invalid' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('theme must be "auto", "dark", or "light"');
   });
 
   it('validates sortBy field accepts only valid values', async () => {
     const invalidConfig = { sortBy: 'invalid' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('sortBy must be "name", "size", "modified", or "type"');
   });
 
   it('validates sortDirection field accepts only valid values', async () => {
     const invalidConfig = { sortDirection: 'invalid' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('sortDirection must be "asc" or "desc"');
   });
 
   it('validates editorArgs is an array', async () => {
     const invalidConfig = { editorArgs: 'not-an-array' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('editorArgs must be an array');
   });
 
   it('validates customIgnores is an array', async () => {
     const invalidConfig = { customIgnores: 'not-an-array' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('customIgnores must be an array');
   });
 
   it('validates maxDepth is null or non-negative number', async () => {
     const invalidConfig = { maxDepth: -1 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('maxDepth must be null or a non-negative number');
   });
 
   it('validates refreshDebounce is non-negative number', async () => {
     const invalidConfig = { refreshDebounce: -100 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('refreshDebounce must be a non-negative number');
   });
@@ -136,7 +136,7 @@ describe('loadConfig', () => {
         asReference: true,
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('copytreeDefaults.format must be a string');
   });
@@ -148,39 +148,39 @@ describe('loadConfig', () => {
         asReference: 'yes',
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('copytreeDefaults.asReference must be a boolean');
   });
 
   it('accepts maxDepth as null', async () => {
     const validConfig = { maxDepth: null };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), validConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.maxDepth).toBe(null);
   });
 
-  it('loads config from yellowwood.config.json if present', async () => {
+  it('loads config from canopy.config.json if present', async () => {
     const projectConfig = { editor: 'nano' };
-    await fs.writeJSON(path.join(tempDir, 'yellowwood.config.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, 'canopy.config.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('nano');
   });
 
-  it('loads config from .yellowwoodrc if present', async () => {
+  it('loads config from .canopyrc if present', async () => {
     const projectConfig = { editor: 'emacs' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwoodrc'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopyrc'), projectConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('emacs');
   });
 
-  it('prefers .yellowwood.json over other config files', async () => {
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), { editor: 'vim' });
-    await fs.writeJSON(path.join(tempDir, 'yellowwood.config.json'), { editor: 'nano' });
-    await fs.writeJSON(path.join(tempDir, '.yellowwoodrc'), { editor: 'emacs' });
+  it('prefers .canopy.json over other config files', async () => {
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), { editor: 'vim' });
+    await fs.writeJSON(path.join(tempDir, 'canopy.config.json'), { editor: 'nano' });
+    await fs.writeJSON(path.join(tempDir, '.canopyrc'), { editor: 'emacs' });
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('vim');
@@ -192,7 +192,7 @@ describe('loadConfig', () => {
       editor: 'safe-editor',
       '__proto__': { polluted: 'value' },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), maliciousConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), maliciousConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('safe-editor');
@@ -205,7 +205,7 @@ describe('loadConfig', () => {
       editor: 'safe-editor',
       'constructor': { malicious: 'value' },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), maliciousConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), maliciousConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('safe-editor');
@@ -219,7 +219,7 @@ describe('loadConfig', () => {
       editor: 'vim',
       copytreeDefaults: null,
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), configWithNull);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), configWithNull);
 
     // Validation should reject null copytreeDefaults
     await expect(loadConfig(tempDir)).rejects.toThrow('copytreeDefaults must be an object');
@@ -230,7 +230,7 @@ describe('loadConfig', () => {
       editor: 'vim',
       copytreeDefaults: ['invalid', 'array'],
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), configWithArray);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), configWithArray);
 
     // Validation should reject array copytreeDefaults
     await expect(loadConfig(tempDir)).rejects.toThrow('copytreeDefaults.format must be a string');
@@ -239,41 +239,41 @@ describe('loadConfig', () => {
   // Additional validation tests
   it('validates showGitStatus is boolean', async () => {
     const invalidConfig = { showGitStatus: 'true' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('showGitStatus must be a boolean');
   });
 
   it('validates showFileSize is boolean', async () => {
     const invalidConfig = { showFileSize: 1 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('showFileSize must be a boolean');
   });
 
   it('validates showModifiedTime is boolean', async () => {
     const invalidConfig = { showModifiedTime: 'yes' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('showModifiedTime must be a boolean');
   });
 
   it('validates respectGitignore is boolean', async () => {
     const invalidConfig = { respectGitignore: 1 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('respectGitignore must be a boolean');
   });
 
   it('validates autoRefresh is boolean', async () => {
     const invalidConfig = { autoRefresh: 'true' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('autoRefresh must be a boolean');
   });
 
   it('handles malformed project config with null value', async () => {
-    await fs.writeFile(path.join(tempDir, '.yellowwood.json'), 'null');
+    await fs.writeFile(path.join(tempDir, '.canopy.json'), 'null');
 
     // Should fall back to defaults when project config is malformed
     const config = await loadConfig(tempDir);
@@ -286,7 +286,7 @@ describe('loadConfig', () => {
       showHidden: true,
       // copytreeDefaults missing - should be filled from defaults
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), partialConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), partialConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('vim');
@@ -303,8 +303,8 @@ describe('loadConfig - global config', () => {
   let originalXdgConfigHome: string | undefined;
 
   beforeEach(async () => {
-    tempDir = path.join(os.tmpdir(), `yellowwood-test-${Date.now()}`);
-    tempConfigHome = path.join(os.tmpdir(), `yellowwood-config-${Date.now()}`);
+    tempDir = path.join(os.tmpdir(), `canopy-test-${Date.now()}`);
+    tempConfigHome = path.join(os.tmpdir(), `canopy-config-${Date.now()}`);
     await fs.ensureDir(tempDir);
     await fs.ensureDir(tempConfigHome);
 
@@ -329,7 +329,7 @@ describe('loadConfig - global config', () => {
 
   it('loads global config from XDG_CONFIG_HOME', async () => {
     const globalConfig = { editor: 'global-editor', treeIndent: 8 };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
@@ -341,13 +341,13 @@ describe('loadConfig - global config', () => {
   it('project config overrides global config', async () => {
     // Set up global config
     const globalConfig = { editor: 'global-editor', treeIndent: 8 };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
     // Set up project config
     const projectConfig = { editor: 'project-editor' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.editor).toBe('project-editor'); // Project overrides global
@@ -356,7 +356,7 @@ describe('loadConfig - global config', () => {
 
   it('global config overrides defaults', async () => {
     const globalConfig = { editor: 'global-editor', showHidden: true };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
@@ -371,7 +371,7 @@ describe('loadConfig - global config', () => {
     const globalConfig = {
       copytreeDefaults: { format: 'markdown' },
     };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
@@ -379,7 +379,7 @@ describe('loadConfig - global config', () => {
     const projectConfig = {
       copytreeDefaults: { asReference: false },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     // Both values should be present (deep merge)
@@ -388,7 +388,7 @@ describe('loadConfig - global config', () => {
   });
 
   it('handles malformed global config gracefully', async () => {
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeFile(globalPath, '{ invalid json }');
 
@@ -406,7 +406,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
@@ -416,7 +416,7 @@ describe('loadConfig - global config', () => {
         byExtension: { '.ts': { cmd: 'code', args: ['-r'] } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     // Both extension openers should be present
@@ -433,7 +433,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('openers.default.cmd must be a string');
   });
@@ -446,7 +446,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('openers.default.args must be an array');
   });
@@ -459,7 +459,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('byExtension');
   });
@@ -472,7 +472,7 @@ describe('loadConfig - global config', () => {
         byGlob: { 'tests/**/*.ts': { cmd: 123, args: [] } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('byGlob');
   });
@@ -485,7 +485,7 @@ describe('loadConfig - global config', () => {
         byGlob: { 'tests/**/*.ts': { cmd: 'vitest', args: ['run'] } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), validConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
 
     const config = await loadConfig(tempDir);
     expect(config.openers).toEqual(validConfig.openers);
@@ -493,7 +493,7 @@ describe('loadConfig - global config', () => {
 
   it('allows openers to be undefined for backward compatibility', async () => {
     const configWithoutOpeners = { editor: 'vim' };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), configWithoutOpeners);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), configWithoutOpeners);
 
     const config = await loadConfig(tempDir);
     // Config should be valid (openers is optional)
@@ -502,14 +502,14 @@ describe('loadConfig - global config', () => {
 
   it('validates editor must be a string', async () => {
     const invalidConfig = { editor: 42 };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('config.editor must be a string');
   });
 
   it('rejects openers that is not an object', async () => {
     const invalidConfig = { openers: null };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('config.openers must be an object');
   });
@@ -522,7 +522,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.default must be an object');
   });
@@ -535,7 +535,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.byExtension must be an object');
   });
@@ -548,7 +548,7 @@ describe('loadConfig - global config', () => {
         byGlob: 'not-an-object',
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('config.openers.byGlob must be an object');
   });
@@ -561,7 +561,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('args[0] must be a string');
   });
@@ -574,7 +574,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('cmd must be a string');
   });
@@ -587,7 +587,7 @@ describe('loadConfig - global config', () => {
         byGlob: { '*.test.ts': { cmd: 'tool', args: 'oops' } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig1);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig1);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('args must be an array');
   });
@@ -600,7 +600,7 @@ describe('loadConfig - global config', () => {
         byGlob: { '*.test.ts': { cmd: 'vitest', args: [true, 456] } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('args[0] must be a string');
   });
@@ -614,7 +614,7 @@ describe('loadConfig - global config', () => {
         byGlob: { '*.test.ts': { cmd: 'vitest', args: ['run'] } },
       },
     };
-    const globalPath = path.join(tempConfigHome, 'yellowwood', 'config.json');
+    const globalPath = path.join(tempConfigHome, 'canopy', 'config.json');
     await fs.ensureDir(path.dirname(globalPath));
     await fs.writeJSON(globalPath, globalConfig);
 
@@ -624,7 +624,7 @@ describe('loadConfig - global config', () => {
         byGlob: { '*.spec.ts': { cmd: 'jest', args: [] } },
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), projectConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
 
     const config = await loadConfig(tempDir);
     // Both glob patterns should be present
@@ -640,7 +640,7 @@ describe('loadConfig - global config', () => {
         byGlob: {},
       },
     };
-    await fs.writeJSON(path.join(tempDir, '.yellowwood.json'), invalidConfig);
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
 
     await expect(loadConfig(tempDir)).rejects.toThrow('args[1] must be a string');
   });

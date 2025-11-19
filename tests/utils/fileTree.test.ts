@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { buildFileTree, clearDirCache } from '../../src/utils/fileTree.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import type { YellowwoodConfig } from '../../src/types/index.js';
+import type { CanopyConfig } from '../../src/types/index.js';
 import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
@@ -13,7 +13,7 @@ describe('buildFileTree', () => {
 
   beforeEach(async () => {
     // Create temp directory for tests
-    testDir = path.join(os.tmpdir(), `yellowwood-tree-test-${Date.now()}-${dirCounter++}`);
+    testDir = path.join(os.tmpdir(), `canopy-tree-test-${Date.now()}-${dirCounter++}`);
     await fs.ensureDir(testDir);
   });
 
@@ -32,7 +32,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'file1.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'file2.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       showFileSize: true,
       showModifiedTime: true,
@@ -68,7 +68,7 @@ describe('buildFileTree', () => {
     await fs.ensureDir(path.join(testDir, 'dir1', 'dir2', 'dir3'));
     await fs.writeFile(path.join(testDir, 'dir1', 'dir2', 'dir3', 'file.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       maxDepth: 1,
     };
@@ -86,7 +86,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'visible.txt'), 'content');
     await fs.writeFile(path.join(testDir, '.hidden.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       showHidden: false,
     };
@@ -101,7 +101,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'visible.txt'), 'content');
     await fs.writeFile(path.join(testDir, '.hidden.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       showHidden: true,
     };
@@ -119,7 +119,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'apple.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'banana.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'name',
       sortDirection: 'asc',
@@ -134,7 +134,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'zebra.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'apple.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'name',
       sortDirection: 'desc',
@@ -149,7 +149,7 @@ describe('buildFileTree', () => {
     await fs.ensureDir(path.join(testDir, 'zdir'));
     await fs.writeFile(path.join(testDir, 'afile.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'name',
       sortDirection: 'asc',
@@ -168,7 +168,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'keep.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'ignore.log'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       customIgnores: ['*.log'],
     };
@@ -186,7 +186,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'ignored.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'file.log'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       respectGitignore: true,
       showHidden: true, // Show .gitignore itself
@@ -235,7 +235,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'file10.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'file1.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'name',
       sortDirection: 'asc',
@@ -252,7 +252,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'large.txt'), 'a'.repeat(100));
     await fs.writeFile(path.join(testDir, 'medium.txt'), 'a'.repeat(50));
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'size',
       sortDirection: 'asc',
@@ -271,7 +271,7 @@ describe('buildFileTree', () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     await fs.writeFile(path.join(testDir, 'third.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'modified',
       sortDirection: 'asc',
@@ -311,7 +311,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'dir1', 'file.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'root.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       maxDepth: 0,
     };
@@ -328,7 +328,7 @@ describe('buildFileTree', () => {
     await fs.ensureDir(path.join(testDir, '.git'));
     await fs.writeFile(path.join(testDir, 'file.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       showHidden: false,
     };
@@ -344,7 +344,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, '.gitignore'), '');
     await fs.writeFile(path.join(testDir, 'file.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       respectGitignore: true,
       showHidden: true,
@@ -360,7 +360,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'ignored.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'keep.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       respectGitignore: true,
       showHidden: true,
@@ -378,7 +378,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'ignore.log'), 'content');
     await fs.writeFile(path.join(testDir, 'ignore.tmp'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       customIgnores: ['*.log', '*.tmp'],
     };
@@ -393,7 +393,7 @@ describe('buildFileTree', () => {
     await fs.ensureDir(path.join(testDir, 'dir1'));
     await fs.writeFile(path.join(testDir, 'file1.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'type',
     };
@@ -418,7 +418,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'file1.txt'), 'content');
     await fs.writeFile(path.join(testDir, 'file10.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       customIgnores: ['file?.txt'],
     };
@@ -432,7 +432,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, 'small.txt'), 'a');
     await fs.writeFile(path.join(testDir, 'large.txt'), 'a'.repeat(100));
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'size',
       sortDirection: 'desc',
@@ -449,7 +449,7 @@ describe('buildFileTree', () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     await fs.writeFile(path.join(testDir, 'second.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       sortBy: 'modified',
       sortDirection: 'desc',
@@ -466,7 +466,7 @@ describe('buildFileTree', () => {
     await fs.writeFile(path.join(testDir, '(foo).txt'), 'content');
     await fs.writeFile(path.join(testDir, 'normal.txt'), 'content');
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       customIgnores: ['[test].txt', '(foo).txt'],
     };

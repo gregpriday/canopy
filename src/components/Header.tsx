@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <Box borderStyle="single" paddingX={1}>
-      <Text bold>Yellowwood</Text>
+      <Text bold>Canopy</Text>
 
       {showWorktreeIndicator && (
         <>

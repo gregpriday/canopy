@@ -24,7 +24,7 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('Yellowwood');
+      expect(output).toContain('Canopy');
       expect(output).toContain('/Users/dev/project');
       expect(output).not.toContain('wt'); // No worktree indicator
     });
@@ -41,7 +41,7 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('Yellowwood');
+      expect(output).toContain('Canopy');
       expect(output).toContain('wt');
       expect(output).toContain('[main]');
       expect(output).toContain('(3)');
@@ -328,7 +328,7 @@ describe('Header', () => {
       const detachedWithName: Worktree = {
         id: '/Users/dev/project',
         path: '/Users/dev/project',
-        name: 'yellowwood-issue-42',
+        name: 'canopy-issue-42',
         branch: undefined,
         isCurrent: true,
       };
@@ -344,7 +344,7 @@ describe('Header', () => {
       );
 
       const output = lastFrame();
-      expect(output).toContain('[yellowwood-issue-42]');
+      expect(output).toContain('[canopy-issue-42]');
       expect(output).not.toContain('[detached]');
     });
   });
@@ -364,7 +364,7 @@ describe('Header', () => {
       const output = lastFrame();
       expect(output).toContain('•');
       // Should not have the old " - " separator format
-      expect(output).not.toMatch(/Yellowwood\s+-\s+/);
+      expect(output).not.toMatch(/Canopy\s+-\s+/);
     });
   });
 });

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Yellowwood is a terminal-based file browser built with Ink (React for CLIs). It's designed for developers working with AI agents, providing features like live file watching, git integration, git worktree support, and CopyTree integration for easy AI context sharing. Named after South Africa's tallest indigenous tree, symbolizing oversight and observation.
+Canopy is a terminal-based file browser built with Ink (React for CLIs). It's designed for developers working with AI agents, providing features like live file watching, git integration, git worktree support, and CopyTree integration for easy AI context sharing. Named after South Africa's tallest indigenous tree, symbolizing oversight and observation.
 
 ## Build Commands
 
@@ -57,9 +57,9 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
 ### Key Design Patterns
 
 1. **Application Lifecycle**: The `useAppLifecycle` hook orchestrates initialization:
-   - Configuration loading via cosmiconfig (project `.yellowwood.json` → global `~/.config/yellowwood/config.json` → `DEFAULT_CONFIG`)
+   - Configuration loading via cosmiconfig (project `.canopy.json` → global `~/.config/canopy/config.json` → `DEFAULT_CONFIG`)
    - Git worktree discovery using `git worktree list --porcelain`
-   - Session state restoration (selected path, expanded folders) from `~/.config/yellowwood/sessions/`
+   - Session state restoration (selected path, expanded folders) from `~/.config/canopy/sessions/`
    - Error handling and recovery
 
 2. **File Tree Management**: The `useFileTree` hook manages tree state:
@@ -81,7 +81,7 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
    - **Caching**: Git status cached for 5 seconds, directory listings for 10 seconds
    - Can be disabled with `--no-git` CLI flag
 
-5. **Session Persistence**: Per-worktree state saved to `~/.config/yellowwood/sessions/`:
+5. **Session Persistence**: Per-worktree state saved to `~/.config/canopy/sessions/`:
    - Stores selected path and expanded folders
    - Automatically saved on worktree switch and app exit
    - Sessions expire after 30 days
@@ -111,8 +111,8 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
 
 All types centralized in `src/types/index.ts`:
 - `TreeNode` - Hierarchical file/folder structure with git status, expansion state
-- `YellowwoodConfig` - User configuration (editor, git settings, display options, openers, CopyTree defaults)
-- `YellowwoodState` - Application state (tree, selection, UI modes, worktrees)
+- `CanopyConfig` - User configuration (editor, git settings, display options, openers, CopyTree defaults)
+- `CanopyState` - Application state (tree, selection, UI modes, worktrees)
 - `GitStatus` - Git file status: `modified | added | deleted | untracked | ignored`
 - `Notification` - User notifications: `info | success | error | warning`
 - `Worktree` - Git worktree metadata (id, path, name, branch, isCurrent)
@@ -205,11 +205,11 @@ Commands in `src/commands/`:
 
 ### Configuration
 
-Users configure Yellowwood via:
-- Project: `.yellowwood.json` in project root
-- Global: `~/.config/yellowwood/config.json`
+Users configure Canopy via:
+- Project: `.canopy.json` in project root
+- Global: `~/.config/canopy/config.json`
 
-**Key Options** (see `YellowwoodConfig` type):
+**Key Options** (see `CanopyConfig` type):
 - `editor` / `editorArgs` - Editor command and arguments (default: `code -r`)
 - `openers` - Custom openers by extension/glob pattern
 - `showGitStatus` - Display git status indicators (default: true)

@@ -2,25 +2,25 @@ import { cosmiconfig } from 'cosmiconfig';
 import os from 'os';
 import path from 'path';
 import fs from 'fs-extra';
-import { DEFAULT_CONFIG, type YellowwoodConfig } from '../types/index.js';
+import { DEFAULT_CONFIG, type CanopyConfig } from '../types/index.js';
 import { ConfigError } from './errorTypes.js';
 import { logWarn, logError } from './logger.js';
 
 /**
- * Loads Yellowwood configuration from project and global config files.
+ * Loads Canopy configuration from project and global config files.
  * Merges configurations with precedence: project > global > defaults.
  *
  * @param cwd - Current working directory to search for project config (defaults to process.cwd())
  * @returns Validated and merged configuration
  * @throws Error if config validation fails
  */
-export async function loadConfig(cwd: string = process.cwd()): Promise<YellowwoodConfig> {
+export async function loadConfig(cwd: string = process.cwd()): Promise<CanopyConfig> {
   // 1. Set up cosmiconfig
-  const explorer = cosmiconfig('yellowwood', {
+  const explorer = cosmiconfig('canopy', {
     searchPlaces: [
-      '.yellowwood.json',
-      'yellowwood.config.json',
-      '.yellowwoodrc',
+      '.canopy.json',
+      'canopy.config.json',
+      '.canopyrc',
     ],
     // Stop at first found file
     stopDir: cwd,
@@ -53,10 +53,10 @@ export async function loadConfig(cwd: string = process.cwd()): Promise<Yellowwoo
  *
  * @returns Partial configuration from global config file, or empty object if not found
  */
-async function loadGlobalConfig(): Promise<Partial<YellowwoodConfig>> {
+async function loadGlobalConfig(): Promise<Partial<CanopyConfig>> {
   // Respect XDG_CONFIG_HOME on Linux
   const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  const globalPath = path.join(configHome, 'yellowwood', 'config.json');
+  const globalPath = path.join(configHome, 'canopy', 'config.json');
 
   try {
     const exists = await fs.pathExists(globalPath);
@@ -83,8 +83,8 @@ async function loadGlobalConfig(): Promise<Partial<YellowwoodConfig>> {
  * @param configs - Configuration objects to merge (in order of precedence)
  * @returns Merged configuration
  */
-function mergeConfigs(...configs: Partial<YellowwoodConfig>[]): YellowwoodConfig {
-  const merged = { ...configs[0] } as YellowwoodConfig;
+function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
+  const merged = { ...configs[0] } as CanopyConfig;
 
   for (let i = 1; i < configs.length; i++) {
     const config = configs[i];
@@ -97,7 +97,7 @@ function mergeConfigs(...configs: Partial<YellowwoodConfig>[]): YellowwoodConfig
         continue; // prevent prototype pollution from untrusted config values
       }
 
-      const typedKey = key as keyof YellowwoodConfig;
+      const typedKey = key as keyof CanopyConfig;
       if (
         typedKey === 'copytreeDefaults' &&
         value &&
@@ -167,7 +167,7 @@ function mergeConfigs(...configs: Partial<YellowwoodConfig>[]): YellowwoodConfig
  * @returns Validated configuration
  * @throws Error if validation fails with descriptive error messages
  */
-function validateConfig(config: unknown): YellowwoodConfig {
+function validateConfig(config: unknown): CanopyConfig {
   // Type guard to ensure we have a valid config object
   if (!config || typeof config !== 'object') {
     throw new Error('Invalid config: must be an object');
@@ -345,5 +345,5 @@ function validateConfig(config: unknown): YellowwoodConfig {
     logWarn('Unknown config keys (will be ignored)', { keys: unknownKeys });
   }
 
-  return c as YellowwoodConfig;
+  return c as CanopyConfig;
 }

@@ -2,14 +2,14 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { loadConfig } from '../utils/config.js';
 import { getWorktrees, getCurrentWorktree } from '../utils/worktree.js';
 import { loadInitialState } from '../utils/state.js';
-import type { YellowwoodConfig, Worktree, Notification } from '../types/index.js';
+import type { CanopyConfig, Worktree, Notification } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
 export type LifecycleStatus = 'idle' | 'initializing' | 'ready' | 'error';
 
 export interface LifecycleState {
   status: LifecycleStatus;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
   worktrees: Worktree[];
   activeWorktreeId: string | null;
   activeRootPath: string;
@@ -20,7 +20,7 @@ export interface LifecycleState {
 
 export interface UseAppLifecycleOptions {
   cwd: string;
-  initialConfig?: YellowwoodConfig;
+  initialConfig?: CanopyConfig;
   noWatch?: boolean;
   noGit?: boolean;
 }

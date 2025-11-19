@@ -1,4 +1,4 @@
-import type { YellowwoodState, YellowwoodConfig, Notification } from '../types/index.js';
+import type { CanopyState, CanopyConfig, Notification } from '../types/index.js';
 
 // ============================================================================
 // Types
@@ -18,9 +18,9 @@ export type CommandExecutor = (
 ) => Promise<CommandResult>;
 
 export interface CommandContext {
-  state: YellowwoodState;
-  setState: (updates: Partial<YellowwoodState>) => void;
-  config: YellowwoodConfig;
+  state: CanopyState;
+  setState: (updates: Partial<CanopyState>) => void;
+  config: CanopyConfig;
   notify: (notification: Notification) => void;
 }
 

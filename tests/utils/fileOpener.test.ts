@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { openFile } from '../../src/utils/fileOpener.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import type { YellowwoodConfig } from '../../src/types/index.js';
+import type { CanopyConfig } from '../../src/types/index.js';
 import * as execa from 'execa';
 
 // Mock execa
@@ -28,7 +28,7 @@ describe('openFile', () => {
   });
 
   it('uses default opener when no patterns match', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: ['-r'] },
@@ -47,7 +47,7 @@ describe('openFile', () => {
   });
 
   it('uses extension-based opener when extension matches', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: ['-r'] },
@@ -68,7 +68,7 @@ describe('openFile', () => {
   });
 
   it('uses glob-based opener when path matches pattern', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: ['-r'] },
@@ -89,7 +89,7 @@ describe('openFile', () => {
   });
 
   it('prefers extension match over glob match', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -113,7 +113,7 @@ describe('openFile', () => {
   });
 
   it('uses first matching glob pattern', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -136,7 +136,7 @@ describe('openFile', () => {
   });
 
   it('falls back to editor/editorArgs when openers not configured', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       editor: 'vim',
       editorArgs: ['-n'],
@@ -165,7 +165,7 @@ describe('openFile', () => {
       catch: vi.fn(),
     } as any);
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'nonexistent', args: [] },
@@ -191,7 +191,7 @@ describe('openFile', () => {
       catch: vi.fn(),
     } as any);
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'editor', args: [] },
@@ -206,7 +206,7 @@ describe('openFile', () => {
   });
 
   it('passes file path as last argument', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'editor', args: ['--flag1', '--flag2'] },
@@ -225,7 +225,7 @@ describe('openFile', () => {
   });
 
   it('handles files without extensions', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -247,7 +247,7 @@ describe('openFile', () => {
   });
 
   it('matches glob patterns with dots', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -268,7 +268,7 @@ describe('openFile', () => {
   });
 
   it('matches hidden files with wildcard patterns via dot option', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -290,7 +290,7 @@ describe('openFile', () => {
   });
 
   it('handles case-insensitive extension matching', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -313,7 +313,7 @@ describe('openFile', () => {
   });
 
   it('calls execa with detached and cleanup options', async () => {
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'code', args: [] },
@@ -348,7 +348,7 @@ describe('openFile', () => {
       catch: vi.fn(),
     } as any);
 
-    const config: YellowwoodConfig = {
+    const config: CanopyConfig = {
       ...DEFAULT_CONFIG,
       openers: {
         default: { cmd: 'myeditor', args: [] },

@@ -62,7 +62,7 @@ export interface OpenersConfig {
   byGlob: Record<string, OpenerConfig>;
 }
 
-export interface YellowwoodConfig {
+export interface CanopyConfig {
   editor: string;
   editorArgs: string[];
   theme: 'auto' | 'dark' | 'light';
@@ -90,7 +90,7 @@ export interface YellowwoodConfig {
   };
 }
 
-export interface YellowwoodState {
+export interface CanopyState {
   fileTree: TreeNode[];
   expandedFolders: Set<string>;
   selectedPath: string;
@@ -108,12 +108,12 @@ export interface YellowwoodState {
   commandBarActive: boolean;
   commandBarInput: string;
   commandHistory: string[];
-  config: YellowwoodConfig;
+  config: CanopyConfig;
   worktrees: Worktree[];
   activeWorktreeId: string | null;
 }
 
-export const DEFAULT_CONFIG: YellowwoodConfig = {
+export const DEFAULT_CONFIG: CanopyConfig = {
   editor: 'code',
   editorArgs: ['-r'],
   theme: 'auto',

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { TreeNode, YellowwoodConfig } from '../types/index.js';
+import type { TreeNode, CanopyConfig } from '../types/index.js';
 
 /**
  * Ink's mouse event types (from Ink 6.5).
@@ -31,7 +31,7 @@ export interface UseMouseOptions {
   onOpen: (path: string) => void;
   onContextMenu: (path: string, position: { x: number; y: number }) => void;
   onScrollChange: (newOffset: number) => void;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
 }
 
 export interface UseMouseReturn {

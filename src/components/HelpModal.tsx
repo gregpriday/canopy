@@ -29,7 +29,7 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
       {/* Header */}
       <Box marginBottom={1}>
         <Text bold color="cyan">
-          Yellowwood Keyboard Shortcuts
+          Canopy Keyboard Shortcuts
         </Text>
       </Box>
 
@@ -82,7 +82,7 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
         <Text bold color="yellow">Misc:</Text>
         <Text>  <Text color="green">r</Text>           Manual refresh</Text>
         <Text>  <Text color="green">?</Text>           Toggle this help overlay</Text>
-        <Text>  <Text color="green">q</Text>           Quit Yellowwood</Text>
+        <Text>  <Text color="green">q</Text>           Quit Canopy</Text>
         <Text>  <Text color="green">m</Text>           Open context menu</Text>
       </Box>
 

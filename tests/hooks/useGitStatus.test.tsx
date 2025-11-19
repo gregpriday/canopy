@@ -16,8 +16,8 @@ describe('useGitStatus', () => {
 
 	beforeEach(async () => {
 		// Create temp directories
-		testRepoPath = path.join(os.tmpdir(), `yellowwood-hook-test-${Date.now()}`);
-		nonRepoPath = path.join(os.tmpdir(), `yellowwood-non-hook-${Date.now()}`);
+		testRepoPath = path.join(os.tmpdir(), `canopy-hook-test-${Date.now()}`);
+		nonRepoPath = path.join(os.tmpdir(), `canopy-non-hook-${Date.now()}`);
 
 		await fs.ensureDir(testRepoPath);
 		await fs.ensureDir(nonRepoPath);

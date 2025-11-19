@@ -1,5 +1,5 @@
 import React from 'react';
-import type { TreeNode as TreeNodeType, YellowwoodConfig, GitStatus } from '../types/index.js';
+import type { TreeNode as TreeNodeType, CanopyConfig, GitStatus } from '../types/index.js';
 import { FolderNode } from './FolderNode.js';
 import { FileNode } from './FileNode.js';
 
@@ -9,7 +9,7 @@ interface TreeNodeProps {
   selectedPath: string;
   onSelect: (path: string) => void;  // Note: Not currently wired up; will be used for mouse support in #8
   onToggle: (path: string) => void;  // Note: Not currently wired up; will be used for mouse support in #8
-  config: YellowwoodConfig;
+  config: CanopyConfig;
 }
 
 /**

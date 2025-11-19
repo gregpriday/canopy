@@ -46,7 +46,7 @@ describe('CLI argument parsing', () => {
     const { stdout, exitCode } = await runCli(['--help']);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toContain('Yellowwood');
+    expect(stdout).toContain('Canopy');
     expect(stdout).toContain('USAGE');
     expect(stdout).toContain('OPTIONS');
     expect(stdout).toContain('--editor');
@@ -59,21 +59,21 @@ describe('CLI argument parsing', () => {
 
     expect(exitCode).toBe(0);
     expect(stdout).toContain('USAGE');
-    expect(stdout).toContain('yellowwood [path] [options]');
+    expect(stdout).toContain('canopy [path] [options]');
   });
 
   it('shows version with --version flag', async () => {
     const { stdout, exitCode } = await runCli(['--version']);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toMatch(/yellowwood v\d+\.\d+\.\d+/);
+    expect(stdout).toMatch(/canopy v\d+\.\d+\.\d+/);
   });
 
   it('shows version with -v flag', async () => {
     const { stdout, exitCode } = await runCli(['-v']);
 
     expect(exitCode).toBe(0);
-    expect(stdout).toMatch(/yellowwood v\d+\.\d+\.\d+/);
+    expect(stdout).toMatch(/canopy v\d+\.\d+\.\d+/);
   });
 
   it('errors on unknown flag', async () => {

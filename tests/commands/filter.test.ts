@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { filterCommand } from '../../src/commands/filter.js';
 import type { CommandContext } from '../../src/commands/types.js';
-import type { TreeNode, YellowwoodState } from '../../src/types/index.js';
+import type { TreeNode, CanopyState } from '../../src/types/index.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 
 // Helper to create test nodes
@@ -26,7 +26,7 @@ function createFolder(name: string, path: string, children: TreeNode[]): TreeNod
 
 // Helper to create test context with mocks
 function createTestContext(tree: TreeNode[] = []): CommandContext {
-  const state: YellowwoodState = {
+  const state: CanopyState = {
     fileTree: tree,
     expandedFolders: new Set(),
     selectedPath: '',

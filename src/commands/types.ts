@@ -1,4 +1,4 @@
-import type { TreeNode, Notification, YellowwoodState, Worktree } from '../types/index.js';
+import type { TreeNode, Notification, CanopyState, Worktree } from '../types/index.js';
 
 /**
  * Context passed to command execution.
@@ -6,7 +6,7 @@ import type { TreeNode, Notification, YellowwoodState, Worktree } from '../types
  */
 export interface CommandContext {
   /** Current application state */
-  state: YellowwoodState;
+  state: CanopyState;
 
   /** Original unfiltered file tree (for filter commands to operate on) */
   originalFileTree: TreeNode[];

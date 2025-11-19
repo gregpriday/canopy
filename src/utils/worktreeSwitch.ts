@@ -1,5 +1,5 @@
 import path from 'path';
-import type { Worktree, TreeNode, YellowwoodConfig } from '../types/index.js';
+import type { Worktree, TreeNode, CanopyConfig } from '../types/index.js';
 import { buildFileTree } from './fileTree.js';
 import { createFileWatcher, type FileWatcher } from './fileWatcher.js';
 
@@ -17,7 +17,7 @@ export interface SwitchWorktreeOptions {
   selectedPath: string | null;
 
   /** Application configuration */
-  config: YellowwoodConfig;
+  config: CanopyConfig;
 
   /** Callback for file change events */
   onFileChange: {

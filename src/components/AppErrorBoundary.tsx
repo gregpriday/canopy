@@ -12,7 +12,7 @@ interface AppErrorBoundaryState {
 }
 
 /**
- * Error boundary component for catching React rendering errors in Yellowwood.
+ * Error boundary component for catching React rendering errors in Canopy.
  * Displays a terminal-friendly fallback UI when a child component throws.
  *
  * NOTE: Error boundaries only catch errors in:

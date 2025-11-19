@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { parseCommand, executeCommand, getCommand, getAllCommands } from '../../src/commands/index.js';
 import type { CommandContext } from '../../src/commands/types.js';
-import type { TreeNode, YellowwoodState } from '../../src/types/index.js';
+import type { TreeNode, CanopyState } from '../../src/types/index.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 
 // Helper to create minimal test context
 function createTestContext(tree: TreeNode[] = []): CommandContext {
-  const state: YellowwoodState = {
+  const state: CanopyState = {
     fileTree: tree,
     expandedFolders: new Set(),
     selectedPath: '',

@@ -46,7 +46,7 @@ export interface KeyboardHandlers {
 }
 
 /**
- * Custom hook for handling keyboard input in Yellowwood.
+ * Custom hook for handling keyboard input in Canopy.
  *
  * Uses Ink's useInput hook internally to listen for keyboard events
  * and dispatches to appropriate handlers based on the key pressed.

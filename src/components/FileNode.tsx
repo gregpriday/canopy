@@ -1,11 +1,11 @@
 import React from 'react';
 import { Box, Text } from 'ink';
-import type { TreeNode as TreeNodeType, YellowwoodConfig, GitStatus } from '../types/index.js';
+import type { TreeNode as TreeNodeType, CanopyConfig, GitStatus } from '../types/index.js';
 
 interface FileNodeProps {
   node: TreeNodeType;
   selected: boolean;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
   mapGitStatusMarker: (status: GitStatus) => string;
   getNodeColor: (node: TreeNodeType, selected: boolean, showGitStatus: boolean) => string;
 }

@@ -1,13 +1,13 @@
 /**
- * Custom error types for Yellowwood with context and severity.
+ * Custom error types for Canopy with context and severity.
  * Enables better error handling, logging, and user notifications.
  */
 
 /**
- * Base error class for all Yellowwood errors.
+ * Base error class for all Canopy errors.
  * Includes context for better debugging and user messages.
  */
-export class YellowwoodError extends Error {
+export class CanopyError extends Error {
   constructor(
     message: string,
     public readonly context?: Record<string, unknown>,
@@ -22,7 +22,7 @@ export class YellowwoodError extends Error {
 /**
  * Git operation failed (repository not found, git not installed, command failed)
  */
-export class GitError extends YellowwoodError {
+export class GitError extends CanopyError {
   constructor(message: string, context?: Record<string, unknown>, cause?: Error) {
     super(message, context, cause);
   }
@@ -31,7 +31,7 @@ export class GitError extends YellowwoodError {
 /**
  * File system operation failed (permission denied, file not found, read error)
  */
-export class FileSystemError extends YellowwoodError {
+export class FileSystemError extends CanopyError {
   constructor(message: string, context?: Record<string, unknown>, cause?: Error) {
     super(message, context, cause);
   }
@@ -40,7 +40,7 @@ export class FileSystemError extends YellowwoodError {
 /**
  * Configuration loading or validation failed
  */
-export class ConfigError extends YellowwoodError {
+export class ConfigError extends CanopyError {
   constructor(message: string, context?: Record<string, unknown>, cause?: Error) {
     super(message, context, cause);
   }
@@ -49,7 +49,7 @@ export class ConfigError extends YellowwoodError {
 /**
  * External process execution failed (editor not found, command error)
  */
-export class ProcessError extends YellowwoodError {
+export class ProcessError extends CanopyError {
   constructor(message: string, context?: Record<string, unknown>, cause?: Error) {
     super(message, context, cause);
   }
@@ -58,17 +58,17 @@ export class ProcessError extends YellowwoodError {
 /**
  * File watcher setup or operation failed
  */
-export class WatcherError extends YellowwoodError {
+export class WatcherError extends CanopyError {
   constructor(message: string, context?: Record<string, unknown>, cause?: Error) {
     super(message, context, cause);
   }
 }
 
 /**
- * Check if error is a specific Yellowwood error type
+ * Check if error is a specific Canopy error type
  */
-export function isYellowwoodError(error: unknown): error is YellowwoodError {
-  return error instanceof YellowwoodError;
+export function isCanopyError(error: unknown): error is CanopyError {
+  return error instanceof CanopyError;
 }
 
 /**
@@ -102,7 +102,7 @@ export function isTransientError(error: unknown): boolean {
  * Extract user-friendly message from any error
  */
 export function getUserMessage(error: unknown): string {
-  if (isYellowwoodError(error)) {
+  if (isCanopyError(error)) {
     return error.message;
   }
 
@@ -127,7 +127,7 @@ export function getErrorDetails(error: unknown, seen = new WeakSet<Error>()): Re
     details.stack = error.stack;
   }
 
-  if (isYellowwoodError(error)) {
+  if (isCanopyError(error)) {
     details.context = error.context;
     if (error.cause) {
       // Prevent circular reference stack overflow

@@ -1,8 +1,8 @@
-# Yellowwood Context for Gemini
+# Canopy Context for Gemini
 
 ## Project Overview
 
-**Yellowwood** is a terminal-based file browser built with **Ink** (React for CLIs). It is designed for developers working with AI agents, providing a persistent "vantage point" over the codebase.
+**Canopy** is a terminal-based file browser built with **Ink** (React for CLIs). It is designed for developers working with AI agents, providing a persistent "vantage point" over the codebase.
 
 **Key Features:**
 - **Live File Watching:** Real-time updates using `chokidar`.
@@ -18,7 +18,7 @@
 - **State Management:** Local React state (`useState`, `useReducer`) and custom hooks. No global store (Redux/Zustand) is used; state is passed via props.
 - **File System:** `globby` for discovery, `chokidar` for watching.
 - **Git:** `simple-git` for status and worktree operations.
-- **Configuration:** `cosmiconfig` loads from `.yellowwood.json` or `~/.config/yellowwood/config.json`.
+- **Configuration:** `cosmiconfig` loads from `.canopy.json` or `~/.config/canopy/config.json`.
 
 ### Directory Structure
 

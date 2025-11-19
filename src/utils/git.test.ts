@@ -12,8 +12,8 @@ describe('git utilities', () => {
 
   beforeEach(async () => {
     // Create temp directories
-    testRepoPath = path.join(os.tmpdir(), `yellowwood-git-test-${Date.now()}`);
-    nonRepoPath = path.join(os.tmpdir(), `yellowwood-non-git-${Date.now()}`);
+    testRepoPath = path.join(os.tmpdir(), `canopy-git-test-${Date.now()}`);
+    nonRepoPath = path.join(os.tmpdir(), `canopy-non-git-${Date.now()}`);
 
     await fs.ensureDir(testRepoPath);
     await fs.ensureDir(nonRepoPath);
@@ -265,7 +265,7 @@ describe('git utilities', () => {
     });
 
     it('handles nonexistent directory gracefully', async () => {
-      const nonexistentPath = path.join(os.tmpdir(), 'yellowwood-nonexistent-dir-123456');
+      const nonexistentPath = path.join(os.tmpdir(), 'canopy-nonexistent-dir-123456');
 
       // Should return false, not throw
       const isRepo = await isGitRepository(nonexistentPath);

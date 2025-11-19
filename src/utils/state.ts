@@ -2,7 +2,7 @@ import path from 'path';
 import os from 'os';
 import fs from 'fs-extra';
 import { getWorktrees, getCurrentWorktree } from './worktree.js';
-import type { YellowwoodConfig, Worktree } from '../types/index.js';
+import type { CanopyConfig, Worktree } from '../types/index.js';
 
 /**
  * Initial application state loaded on startup
@@ -33,7 +33,7 @@ export interface SessionState {
  */
 export async function loadInitialState(
   cwd: string,
-  config: YellowwoodConfig
+  config: CanopyConfig
 ): Promise<InitialState> {
   // 1. Detect current worktree
   let currentWorktree: Worktree | null = null;
@@ -180,7 +180,7 @@ export async function saveSessionState(
 function getSessionPath(worktreeId: string): string {
   // Respect XDG_CONFIG_HOME on Linux
   const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-  const sessionsDir = path.join(configHome, 'yellowwood', 'sessions');
+  const sessionsDir = path.join(configHome, 'canopy', 'sessions');
 
   // Sanitize worktree ID for use as filename
   const filename = sanitizeFilename(worktreeId) + '.json';

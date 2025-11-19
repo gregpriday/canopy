@@ -1,8 +1,8 @@
-# Yellowwood
+# Canopy
 
 > The tall tree from which you oversee your AI agents at work.
 
-A terminal-based file browser built with ink (React for CLIs) designed for developers working with AI agents. Named after South Africa's tallest indigenous tree, the Outeniqua Yellowwood, symbolizing oversight and observation from a commanding vantage point.
+A terminal-based file browser built with ink (React for CLIs) designed for developers working with AI agents. Named after South Africa's tallest indigenous tree, the Outeniqua Canopy, symbolizing oversight and observation from a commanding vantage point.
 
 ## Features
 
@@ -18,17 +18,17 @@ A terminal-based file browser built with ink (React for CLIs) designed for devel
 ## Installation
 
 ```bash
-npm install -g yellowwood
+npm install -g canopy
 ```
 
 ## Usage
 
 ```bash
 # Run in current directory
-yellowwood
+canopy
 
 # Run in specific directory
-yellowwood /path/to/project
+canopy /path/to/project
 ```
 
 ## Development
@@ -49,7 +49,7 @@ npm start
 
 ## Configuration
 
-Create a `.yellowwood.json` file in your project root or `~/.config/yellowwood/config.json` for global settings.
+Create a `.canopy.json` file in your project root or `~/.config/canopy/config.json` for global settings.
 
 ```json
 {

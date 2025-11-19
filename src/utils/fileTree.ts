@@ -1,6 +1,6 @@
 import fs from 'fs-extra';
 import path from 'path';
-import type { TreeNode, YellowwoodConfig } from '../types/index.js';
+import type { TreeNode, CanopyConfig } from '../types/index.js';
 import { Cache } from './cache.js';
 import { perfMonitor } from './perfMetrics.js';
 
@@ -44,13 +44,13 @@ export function clearDirCache(): void {
  * Returns an array of root-level TreeNode objects with recursive children.
  *
  * @param rootPath - Absolute path to the root directory to scan
- * @param config - Yellowwood configuration for filtering and sorting
+ * @param config - Canopy configuration for filtering and sorting
  * @param forceRefresh - Skip cache and force fresh directory reads
  * @returns Array of TreeNode objects representing the directory structure
  */
 export async function buildFileTree(
 	rootPath: string,
-	config: YellowwoodConfig,
+	config: CanopyConfig,
 	forceRefresh = false,
 ): Promise<TreeNode[]> {
   // Validate root path
@@ -118,7 +118,7 @@ async function getCachedDirListing(
  */
 async function buildTreeRecursive(
 	dirPath: string,
-	config: YellowwoodConfig,
+	config: CanopyConfig,
 	currentDepth: number,
 	gitignorePatterns: string[],
 	rootPath: string,
@@ -186,7 +186,7 @@ async function createTreeNode(
   entryPath: string,
   entry: fs.Dirent,
   currentDepth: number,
-  config: YellowwoodConfig
+  config: CanopyConfig
 ): Promise<TreeNode> {
   const isDirectory = entry.isDirectory();
 
@@ -229,7 +229,7 @@ async function createTreeNode(
 function shouldIncludeFile(
   filePath: string,
   fileName: string,
-  config: YellowwoodConfig,
+  config: CanopyConfig,
   gitignorePatterns: string[],
   rootPath: string
 ): boolean {
@@ -313,7 +313,7 @@ function matchPattern(filename: string, pattern: string): boolean {
  * Directories always come before files.
  * Within each group, sort by configured field.
  */
-function sortNodes(nodes: TreeNode[], config: YellowwoodConfig): TreeNode[] {
+function sortNodes(nodes: TreeNode[], config: CanopyConfig): TreeNode[] {
   const sorted = [...nodes].sort((a, b) => {
     // Directories first, always
     if (a.type !== b.type) {

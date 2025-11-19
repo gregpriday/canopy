@@ -1,4 +1,4 @@
-# Yellowwood – Complete Technical Specification
+# Canopy – Complete Technical Specification
 
 **Version:** MVP v1.0
 **Last Updated:** 2025-11-18
@@ -21,14 +21,14 @@
 
 ## Project Overview
 
-**Yellowwood** is a terminal-based file browser built with **Ink** (React for CLIs). It's designed for developers who:
+**Canopy** is a terminal-based file browser built with **Ink** (React for CLIs). It's designed for developers who:
 
 - Work in **narrow vertical terminal splits** (e.g., Ghostty vertical panes)
 - Use **AI coding tools** (Claude Code, Codex CLI, Gemini CLI)
 - Want an **always-visible, live file tree** with minimal friction
 - Work across **git worktrees**
 
-**Name Origin:** Named after South Africa's tallest indigenous tree, the Outeniqua Yellowwood, symbolizing oversight from a commanding vantage point.
+**Name Origin:** Named after South Africa's tallest indigenous tree, the Outeniqua Canopy, symbolizing oversight from a commanding vantage point.
 
 **Key Features:**
 - Live file watching with real-time updates
@@ -45,7 +45,7 @@
 ### What Exists (Implemented)
 
 **Type System** (`src/types/index.ts`):
-- ✅ Complete type definitions: `TreeNode`, `YellowwoodConfig`, `YellowwoodState`
+- ✅ Complete type definitions: `TreeNode`, `CanopyConfig`, `CanopyState`
 - ✅ `GitStatus`, `Notification`, `FileType`, `NotificationType` enums
 - ✅ `DEFAULT_CONFIG` with all default values
 
@@ -64,7 +64,7 @@
 **Implemented Components:**
 
 1. **Header** (`src/components/Header.tsx` - 26 lines):
-   - ✅ Displays "Yellowwood - {current directory}"
+   - ✅ Displays "Canopy - {current directory}"
    - ✅ Shows filter status when active
    - ❌ Needs: Worktree indicator (wt [main] (3))
 
@@ -163,9 +163,9 @@ App (src/App.tsx)
 ### Configuration Cascade
 
 ```
-Project (.yellowwood.json)
+Project (.canopy.json)
   ↓ overrides
-Global (~/.config/yellowwood/config.json)
+Global (~/.config/canopy/config.json)
   ↓ overrides
 DEFAULT_CONFIG (src/types/index.ts)
 ```
@@ -202,7 +202,7 @@ export interface Notification {
 }
 
 // Configuration
-export interface YellowwoodConfig {
+export interface CanopyConfig {
   editor: string;              // Default: 'code'
   editorArgs: string[];        // Default: ['-r']
   theme: 'auto' | 'dark' | 'light';  // Default: 'auto'
@@ -225,7 +225,7 @@ export interface YellowwoodConfig {
 }
 
 // Application State
-export interface YellowwoodState {
+export interface CanopyState {
   fileTree: TreeNode[];
   expandedFolders: Set<string>;
   selectedPath: string;
@@ -240,11 +240,11 @@ export interface YellowwoodState {
   gitStatus: Map<string, GitStatus>;
   gitEnabled: boolean;
   notification: Notification | null;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
 }
 
 // Default Configuration
-export const DEFAULT_CONFIG: YellowwoodConfig = {
+export const DEFAULT_CONFIG: CanopyConfig = {
   editor: 'code',
   editorArgs: ['-r'],
   theme: 'auto',
@@ -296,19 +296,19 @@ export interface OpenersConfig {
 
 ## Product Requirements Alignment
 
-The following subsections mirror the canonical Yellowwood PRD to ensure this document references every requirement from the full specification shared above.
+The following subsections mirror the canonical Canopy PRD to ensure this document references every requirement from the full specification shared above.
 
 ### 1. Overview
 
-- Yellowwood is a terminal-based file browser built with Ink and React that behaves like a dedicated file-explorer pane for narrow vertical terminals (Ghostty, kitty, etc.).
+- Canopy is a terminal-based file browser built with Ink and React that behaves like a dedicated file-explorer pane for narrow vertical terminals (Ghostty, kitty, etc.).
 - The tool targets developers who rely on AI coding agents (Claude Code, Codex CLI, Gemini CLI) that edit the working tree in the background and want continuous awareness of filesystem changes, git status, and worktrees.
-- Naming inspiration: the Outeniqua Yellowwood (South Africa’s tallest indigenous tree) represents an always-on vantage point that oversees the repo.
+- Naming inspiration: the Outeniqua Canopy (South Africa’s tallest indigenous tree) represents an always-on vantage point that oversees the repo.
 
 ### 2. Core Purpose and Constraints
 
 **Primary use case:**
-- One persistent terminal column (≈60–70 columns wide) runs Yellowwood while other panes are used for editing, terminals, and AI agents.
-- Yellowwood shows a live file tree rooted at the active git worktree, highlights changes regardless of whether the user or an agent made them, and enables quick navigation/opening.
+- One persistent terminal column (≈60–70 columns wide) runs Canopy while other panes are used for editing, terminals, and AI agents.
+- Canopy shows a live file tree rooted at the active git worktree, highlights changes regardless of whether the user or an agent made them, and enables quick navigation/opening.
 - Mouse and keyboard interaction coexist for efficiency; slash commands provide textual control without leaving the tree.
 
 **Key constraints:**
@@ -330,7 +330,7 @@ The following subsections mirror the canonical Yellowwood PRD to ensure this doc
 
 ```text
 ┌──────────────────────────────────────────┐
-│ Yellowwood • wt [main] (3) • /src       │ Header
+│ Canopy • wt [main] (3) • /src       │ Header
 ├──────────────────────────────────────────┤
 │ ▶ src/                                  │
 │   ▶ components/                         │
@@ -412,7 +412,7 @@ The following subsections mirror the canonical Yellowwood PRD to ensure this doc
 
 #### 5.6 Configuration System
 
-- Config hierarchy: project `.yellowwood.json` overrides global `~/.config/yellowwood/config.json`, both override `DEFAULT_CONFIG`.
+- Config hierarchy: project `.canopy.json` overrides global `~/.config/canopy/config.json`, both override `DEFAULT_CONFIG`.
 - Values include editor commands, theme, git visibility, metadata toggles, `autoRefresh`, `refreshDebounce`, tree indentation, depth, sorting, CopyTree defaults, and UI options.
 - Configurable openers and UI behavior allow different commands per extension/glob and mouse-click semantics. Example:
 
@@ -493,8 +493,8 @@ interface Worktree {
 ### 6. Technical Architecture
 
 - **Technology stack:** Ink, React 19, TypeScript 5.9, Node 18+, chokidar, simple-git, cosmiconfig, clipboardy, fs-extra, globby, execa, term-size, supports-hyperlinks.
-- **Component structure:** `Yellowwood` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `StatusBar`, `HelpModal`, `WorktreePanel`.
-- **Responsibilities:** Yellowwood loads config, file trees, git status, watchers; Header displays context and handles worktree switching; TreeView manages selection, scrolling, virtualization; CommandBar parses/executes commands; WorktreePanel lists worktrees; ContextMenu drives opener/copy actions; HelpModal shows shortcuts.
+- **Component structure:** `Canopy` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `StatusBar`, `HelpModal`, `WorktreePanel`.
+- **Responsibilities:** Canopy loads config, file trees, git status, watchers; Header displays context and handles worktree switching; TreeView manages selection, scrolling, virtualization; CommandBar parses/executes commands; WorktreePanel lists worktrees; ContextMenu drives opener/copy actions; HelpModal shows shortcuts.
 - **State management:** See interfaces below; state tracks file tree, expanded folders, selection, UI overlays, command bar input/history, filters, git/worktree data, notifications, and merged config.
 
 ```ts
@@ -522,7 +522,7 @@ interface Notification {
   type: 'info' | 'success' | 'error';
 }
 
-interface YellowwoodState {
+interface CanopyState {
   fileTree: TreeNode[];
   expandedFolders: Set<string>;
   selectedPath: string | null;
@@ -542,20 +542,20 @@ interface YellowwoodState {
   activeWorktreeId: string | null;
   worktreeLastUpdated: number | null;
   notification: Notification | null;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
 }
 ```
 
 ### 7. CLI and Commands
 
-- Main command: `yellowwood [path] [options]` with options `-e/--editor`, `-c/--config`, `-g/--git`, `-h/--hidden`, `-f/--filter`, `-d/--max-depth`, `--no-watch`, `--no-git`, `--help`, `--version`.
-- Examples: `yellowwood`, `yellowwood /path/to/project`, `yellowwood -f .ts`, `yellowwood --git`.
-- Utility commands: `yellowwood init`, `yellowwood config`, `yellowwood config --validate`, plus the global `--help`/`--version` shortcuts.
-- `yellowwood config` opens the active config in the configured editor (running `yellowwood init` if no config exists).
+- Main command: `canopy [path] [options]` with options `-e/--editor`, `-c/--config`, `-g/--git`, `-h/--hidden`, `-f/--filter`, `-d/--max-depth`, `--no-watch`, `--no-git`, `--help`, `--version`.
+- Examples: `canopy`, `canopy /path/to/project`, `canopy -f .ts`, `canopy --git`.
+- Utility commands: `canopy init`, `canopy config`, `canopy config --validate`, plus the global `--help`/`--version` shortcuts.
+- `canopy config` opens the active config in the configured editor (running `canopy init` if no config exists).
 
 ### 8. Git Integration
 
-- On startup Yellowwood detects if the target is a git repo. Git features (status markers, filters, worktrees) disable gracefully when not available or when `--no-git` is supplied.
+- On startup Canopy detects if the target is a git repo. Git features (status markers, filters, worktrees) disable gracefully when not available or when `--no-git` is supplied.
 - Git status detection maps statuses to marker letters: Modified → `M`, Added → `A`, Deleted → `D`, Untracked → `U`, Ignored → `I`, Clean → blank. `g` toggles marker visibility per user preference.
 - Git-aware slash commands (`/git ...`, `/changed`) filter the tree to relevant paths, keeping ancestor folders visible. Git operations always execute in the active worktree.
 - Worktree-aware git status refresh occurs on worktree switches, manual `r` refreshes, and debounced watcher events.
@@ -836,8 +836,8 @@ it('handles keyboard input', () => {
 ### Setting Up
 
 ```bash
-git clone https://github.com/gregpriday/yellowwood
-cd yellowwood
+git clone https://github.com/gregpriday/canopy
+cd canopy
 npm install
 npm run build
 ```
@@ -925,4 +925,4 @@ npm start /path/to/directory
 
 ---
 
-**This specification is the single source of truth for Yellowwood development. All issues and implementation work should reference this document.**
+**This specification is the single source of truth for Canopy development. All issues and implementation work should reference this document.**

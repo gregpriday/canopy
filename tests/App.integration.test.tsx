@@ -47,7 +47,7 @@ describe('App integration - file operations', () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Wait for async initialization using frame content check
-    await waitForCondition(() => !lastFrame()?.includes('Loading Yellowwood'));
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     expect(lastFrame()).toBeDefined();
   });
@@ -56,7 +56,7 @@ describe('App integration - file operations', () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Wait for initialization using frame content check
-    await waitForCondition(() => !lastFrame()?.includes('Loading Yellowwood'));
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Note: Actually triggering keyboard events and testing context menu interaction
     // would require more complex setup with mock file trees and selection state.
@@ -80,7 +80,7 @@ describe('App integration - file operations', () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Wait for initialization using frame content check
-    await waitForCondition(() => !lastFrame()?.includes('Loading Yellowwood'));
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // App should not crash on error
     expect(lastFrame()).toBeDefined();
@@ -93,7 +93,7 @@ describe('App integration - file operations', () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Wait for initialization using frame content check
-    await waitForCondition(() => !lastFrame()?.includes('Loading Yellowwood'));
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // App should not crash on error
     expect(lastFrame()).toBeDefined();
@@ -103,16 +103,16 @@ describe('App integration - file operations', () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Initially should show loading
-    expect(lastFrame()).toContain('Loading Yellowwood');
+    expect(lastFrame()).toContain('Loading Canopy');
   });
 
   it('transitions from loading to ready state', async () => {
     const { lastFrame } = render(<App cwd="/test" />);
 
     // Initially loading
-    expect(lastFrame()).toContain('Loading Yellowwood');
+    expect(lastFrame()).toContain('Loading Canopy');
 
     // Wait for lifecycle to complete
-    await waitForCondition(() => !lastFrame()?.includes('Loading Yellowwood'));
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
   });
 });

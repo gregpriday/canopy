@@ -1,5 +1,5 @@
 /**
- * Structured logging utilities for Yellowwood.
+ * Structured logging utilities for Canopy.
  * Uses console.log/warn/error with consistent formatting.
  */
 

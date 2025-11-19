@@ -6,14 +6,14 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import App from './App.js';
 import { loadConfig } from './utils/config.js';
-import type { YellowwoodConfig } from './types/index.js';
+import type { CanopyConfig } from './types/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 interface ParsedArgs {
   cwd: string;
-  configOverrides: Partial<YellowwoodConfig>;
+  configOverrides: Partial<CanopyConfig>;
   showHelp: boolean;
   showVersion: boolean;
   noWatch: boolean;
@@ -126,7 +126,7 @@ function parseCliArgs(argv: string[]): ParsedArgs {
     }
 
     // Unknown flag
-    throw new Error(`Unknown flag: ${arg}\nRun 'yellowwood --help' for usage information.`);
+    throw new Error(`Unknown flag: ${arg}\nRun 'canopy --help' for usage information.`);
   }
 
   return result;
@@ -137,10 +137,10 @@ function parseCliArgs(argv: string[]): ParsedArgs {
  */
 function showHelp(): void {
   const helpText = `
-Yellowwood - Terminal-based file browser for developers
+Canopy - Terminal-based file browser for developers
 
 USAGE
-  yellowwood [path] [options]
+  canopy [path] [options]
 
 ARGUMENTS
   [path]                    Directory to browse (default: current directory)
@@ -158,11 +158,11 @@ OPTIONS
   -v, --version             Show version number
 
 EXAMPLES
-  yellowwood                                    # Browse current directory
-  yellowwood /path/to/project                   # Browse specific directory
-  yellowwood --filter .ts                       # Start with .ts files filtered
-  yellowwood --editor vim --no-watch            # Use vim, disable watching
-  yellowwood ~/project --max-depth 3 --hidden   # Limit depth, show hidden
+  canopy                                    # Browse current directory
+  canopy /path/to/project                   # Browse specific directory
+  canopy --filter .ts                       # Start with .ts files filtered
+  canopy --editor vim --no-watch            # Use vim, disable watching
+  canopy ~/project --max-depth 3 --hidden   # Limit depth, show hidden
 
 KEYBOARD SHORTCUTS
   ↑/↓         Navigate tree
@@ -178,10 +178,10 @@ KEYBOARD SHORTCUTS
   q           Quit
 
 CONFIGURATION
-  Project:  .yellowwood.json
-  Global:   ~/.config/yellowwood/config.json
+  Project:  .canopy.json
+  Global:   ~/.config/canopy/config.json
 
-For more information, visit: https://github.com/gregpriday/yellowwood
+For more information, visit: https://github.com/gregpriday/canopy
 `;
 
   console.log(helpText);
@@ -194,9 +194,9 @@ function showVersion(): void {
   try {
     const packageJsonPath = join(__dirname, '../package.json');
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    console.log(`yellowwood v${packageJson.version}`);
+    console.log(`canopy v${packageJson.version}`);
   } catch (error) {
-    console.log('yellowwood v?.?.? (version not found)');
+    console.log('canopy v?.?.? (version not found)');
   }
 }
 
@@ -228,7 +228,7 @@ async function main(): Promise<void> {
 
     // Merge CLI overrides with loaded config
     // CLI overrides have highest precedence
-    const finalConfig: YellowwoodConfig = {
+    const finalConfig: CanopyConfig = {
       ...baseConfig,
       ...parsedArgs.configOverrides,
     };

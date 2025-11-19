@@ -4,7 +4,7 @@ import SelectInput from 'ink-select-input';
 import path from 'path';
 import { execa } from 'execa';
 import fs from 'fs-extra';
-import type { YellowwoodConfig, OpenerConfig } from '../types/index.js';
+import type { CanopyConfig, OpenerConfig } from '../types/index.js';
 import { openFile } from '../utils/fileOpener.js';
 import { copyFilePath } from '../utils/clipboard.js';
 
@@ -12,7 +12,7 @@ interface ContextMenuProps {
 	path: string;
 	rootPath: string;
 	position: { x: number; y: number };
-	config: YellowwoodConfig;
+	config: CanopyConfig;
 	onClose: () => void;
 	onAction: (actionType: string, result: ActionResult) => void;
 }

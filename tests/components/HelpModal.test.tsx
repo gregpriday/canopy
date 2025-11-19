@@ -20,7 +20,7 @@ describe('HelpModal', () => {
     );
 
     // Initially visible - should have content
-    expect(lastFrame()).toContain('Yellowwood Keyboard Shortcuts');
+    expect(lastFrame()).toContain('Canopy Keyboard Shortcuts');
 
     // Transition to hidden
     rerender(<HelpModal visible={false} onClose={onClose} />);
@@ -38,7 +38,7 @@ describe('HelpModal', () => {
     const frame = lastFrame();
 
     // Check for title
-    expect(frame).toContain('Yellowwood Keyboard Shortcuts');
+    expect(frame).toContain('Canopy Keyboard Shortcuts');
 
     // Check for category headers
     expect(frame).toContain('Navigation:');
@@ -307,7 +307,7 @@ describe('HelpModal', () => {
     const frame = lastFrame();
     expect(frame).toContain('Manual refresh');
     expect(frame).toContain('Toggle this help overlay');
-    expect(frame).toContain('Quit Yellowwood');
+    expect(frame).toContain('Quit Canopy');
     expect(frame).toContain('Open context menu');
   });
 });

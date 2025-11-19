@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-Yellowwood is a TypeScript CLI rendered with Ink. Runtime code lives in `src/`: `cli.ts` boots the binary, `App.tsx` wires the UI, and `components/`, `hooks/`, `commands/`, `utils/`, and `types/` isolate widgets, shared state, handlers, helpers, and contracts. Build artifacts live in generated-only `dist/`. Tests mirror the `src/` tree (`src/components/TreeView.tsx` ↔ `tests/components/TreeView.test.tsx`) so coverage gaps are obvious.
+Canopy is a TypeScript CLI rendered with Ink. Runtime code lives in `src/`: `cli.ts` boots the binary, `App.tsx` wires the UI, and `components/`, `hooks/`, `commands/`, `utils/`, and `types/` isolate widgets, shared state, handlers, helpers, and contracts. Build artifacts live in generated-only `dist/`. Tests mirror the `src/` tree (`src/components/TreeView.tsx` ↔ `tests/components/TreeView.test.tsx`) so coverage gaps are obvious.
 
 ## Build, Test, and Development Commands
 - `npm run dev` – Watch-mode `tsc` for rapid UI iteration.
@@ -21,4 +21,4 @@ Vitest with `ink-testing-library` drives component coverage, while `@testing-lib
 Commits loosely follow Conventional Commits (`feat(tree): add depth limit`, `fix(cli): guard unreadable paths`). Keep summaries under ~72 characters and describe intent in the body when touching multiple areas. Pull requests should explain motivation, note visible CLI changes, reference issues, and attach terminal screenshots or recordings whenever output changes. Do not merge with failing `npm run typecheck` or `npm test`; call out any deliberate omissions.
 
 ## Configuration & Operations Tips
-Target Node 20.19+ (see `package.json`). Runtime behavior is customizable via `.yellowwood.json` or `~/.config/yellowwood/config.json`; default every option in code so absent keys degrade gracefully and document additions in `README.md`. When adding heavier integrations (CopyTree context, git status), gate them behind config flags to keep performance predictable in large repositories.
+Target Node 20.19+ (see `package.json`). Runtime behavior is customizable via `.canopy.json` or `~/.config/canopy/config.json`; default every option in code so absent keys degrade gracefully and document additions in `README.md`. When adding heavier integrations (CopyTree context, git status), gate them behind config flags to keep performance predictable in large repositories.

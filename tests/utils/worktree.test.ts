@@ -13,7 +13,7 @@ describe('worktree utilities', () => {
 
   beforeEach(async () => {
     // Create temp directory for test repository
-    const tmpPath = path.join(os.tmpdir(), `yellowwood-worktree-test-${Date.now()}`);
+    const tmpPath = path.join(os.tmpdir(), `canopy-worktree-test-${Date.now()}`);
     await fs.ensureDir(tmpPath);
     // Resolve symlinks (e.g., /var -> /private/var on macOS)
     testRepoPath = await fs.realpath(tmpPath);
@@ -58,7 +58,7 @@ describe('worktree utilities', () => {
     });
 
     it('returns empty array for non-git directory', async () => {
-      const tmpPath = path.join(os.tmpdir(), `yellowwood-non-git-${Date.now()}`);
+      const tmpPath = path.join(os.tmpdir(), `canopy-non-git-${Date.now()}`);
       await fs.ensureDir(tmpPath);
       const nonGitPath = await fs.realpath(tmpPath);
 
@@ -82,7 +82,7 @@ describe('worktree utilities', () => {
       await git.checkout(mainBranch);
 
       // Create worktree for feature branch
-      const tmpWtPath = path.join(os.tmpdir(), `yellowwood-wt-feature-${Date.now()}`);
+      const tmpWtPath = path.join(os.tmpdir(), `canopy-wt-feature-${Date.now()}`);
       await git.raw(['worktree', 'add', tmpWtPath, 'feature/test']);
       // Resolve real path after git creates it
       const worktreePath = await fs.realpath(tmpWtPath);
@@ -113,7 +113,7 @@ describe('worktree utilities', () => {
       }
 
       // Create worktree with detached HEAD
-      const tmpWtPath = path.join(os.tmpdir(), `yellowwood-wt-detached-${Date.now()}`);
+      const tmpWtPath = path.join(os.tmpdir(), `canopy-wt-detached-${Date.now()}`);
       await git.raw(['worktree', 'add', '--detach', tmpWtPath, commitHash]);
       // Resolve real path after git creates it
       const worktreePath = await fs.realpath(tmpWtPath);
@@ -246,7 +246,7 @@ describe('worktree utilities', () => {
       const subdir = path.join(testRepoPath, 'src');
       await fs.ensureDir(subdir);
 
-      const symlinkPath = path.join(os.tmpdir(), `yellowwood-symlink-${Date.now()}`);
+      const symlinkPath = path.join(os.tmpdir(), `canopy-symlink-${Date.now()}`);
       await fs.symlink(subdir, symlinkPath);
 
       try {

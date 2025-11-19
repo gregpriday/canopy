@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Text } from 'ink';
-import type { TreeNode, YellowwoodConfig } from '../types/index.js';
+import type { TreeNode, CanopyConfig } from '../types/index.js';
 import { TreeNode as TreeNodeComponent } from './TreeNode.js';
 import {
   flattenVisibleTree,
@@ -17,7 +17,7 @@ interface TreeViewProps {
   fileTree: TreeNode[];
   selectedPath: string;
   onSelect: (path: string) => void;
-  config: YellowwoodConfig;
+  config: CanopyConfig;
   expandedPaths?: Set<string>; // Optional controlled expansion
   onToggleExpand?: (path: string) => void; // Callback for expansion changes
   disableKeyboard?: boolean; // Disable internal keyboard handlers when parent handles them
