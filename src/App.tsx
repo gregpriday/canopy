@@ -21,10 +21,14 @@ import type { FileWatcher } from './utils/fileWatcher.js';
 
 interface AppProps {
   cwd: string;
+  config?: YellowwoodConfig;
+  noWatch?: boolean;
+  noGit?: boolean;
+  initialFilter?: string;
 }
 
-const App: React.FC<AppProps> = ({ cwd }) => {
-  const [config] = useState<YellowwoodConfig>(DEFAULT_CONFIG);
+const App: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
+  const [config] = useState<YellowwoodConfig>(initialConfig || DEFAULT_CONFIG);
   const [fileTree, setFileTree] = useState<TreeNode[]>([]);
   const [originalFileTree, setOriginalFileTree] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string>('');
@@ -36,9 +40,9 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   const [commandBarInput, setCommandBarInput] = useState('');
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
 
-  // Filter state
-  const [filterActive, setFilterActive] = useState(false);
-  const [filterQuery, setFilterQuery] = useState('');
+  // Filter state - initialize from CLI if provided
+  const [filterActive, setFilterActive] = useState(!!initialFilter);
+  const [filterQuery, setFilterQuery] = useState(initialFilter || '');
 
   // Worktree state
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
@@ -50,9 +54,10 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   const watcherRef = useRef<FileWatcher | null>(null);
 
   // Git status hook - tracks the active root path
+  // noGit flag from CLI overrides config.showGitStatus
   const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus } = useGitStatus(
     activeRootPath,
-    config.showGitStatus,
+    noGit ? false : config.showGitStatus,
     config.refreshDebounce,
   );
 
@@ -200,6 +205,8 @@ const App: React.FC<AppProps> = ({ cwd }) => {
           onChange: () => refreshGitStatusRef.current(),
           onUnlink: () => refreshGitStatusRef.current(),
         },
+        noWatch, // Pass noWatch flag from CLI
+        initialFilter, // Pass initial filter from CLI (only applies on first switch)
       });
 
       // Update state with new tree, selection, and watcher
