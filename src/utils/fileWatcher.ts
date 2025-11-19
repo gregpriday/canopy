@@ -178,6 +178,14 @@ export function createFileWatcher(
 				// This allows the caller to detect the failure and handle recovery
 				if (isActive) {
 					isActive = false;
+					// Close and clear the watcher to prevent resource leaks
+					// and allow clean restart if needed
+					if (watcher) {
+						watcher.close().catch((closeError) => {
+							console.error('Error closing watcher after error:', closeError);
+						});
+						watcher = null;
+					}
 				}
 
 				if (onError) {
