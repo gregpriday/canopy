@@ -32,6 +32,8 @@
 
 ## Building and Running
 
+**Important:** You must run `npm run build` after making any code changes to verify them with `npm start` or `canopy`.
+
 ```bash
 # Install dependencies
 npm install

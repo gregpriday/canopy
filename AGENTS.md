@@ -5,7 +5,7 @@ Canopy is a TypeScript CLI rendered with Ink. Runtime code lives in `src/`: `cli
 
 ## Build, Test, and Development Commands
 - `npm run dev` – Watch-mode `tsc` for rapid UI iteration.
-- `npm run build` – Single compile that refreshes `dist/` before `npm start` or publishing.
+- `npm run build` – Single compile that refreshes `dist/` before `npm start` or publishing. **ALWAYS run this after code changes to see updates in the CLI.**
 - `npm start` – Executes `dist/cli.js` to review the packaged binary.
 - `npm test` / `npm run test:watch` – Vitest runs across unit and integration suites.
 - `npm run test:coverage` – V8 coverage output to confirm branches (keyboard, fs events) are exercised.

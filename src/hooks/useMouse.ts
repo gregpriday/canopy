@@ -29,6 +29,7 @@ export interface UseMouseOptions {
   onSelect: (path: string) => void;
   onToggle: (path: string) => void;
   onOpen: (path: string) => void;
+  onCopy?: (path: string) => void; // Optional copy handler
   onContextMenu: (path: string, position: { x: number; y: number }) => void;
   onScrollChange: (newOffset: number) => void;
   config: CanopyConfig;
@@ -59,6 +60,7 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
     onSelect,
     onToggle,
     onOpen,
+    onCopy,
     onContextMenu,
     onScrollChange,
     config,
@@ -120,7 +122,15 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
           // Directories: always toggle expansion
           onToggle(node.path);
         } else {
-          // Files: respect config.ui.leftClickAction
+          // Files: 
+          // Check for modifiers for COPY action (Alt + Click)
+          // Or if we really want to force copy
+          if (onCopy && event.meta) { // Using meta (Alt) for Copy
+             onCopy(node.path);
+             return;
+          }
+
+          // Standard behavior: Select or Open
           const action = config.ui?.leftClickAction || 'open';
 
           if (action === 'open') {
@@ -131,9 +141,12 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
         }
       }
 
-      // Middle-click: ignore for now (future: could open in new pane)
+      // Middle-click: Copy path if handler available
+      if (event.button === 'middle' && onCopy) {
+        onCopy(node.path);
+      }
     },
-    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, onContextMenu, config],
+    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, onCopy, onContextMenu, config],
   );
 
   /**

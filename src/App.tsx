@@ -155,8 +155,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Viewport height for navigation calculations
-  const viewportHeight = useViewportHeight();
+  // Viewport height for navigation calculations (Header=3 + StatusBar=3)
+  const viewportHeight = useViewportHeight(6);
 
   // Flattened tree for keyboard navigation (memoized)
   const flattenedTree = useMemo(
@@ -459,11 +459,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   };
 
-  const handleCopySelectedPath = async () => {
-    if (!selectedPath) return;
+  const handleCopySelectedPath = async (targetPath?: string) => {
+    // Use provided path (mouse click) or fall back to selected path
+    const pathToString = targetPath || selectedPath;
+    if (!pathToString) return;
 
     try {
-      await copyFilePath(selectedPath, activeRootPath, false); // false = absolute path
+      await copyFilePath(pathToString, activeRootPath, false); // false = absolute path
       setNotification({
         type: 'success',
         message: 'Path copied to clipboard',
@@ -702,6 +704,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           expandedPaths={expandedFolders}
           onToggleExpand={toggleFolder}
           disableKeyboard={true}
+          onCopyPath={handleCopySelectedPath}
         />
       </Box>
       <StatusBar

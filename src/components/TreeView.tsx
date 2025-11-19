@@ -10,6 +10,7 @@ import {
 } from '../utils/treeViewVirtualization.js';
 import { useKeyboard } from '../hooks/useKeyboard.js';
 import { useMouse } from '../hooks/useMouse.js';
+import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 import { useViewportHeight } from '../hooks/useViewportHeight.js';
 import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 
@@ -21,6 +22,7 @@ interface TreeViewProps {
   expandedPaths?: Set<string>; // Optional controlled expansion
   onToggleExpand?: (path: string) => void; // Callback for expansion changes
   disableKeyboard?: boolean; // Disable internal keyboard handlers when parent handles them
+  onCopyPath?: (path: string) => void; // Handler for copy action (mouse click)
 }
 
 export const TreeView: React.FC<TreeViewProps> = ({
@@ -31,9 +33,10 @@ export const TreeView: React.FC<TreeViewProps> = ({
   expandedPaths: controlledExpandedPaths,
   onToggleExpand,
   disableKeyboard = false,
+  onCopyPath,
 }) => {
-  // Viewport height from shared hook
-  const viewportHeight = useViewportHeight();
+  // Header (3) + StatusBar (3) = 6 reserved rows
+  const viewportHeight = useViewportHeight(6);
 
   // Scroll state
   const [scrollOffset, setScrollOffset] = useState(0);
@@ -228,27 +231,55 @@ export const TreeView: React.FC<TreeViewProps> = ({
     onToggleExpand: handleToggleExpand,
   });
 
-  // Wire up mouse navigation (prepared for future mouse event integration)
-  // Note: Actual mouse event handling requires terminal escape sequence parsing
-  // which is beyond the scope of windowed rendering. The handlers are ready
-  // for when mouse support is fully implemented.
+  // Calculate header offset for mouse interaction
+  // Header is 3 rows (border + content + border)
+  // Plus 1 row if top scroll indicator is visible
+  const headerOffset = 3 + (visibleWindow.scrolledPast > 0 ? 1 : 0);
+
+  // Wire up mouse navigation
   const { handleClick, handleScroll } = useMouse({
     fileTree: flattenedTree,
     selectedPath,
     scrollOffset,
     viewportHeight,
-    headerHeight: 2, // Header is 2 rows
+    headerHeight: headerOffset,
     onSelect,
     onToggle: handleToggle,
     onOpen: onSelect, // For now, open = select
+    onCopy: onCopyPath,
     onContextMenu: () => {}, // Not implemented yet
     onScrollChange: handleScrollChange,
     config,
   });
 
-  // Silence unused variable warnings - these will be used when mouse events are wired up
-  void handleClick;
-  void handleScroll;
+  // Listen for raw terminal mouse events
+  useTerminalMouse({
+    enabled: true,
+    onMouse: (termEvent) => {
+      // Map terminal event to internal logic event
+      if (termEvent.button === 'wheel-up') {
+        handleScroll({ x: termEvent.x, y: termEvent.y, deltaY: -1 });
+      } else if (termEvent.button === 'wheel-down') {
+        handleScroll({ x: termEvent.x, y: termEvent.y, deltaY: 1 });
+      } else if (termEvent.action === 'down') {
+        // Convert simplified button names
+        const buttonMap: Record<string, 'left' | 'right' | 'middle'> = {
+          'left': 'left', 'right': 'right', 'middle': 'middle'
+        };
+        
+        if (buttonMap[termEvent.button]) {
+          handleClick({
+            x: termEvent.x, 
+            y: termEvent.y,
+            button: buttonMap[termEvent.button],
+            shift: termEvent.shift,
+            ctrl: termEvent.ctrl,
+            meta: termEvent.alt
+          });
+        }
+      }
+    }
+  });
 
   // Handle empty tree
   if (fileTree.length === 0) {

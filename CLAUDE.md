@@ -8,6 +8,8 @@ Canopy is a terminal-based file browser built with Ink (React for CLIs). It's de
 
 ## Build Commands
 
+**Important:** You must run `npm run build` after making any code changes to verify them with `npm start` or `canopy`.
+
 ```bash
 # Build the project (compiles TypeScript to JavaScript)
 npm run build
