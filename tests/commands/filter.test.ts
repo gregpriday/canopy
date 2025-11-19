@@ -45,6 +45,8 @@ function createTestContext(tree: TreeNode[] = []): CommandContext {
     commandBarInput: '',
     commandHistory: [],
     config: DEFAULT_CONFIG,
+    worktrees: [],
+    activeWorktreeId: null,
   };
 
   return {
@@ -55,6 +57,8 @@ function createTestContext(tree: TreeNode[] = []): CommandContext {
     setFileTree: vi.fn(),
     notify: vi.fn(),
     addToHistory: vi.fn(),
+    worktrees: [],
+    activeWorktreeId: null,
   };
 }
 

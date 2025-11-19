@@ -109,6 +109,8 @@ export interface YellowwoodState {
   commandBarInput: string;
   commandHistory: string[];
   config: YellowwoodConfig;
+  worktrees: Worktree[];
+  activeWorktreeId: string | null;
 }
 
 export const DEFAULT_CONFIG: YellowwoodConfig = {

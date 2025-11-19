@@ -1,4 +1,4 @@
-import type { TreeNode, Notification, YellowwoodState } from '../types/index.js';
+import type { TreeNode, Notification, YellowwoodState, Worktree } from '../types/index.js';
 
 /**
  * Context passed to command execution.
@@ -25,6 +25,15 @@ export interface CommandContext {
 
   /** Add command to history */
   addToHistory: (command: string) => void;
+
+  /** Worktrees available in the repository */
+  worktrees: Worktree[];
+
+  /** ID of the currently active worktree */
+  activeWorktreeId: string | null;
+
+  /** Switch to a target worktree (optional - may not be available in all contexts) */
+  switchToWorktree?: (targetWorktree: Worktree) => Promise<void>;
 }
 
 /**

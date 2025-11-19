@@ -25,6 +25,8 @@ function createTestContext(tree: TreeNode[] = []): CommandContext {
     commandBarInput: '',
     commandHistory: [],
     config: DEFAULT_CONFIG,
+    worktrees: [],
+    activeWorktreeId: null,
   };
 
   return {
@@ -35,6 +37,8 @@ function createTestContext(tree: TreeNode[] = []): CommandContext {
     setFileTree: () => {},
     notify: () => {},
     addToHistory: () => {},
+    worktrees: [],
+    activeWorktreeId: null,
   };
 }
 
@@ -217,6 +221,10 @@ describe('getAllCommands', () => {
     // Should include filter command
     const filterCommand = commands.find(cmd => cmd.name === 'filter');
     expect(filterCommand).toBeDefined();
+
+    // Should include worktree command
+    const worktreeCommand = commands.find(cmd => cmd.name === 'wt');
+    expect(worktreeCommand).toBeDefined();
   });
 
   it('returns commands with required properties', () => {
@@ -228,5 +236,35 @@ describe('getAllCommands', () => {
       expect(command).toHaveProperty('execute');
       expect(typeof command.execute).toBe('function');
     }
+  });
+});
+
+describe('worktree command integration', () => {
+  it('gets worktree command by name', () => {
+    const command = getCommand('wt');
+    expect(command).toBeDefined();
+    expect(command?.name).toBe('wt');
+  });
+
+  it('gets worktree command by alias', () => {
+    const command = getCommand('worktree');
+    expect(command).toBeDefined();
+    expect(command?.name).toBe('wt');
+  });
+
+  it('executes worktree command by name', async () => {
+    const context = createTestContext();
+    const result = await executeCommand('/wt list', context);
+
+    expect(result).toBeDefined();
+    expect(result.notification).toBeDefined();
+  });
+
+  it('executes worktree command by alias', async () => {
+    const context = createTestContext();
+    const result = await executeCommand('/worktree list', context);
+
+    expect(result).toBeDefined();
+    expect(result.notification).toBeDefined();
   });
 });

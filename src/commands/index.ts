@@ -1,5 +1,6 @@
 import type { CommandDefinition, CommandContext, CommandResult } from './types.js';
 import { filterCommand } from './filter.js';
+import { worktreeCommand } from './worktree.js';
 
 /**
  * All registered commands.
@@ -7,6 +8,7 @@ import { filterCommand } from './filter.js';
  */
 const allCommands: CommandDefinition[] = [
   filterCommand,
+  worktreeCommand,
   // Add more commands here as they're implemented
 ];
 

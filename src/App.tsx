@@ -5,10 +5,11 @@ import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
 import { CommandBar } from './components/CommandBar.js';
 import { DEFAULT_CONFIG } from './types/index.js';
-import type { YellowwoodConfig, TreeNode, Notification } from './types/index.js';
+import type { YellowwoodConfig, TreeNode, Notification, Worktree } from './types/index.js';
 import { executeCommand } from './commands/index.js';
 import type { CommandContext } from './commands/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
+import { getWorktrees, getCurrentWorktree } from './utils/worktree.js';
 
 interface AppProps {
   cwd: string;
@@ -31,11 +32,43 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   const [filterActive, setFilterActive] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
 
+  // Worktree state
+  const [worktrees, setWorktrees] = useState<Worktree[]>([]);
+  const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
+
   useEffect(() => {
-    // TODO: Load configuration from cosmiconfig
-    // TODO: Build initial file tree
-    // TODO: Set up file watcher
-    setLoading(false);
+    let isMounted = true;
+
+    const initializeApp = async () => {
+      try {
+        const loadedWorktrees = await getWorktrees(cwd);
+        if (!isMounted) return;
+
+        setWorktrees(loadedWorktrees);
+
+        if (loadedWorktrees.length > 0) {
+          const current = getCurrentWorktree(cwd, loadedWorktrees);
+          if (current) {
+            setActiveWorktreeId(current.id);
+          } else {
+            setActiveWorktreeId(loadedWorktrees[0].id);
+          }
+        }
+      } catch (error) {
+        if (!isMounted) return;
+        console.debug('Could not load worktrees:', error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initializeApp();
+
+    return () => {
+      isMounted = false;
+    };
   }, [cwd]);
 
   // Auto-dismiss notifications after 3 seconds
@@ -121,6 +154,8 @@ const App: React.FC<AppProps> = ({ cwd }) => {
         commandBarInput,
         commandHistory,
         config,
+        worktrees,
+        activeWorktreeId,
       },
       originalFileTree: treeForCommands,
       setFilterActive: (active: boolean) => {
@@ -136,6 +171,13 @@ const App: React.FC<AppProps> = ({ cwd }) => {
       notify: setNotification,
       addToHistory: (cmd: string) => {
         setCommandHistory(prev => [cmd, ...prev.filter(c => c !== cmd)].slice(0, 50));
+      },
+      worktrees,
+      activeWorktreeId,
+      switchToWorktree: async (targetWorktree: Worktree) => {
+        // For now, just update the active worktree ID
+        // Full implementation with file watcher and tree rebuilding would go here
+        setActiveWorktreeId(targetWorktree.id);
       },
     };
 
