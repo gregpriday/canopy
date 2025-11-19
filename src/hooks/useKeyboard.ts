@@ -33,8 +33,9 @@ export interface KeyboardHandlers {
   onToggleGitStatus?: () => void; // g key
 
   // Copy Actions
-  onCopyPath?: () => void;             // c key
+  onCopyPath?: () => void;             // c key (no modifiers)
   onOpenCopyTreeBuilder?: () => void;  // Shift+C key
+  onCopyTreeShortcut?: () => void;     // Command+C (meta+c)
 
   // UI Actions
   onRefresh?: () => void;          // r key
@@ -214,13 +215,18 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
     }
 
     // Copy Actions
-    if (input === 'c' && !key.shift && handlers.onCopyPath) {
+    if (input === 'c' && !key.shift && !key.meta && !key.ctrl && handlers.onCopyPath) {
       handlers.onCopyPath();
       return;
     }
 
     if (input === 'C' && handlers.onOpenCopyTreeBuilder) {
       handlers.onOpenCopyTreeBuilder();
+      return;
+    }
+
+    if (key.meta && input === 'c' && handlers.onCopyTreeShortcut) {
+      handlers.onCopyTreeShortcut();
       return;
     }
 

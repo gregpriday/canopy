@@ -3,6 +3,7 @@ import { Box, Text, useApp, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
+import type { StatusBarRef } from './components/StatusBar.js'; // Import the ref type
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { HelpModal } from './components/HelpModal.js';
@@ -116,6 +117,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // File watcher ref
   const watcherRef = useRef<FileWatcher | null>(null);
+  
+  // StatusBar ref to trigger internal methods
+  const statusBarRef = useRef<StatusBarRef>(null);
 
   const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus } = useGitStatus(
     activeRootPath,
@@ -572,8 +576,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
 
-    onCopyPath: anyModalOpen ? undefined : handleCopySelectedPath,
+    onCopyPath: anyModalOpen ? undefined : () => {
+      statusBarRef.current?.triggerCopyTree();
+    },
     onOpenCopyTreeBuilder: anyModalOpen ? undefined : handleOpenCopyTreeBuilder,
+    onCopyTreeShortcut: anyModalOpen ? undefined : () => {
+      statusBarRef.current?.triggerCopyTree();
+    },
 
     onRefresh: anyModalOpen ? undefined : () => {
       refreshTree();
@@ -642,6 +651,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         />
       </Box>
       <StatusBar
+        ref={statusBarRef}
         notification={notification}
         fileCount={fileTree.length}
         modifiedCount={modifiedCount}
