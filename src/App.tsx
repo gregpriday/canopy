@@ -5,6 +5,7 @@ import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
 import { CommandBar } from './components/CommandBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
+import { WorktreePanel } from './components/WorktreePanel.js';
 import { DEFAULT_CONFIG } from './types/index.js';
 import type { YellowwoodConfig, TreeNode, Notification, Worktree } from './types/index.js';
 import { executeCommand } from './commands/index.js';
@@ -43,6 +44,7 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   const [worktrees, setWorktrees] = useState<Worktree[]>([]);
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(null);
   const [activeRootPath, setActiveRootPath] = useState<string>(cwd);
+  const [isWorktreePanelOpen, setIsWorktreePanelOpen] = useState(false);
 
   // File watcher ref
   const watcherRef = useRef<FileWatcher | null>(null);
@@ -57,7 +59,7 @@ const App: React.FC<AppProps> = ({ cwd }) => {
   const refreshGitStatusRef = useRef(refreshGitStatus);
   refreshGitStatusRef.current = refreshGitStatus;
 
-  // Context menu state
+  // Context menu state (from PR #73)
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -94,6 +96,10 @@ const App: React.FC<AppProps> = ({ cwd }) => {
 
     return () => {
       isMounted = false;
+      // Cleanup watcher on unmount
+      if (watcherRef.current) {
+        watcherRef.current.stop();
+      }
     };
   }, [cwd]);
 
@@ -106,6 +112,9 @@ const App: React.FC<AppProps> = ({ cwd }) => {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  // Derive current worktree from activeWorktreeId
+  const currentWorktree = worktrees.find(wt => wt.id === activeWorktreeId) || null;
 
   // Keep originalFileTree in sync with fileTree when filter is not active
   useEffect(() => {
@@ -145,66 +154,78 @@ const App: React.FC<AppProps> = ({ cwd }) => {
     } else if (commandBarActive) {
       // ESC in command bar closes it
       handleCloseCommandBar();
+    } else if (isWorktreePanelOpen) {
+      // ESC in worktree panel closes it
+      setIsWorktreePanelOpen(false);
     }
   };
 
-  // Handle opening selected file
-  const handleOpenSelectedFile = async () => {
-    if (!selectedPath) {
+  // Handle cycling to next worktree (w key)
+  const handleNextWorktree = () => {
+    // No-op if no worktrees or only one worktree
+    if (worktrees.length <= 1) {
       return;
     }
 
+    // Find current index
+    const currentIndex = worktrees.findIndex(wt => wt.id === activeWorktreeId);
+
+    // Calculate next index with wrap-around
+    const nextIndex = currentIndex >= 0 && currentIndex < worktrees.length - 1
+      ? currentIndex + 1
+      : 0;
+
+    // Switch to next worktree
+    const nextWorktree = worktrees[nextIndex];
+    if (nextWorktree) {
+      handleSwitchWorktree(nextWorktree);
+    }
+  };
+
+  // Handle worktree switching
+  const handleSwitchWorktree = async (targetWorktree: Worktree) => {
     try {
-      await openFile(selectedPath, config);
+      // Clear git status before switching (from PR #75)
+      clearGitStatus();
+
+      const result = await switchWorktree({
+        targetWorktree,
+        currentWatcher: watcherRef.current, // Pass current watcher for cleanup
+        currentTree: fileTree,
+        selectedPath,
+        config,
+        onFileChange: {
+          // Trigger git refresh on file changes (from PR #75)
+          onAdd: () => refreshGitStatusRef.current(),
+          onChange: () => refreshGitStatusRef.current(),
+          onUnlink: () => refreshGitStatusRef.current(),
+        },
+      });
+
+      // Update state with new tree, selection, and watcher
+      setFileTree(result.tree);
+      setOriginalFileTree(result.tree);
+      setSelectedPath(result.selectedPath || '');
+      setActiveWorktreeId(targetWorktree.id);
+      setActiveRootPath(targetWorktree.path); // Update active root path for git status (from PR #75)
+      watcherRef.current = result.watcher; // Store new watcher in ref
+
+      // Refresh git status after switching (from PR #75)
+      refreshGitStatus();
+
+      // Close panel and show success notification
+      setIsWorktreePanelOpen(false);
       setNotification({
         type: 'success',
-        message: `Opened ${path.basename(selectedPath)}`,
+        message: `Switched to ${targetWorktree.branch || targetWorktree.name}`,
       });
     } catch (error) {
+      // Keep panel open on error, show error notification
       setNotification({
         type: 'error',
-        message: `Failed to open: ${(error as Error).message}`,
+        message: `Failed to switch worktree: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
-  };
-
-  // Handle copying selected path
-  const handleCopySelectedPath = async () => {
-    if (!selectedPath) {
-      return;
-    }
-
-    try {
-      await copyFilePath(selectedPath, cwd, false);
-      setNotification({
-        type: 'success',
-        message: 'Copied to clipboard',
-      });
-    } catch (error) {
-      setNotification({
-        type: 'error',
-        message: `Failed to copy: ${(error as Error).message}`,
-      });
-    }
-  };
-
-  // Handle context menu open
-  const handleOpenContextMenu = () => {
-    if (!selectedPath) {
-      return;
-    }
-
-    setContextMenuTarget(selectedPath);
-    setContextMenuPosition({ x: 0, y: 0 });
-    setContextMenuOpen(true);
-  };
-
-  // Handle context menu action result
-  const handleContextMenuAction = (actionType: string, result: { success: boolean; message: string }) => {
-    setNotification({
-      type: result.success ? 'success' : 'error',
-      message: result.message,
-    });
   };
 
   // Execute command from command bar
@@ -259,67 +280,7 @@ const App: React.FC<AppProps> = ({ cwd }) => {
       },
       worktrees,
       activeWorktreeId,
-      switchToWorktree: async (targetWorktree: Worktree) => {
-        try {
-          setLoading(true);
-
-          // Step 1: Clear git status immediately to prevent stale markers
-          if (config.showGitStatus) {
-            clearGitStatus();
-          }
-
-          // Step 2: Switch worktree (stops old watcher, builds tree, starts new watcher)
-          const triggerGitRefresh = (_path?: string) => {
-            if (config.showGitStatus) {
-              refreshGitStatusRef.current();
-            }
-          };
-
-          const result = await switchWorktree({
-            targetWorktree,
-            currentWatcher: watcherRef.current,
-            currentTree: fileTree,
-            selectedPath,
-            config,
-            onFileChange: {
-              onAdd: triggerGitRefresh,
-              onChange: triggerGitRefresh,
-              onUnlink: triggerGitRefresh,
-              onAddDir: triggerGitRefresh,
-              onUnlinkDir: triggerGitRefresh,
-            },
-          });
-
-          // Step 3: Update state with new tree, watcher, and selection
-          setFileTree(result.tree);
-          setOriginalFileTree(result.tree);
-          setSelectedPath(result.selectedPath || '');
-          watcherRef.current = result.watcher;
-          setActiveWorktreeId(targetWorktree.id);
-          setActiveRootPath(targetWorktree.path);
-
-          // Step 4: Refresh git status for new worktree
-          // The useGitStatus hook will automatically refresh when activeRootPath changes,
-          // but we call refresh explicitly to ensure immediate update
-          if (config.showGitStatus) {
-            refreshGitStatusRef.current();
-          }
-
-          // Step 5: Show success notification
-          setNotification({
-            type: 'success',
-            message: `Switched to worktree: ${targetWorktree.name}`,
-          });
-
-        } catch (error) {
-          setNotification({
-            type: 'error',
-            message: `Failed to switch worktree: ${(error as Error).message}`,
-          });
-        } finally {
-          setLoading(false);
-        }
-      },
+      switchToWorktree: handleSwitchWorktree,
     };
 
     // Execute command
@@ -334,10 +295,55 @@ const App: React.FC<AppProps> = ({ cwd }) => {
     setCommandBarInput('');
   };
 
+  // File operation handlers (from PR #73)
+  const handleOpenSelectedFile = async () => {
+    if (!selectedPath) return;
+
+    try {
+      await openFile(selectedPath, config);
+      setNotification({
+        type: 'success',
+        message: `Opened ${path.basename(selectedPath)}`,
+      });
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: `Failed to open file: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+  };
+
+  const handleCopySelectedPath = async () => {
+    if (!selectedPath) return;
+
+    try {
+      await copyFilePath(selectedPath, activeRootPath, false); // false = absolute path
+      setNotification({
+        type: 'success',
+        message: 'Path copied to clipboard',
+      });
+    } catch (error) {
+      setNotification({
+        type: 'error',
+        message: `Failed to copy path: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      });
+    }
+  };
+
+  const handleOpenContextMenu = () => {
+    if (!selectedPath) return;
+
+    setContextMenuTarget(selectedPath);
+    setContextMenuPosition({ x: 0, y: 0 }); // Simple positioning
+    setContextMenuOpen(true);
+  };
+
   // Set up keyboard handlers
   useKeyboard({
     onOpenCommandBar: handleOpenCommandBar,
     onClearFilter: handleClearFilter,
+    onNextWorktree: handleNextWorktree,
+    onOpenWorktreePanel: () => setIsWorktreePanelOpen(true),
     onOpenFile: handleOpenSelectedFile,
     onCopyPath: handleCopySelectedPath,
     onOpenContextMenu: handleOpenContextMenu,
@@ -353,7 +359,14 @@ const App: React.FC<AppProps> = ({ cwd }) => {
 
   return (
     <Box flexDirection="column" height="100%">
-      <Header cwd={cwd} filterActive={filterActive} filterQuery={filterQuery} />
+      <Header
+        cwd={cwd}
+        filterActive={filterActive}
+        filterQuery={filterQuery}
+        currentWorktree={currentWorktree}
+        worktreeCount={worktrees.length}
+        onWorktreeClick={() => setIsWorktreePanelOpen(true)}
+      />
       <Box flexGrow={1}>
         <TreeView
           fileTree={fileTree}
@@ -378,11 +391,37 @@ const App: React.FC<AppProps> = ({ cwd }) => {
       {contextMenuOpen && (
         <ContextMenu
           path={contextMenuTarget}
-          rootPath={cwd}
+          rootPath={activeRootPath}
           position={contextMenuPosition}
           config={config}
           onClose={() => setContextMenuOpen(false)}
-          onAction={handleContextMenuAction}
+          onAction={(actionType, result) => {
+            if (result.success) {
+              setNotification({
+                type: 'success',
+                message: result.message || 'Action completed',
+              });
+            } else {
+              setNotification({
+                type: 'error',
+                message: result.message || 'Action failed',
+              });
+            }
+            setContextMenuOpen(false);
+          }}
+        />
+      )}
+      {isWorktreePanelOpen && (
+        <WorktreePanel
+          worktrees={worktrees}
+          activeWorktreeId={activeWorktreeId}
+          onSelect={(worktreeId) => {
+            const targetWorktree = worktrees.find(wt => wt.id === worktreeId);
+            if (targetWorktree) {
+              handleSwitchWorktree(targetWorktree);
+            }
+          }}
+          onClose={() => setIsWorktreePanelOpen(false)}
         />
       )}
     </Box>
