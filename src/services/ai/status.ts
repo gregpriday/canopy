@@ -17,17 +17,25 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
 
     const response = await client.responses.create({
       model: 'gpt-5-nano',
-      input: `CONTEXT:\n${readmeSnippet}\n\nCHANGES:\n${diffSnippet}\n\nTask: Describe the active work in one short sentence (max 8 words). Respond as JSON only with shape { "emoji": "string", "description": "string" }.`,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
+      instructions: 'You summarize git diffs. Output ONLY what changed in max 5 words. Examples: "Fixed API response format", "Added user authentication", "Refactored database queries". Be specific and concise.',
+      input: diffSnippet,
+      text: {
+        format: {
+          type: 'json_schema',
           name: 'status_update',
           strict: true,
           schema: {
             type: 'object',
             properties: {
-              emoji: { type: 'string' },
-              description: { type: 'string' }
+              emoji: {
+                type: 'string',
+                description: 'Single emoji representing the change'
+              },
+              description: {
+                type: 'string',
+                description: 'Maximum 5 words describing what changed',
+                maxLength: 40
+              }
             },
             required: ['emoji', 'description'],
             additionalProperties: false
@@ -35,7 +43,7 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
         }
       },
       reasoning: { effort: 'minimal' },
-      max_output_tokens: 96
+      max_output_tokens: 48
     } as any);
 
     const text = extractOutputText(response);

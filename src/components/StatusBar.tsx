@@ -25,6 +25,24 @@ interface StatusBarProps {
   isAnalyzing?: boolean;
 }
 
+const IDLE_MESSAGES = [
+  '🌲 Standing tall, watching for changes',
+  '🍃 The canopy is calm right now',
+  '🔭 Surveying the forest floor',
+  '🌤️ Clear view from the top',
+  '🌿 Ecosystem is stable',
+  '🦅 Keeping a bird\'s-eye view',
+  '🪵 Roots are holding steady',
+  '🍂 No movement in the undergrowth',
+  '🌥️ Mist clearing, ready for code',
+  '🏔️ The vantage point is clear',
+  '🦉 Silent watch in progress',
+  '🌳 The forest awaits your input',
+  '🌬️ A gentle breeze in the branches',
+  '📡 Monitoring the habitat',
+  '🛖 Safe in the treehouse',
+];
+
 export const StatusBar: React.FC<StatusBarProps> = ({
   notification,
   fileCount,
@@ -39,6 +57,10 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 }) => {
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [input, setInput] = useState('');
+  const [idleMessage, setIdleMessage] = useState<string>(() =>
+    IDLE_MESSAGES[Math.floor(Math.random() * IDLE_MESSAGES.length)]
+  );
+  const [lastIdleState, setLastIdleState] = useState(false);
   const { stdout } = useStdout();
   const hasOpenAIKey = Boolean(process.env.OPENAI_API_KEY?.trim());
 
@@ -50,6 +72,18 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       return () => clearTimeout(timer);
     }
   }, [feedback]);
+
+  // Pick a new random idle message when transitioning to idle state
+  useEffect(() => {
+    const isCurrentlyIdle = !isAnalyzing && !aiStatus;
+
+    // Transitioning from non-idle to idle
+    if (isCurrentlyIdle && !lastIdleState) {
+      setIdleMessage(IDLE_MESSAGES[Math.floor(Math.random() * IDLE_MESSAGES.length)]);
+    }
+
+    setLastIdleState(isCurrentlyIdle);
+  }, [isAnalyzing, aiStatus, lastIdleState]);
 
   // Subscribe to event bus for copy-tree requests
   useEffect(() => {
@@ -190,14 +224,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({
             </Box>
 
             {/* Status / AI Line */}
-            <Box marginTop={0}> 
+            <Box marginTop={0}>
                  {isAnalyzing ? (
                    <Text dimColor>🧠 Analyzing changes...</Text>
                  ) : aiStatus ? (
                    <Text color="magenta">{aiStatus.emoji} {aiStatus.description}</Text>
                  ) : (
                    <Box>
-                     <Text color="green">🌲 Canopy</Text>
+                     <Text dimColor>{idleMessage}</Text>
                      {!hasOpenAIKey && (
                        <Text dimColor> [no OpenAI key]</Text>
                      )}

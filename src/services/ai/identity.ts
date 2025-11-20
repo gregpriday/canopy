@@ -9,18 +9,11 @@ export async function generateProjectIdentity(pathOrName: string): Promise<Proje
   try {
     const response = await client.responses.create({
       model: 'gpt-5-mini',
-      input: `Analyze this project path: "${pathOrName}".
-      
-Return a JSON object with:
-1. "emoji": A single representative emoji.
-2. "title": Title Case folder name (no hyphens).
-3. "gradientStart": Hex color (Bright/Neon/Pastel).
-4. "gradientEnd": Hex color (Bright/Neon/Pastel).
-
-Avoid dark colors. Output JSON only.`,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
+      instructions: 'You create visual identities for projects. Choose a representative emoji, convert folder name to Title Case (remove hyphens/underscores), and pick two bright/neon/pastel gradient colors. Avoid dark colors.',
+      input: `Project path: "${pathOrName}"`,
+      text: {
+        format: {
+          type: "json_schema",
           name: "project_identity",
           strict: true,
           schema: {
