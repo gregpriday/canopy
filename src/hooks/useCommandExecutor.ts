@@ -16,10 +16,11 @@ interface ExecutorParams {
   expandedPaths: Set<string>;
   setNotification: (n: Notification) => void;
   refreshTree: () => Promise<void>;
+  exitApp: () => void;
 }
 
 export function useCommandExecutor(params: ExecutorParams) {
-  const { cwd, selectedPath, fileTree, expandedPaths, setNotification, refreshTree } = params;
+  const { cwd, selectedPath, fileTree, expandedPaths, setNotification, refreshTree, exitApp } = params;
 
   const execute = useCallback(async (input: string) => {
     // 1. Parse Input
@@ -36,6 +37,7 @@ export function useCommandExecutor(params: ExecutorParams) {
       ui: {
         notify: setNotification,
         refresh: refreshTree,
+        exit: exitApp,
       },
       system: {
         cwd,

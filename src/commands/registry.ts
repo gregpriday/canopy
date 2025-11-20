@@ -1,6 +1,7 @@
 import type { CommandDefinition } from './types.js';
 import { copyTreeCommand } from './definitions/copytree.js';
 import { openCommand } from './definitions/open.js';
+import { exitCommand } from './definitions/exit.js';
 
 const registry = new Map<string, CommandDefinition>();
 
@@ -22,4 +23,5 @@ export function getAllCommands(): CommandDefinition[] {
 export function loadCoreCommands() {
   registerCommand(copyTreeCommand);
   registerCommand(openCommand);
+  registerCommand(exitCommand);
 }

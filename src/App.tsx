@@ -45,15 +45,14 @@ interface AppProps {
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  // Fix: Subtract 1 to prevent terminal auto-scrolling on render
-  const [height, setHeight] = useState((stdout?.rows || 24) - 1);
+  // Use full terminal height
+  const [height, setHeight] = useState(stdout?.rows || 24);
 
   useEffect(() => {
     if (!stdout) return;
     
     const handleResize = () => {
-      // Fix: Subtract 1 on resize as well
-      setHeight(stdout.rows - 1);
+      setHeight(stdout.rows);
     };
 
     stdout.on('resize', handleResize);
@@ -157,7 +156,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     fileTree,
     expandedPaths: expandedFolders,
     setNotification,
-    refreshTree
+    refreshTree,
+    exitApp: exit
   });
 
   // Stable reference for refreshTree to prevent watcher recreation

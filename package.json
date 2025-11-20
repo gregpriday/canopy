@@ -10,7 +10,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/cli.js",
+    "start": "tsx src/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -61,6 +61,7 @@
     "@vitest/ui": "^4.0.10",
     "ink-testing-library": "^4.0.0",
     "jsdom": "^27.2.0",
+    "tsx": "^4.19.2",
     "typescript": "^5.9.3",
     "vitest": "^4.0.10"
   }

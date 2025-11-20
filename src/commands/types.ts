@@ -9,6 +9,7 @@ export interface CommandServices {
   ui: {
     notify: (notification: Notification) => void;
     refresh: () => Promise<void>;
+    exit: () => void;
   };
   
   // System/OS Services
