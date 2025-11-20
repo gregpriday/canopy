@@ -55,12 +55,6 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
     }
   }, [feedback]);
 
-  useEffect(() => {
-    if (commandMode) {
-      setInput('/');
-    }
-  }, [commandMode]);
-
   const handleCopyTree = async () => {
     try {
       // 1. Set initial running state
@@ -116,7 +110,8 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
   });
 
   const handleCommandSubmitInternal = (value: string) => {
-    onCommandSubmit(value);
+    const fullCommand = value.startsWith('/') ? value : `/${value}`;
+    onCommandSubmit(fullCommand);
     onSetCommandMode(false);
   };
 

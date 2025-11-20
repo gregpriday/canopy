@@ -168,8 +168,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
   const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
-  // Viewport height for navigation calculations (Header=3 + StatusBar=4)
-  const viewportHeight = useViewportHeight(7);
+  // Viewport height for navigation calculations (Header=3 + StatusBar=5)
+  const viewportHeight = useViewportHeight(8);
 
   const flattenedTree = useMemo(
     () => createFlattenedTree(fileTree, expandedFolders),

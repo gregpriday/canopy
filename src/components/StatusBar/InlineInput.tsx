@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import TextInput from 'ink-text-input';
+import { getAllCommands } from '../../commands/registry.js';
 
 interface InlineInputProps {
   input: string;
@@ -15,51 +16,96 @@ export const InlineInput: React.FC<InlineInputProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const [suggestion, setSuggestion] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  
+  // 1. Get all available commands
+  const allCommands = useMemo(() => getAllCommands(), []);
 
-  // Simple autocomplete logic (placeholder)
-  // In a real implementation, this would filter against a list of commands
+  // 2. Filter suggestions based on current input
+  const suggestions = useMemo(() => {
+    if (!input) return [];
+    const cleanInput = input.toLowerCase();
+    return allCommands.filter(cmd => 
+      cmd.name.toLowerCase().startsWith(cleanInput) ||
+      cmd.aliases?.some(alias => alias.toLowerCase().startsWith(cleanInput))
+    );
+  }, [input, allCommands]);
+
+  // Reset selection when input changes
   useEffect(() => {
-    const commands = ['filter', 'git', 'copy'];
-    if (input.startsWith('/')) {
-      const cmd = input.slice(1);
-      const match = commands.find(c => c.startsWith(cmd));
-      if (match) {
-        setSuggestion(`/${match}`);
-      } else {
-        setSuggestion('');
-      }
-    } else {
-      setSuggestion('');
-    }
+    setSelectedIndex(0);
   }, [input]);
 
   useInput((_in, key) => {
+    // Cancel
     if (key.escape) {
       onCancel();
       return;
     }
-    if (key.tab && suggestion && suggestion !== input) {
-      onChange(suggestion + ' ');
+
+    // Navigation: Up
+    if (key.upArrow) {
+      if (suggestions.length > 0) {
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
+      }
+      return;
+    }
+
+    // Navigation: Down
+    if (key.downArrow) {
+      if (suggestions.length > 0) {
+        setSelectedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
+      }
+      return;
+    }
+
+    // Autocomplete: Tab
+    if (key.tab) {
+      if (suggestions.length > 0) {
+        const selectedCmd = suggestions[selectedIndex];
+        // Set input to the command name + space
+        onChange(`${selectedCmd.name} `); 
+      }
+      return;
     }
   });
 
   return (
-    <Box>
-      <Text color="cyan">
-        {'> '}
-      </Text>
-      <TextInput
-        value={input}
-        onChange={onChange}
-        onSubmit={onSubmit}
-        showCursor={true}
-      />
-      {suggestion && suggestion.length > input.length && (
-        <Text dimColor>
-          {suggestion.slice(input.length)}
-        </Text>
+    <Box flexDirection="column">
+      {/* Suggestion List (Renders above the input) */}
+      {suggestions.length > 0 && (
+        <Box 
+          flexDirection="column" 
+          borderStyle="single" 
+          borderColor="gray" 
+          marginBottom={0}
+          paddingX={1}
+        >
+          <Text dimColor>Available commands:</Text>
+          {suggestions.map((cmd, index) => (
+            <Box key={cmd.name}>
+              <Text color={index === selectedIndex ? 'cyan' : 'gray'}>
+                {index === selectedIndex ? '> ' : '  '}
+                {cmd.name}
+              </Text>
+              <Text dimColor> - {cmd.description}</Text>
+            </Box>
+          ))}
+        </Box>
       )}
+
+      {/* Input Line */}
+      <Box>
+        {/* The slash prompt */}
+        <Text color="cyan" bold>/</Text>
+        
+        <TextInput
+          value={input}
+          onChange={onChange}
+          onSubmit={onSubmit}
+          placeholder="type a command..."
+        />
+      </Box>
     </Box>
   );
 };
