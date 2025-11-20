@@ -8,7 +8,7 @@ import { InlineInput } from './StatusBar/InlineInput.js';
 import { runCopyTree } from '../utils/copytree.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 // Import the new type
-import type { AIStatus } from '../services/statusGenerator.js';
+import type { AIStatus } from '../services/ai/index.js';
 
 interface StatusBarProps {
   notification: Notification | null;

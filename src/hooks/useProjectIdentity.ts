@@ -2,13 +2,12 @@ import { useState, useEffect } from 'react';
 import path from 'node:path';
 import {
   getProjectHash,
-  loadCache,
-  saveCache,
+  loadIdentityCache,
+  saveIdentityCache,
+  generateProjectIdentity,
   type ProjectIdentity
-} from '../services/emoji/cache.js';
-import { generateIdentity } from '../services/emoji/generator.js';
+} from '../services/ai/index.js'; // UPDATED IMPORT
 
-// Default fallback if API fails or key missing
 const DEFAULT_IDENTITY: ProjectIdentity = {
   emoji: '🌲',
   title: 'Canopy',
@@ -17,63 +16,49 @@ const DEFAULT_IDENTITY: ProjectIdentity = {
 };
 
 export function useProjectIdentity(rootPath: string) {
-  // Initialize state immediately with folder name - no loading delay
   const [identity, setIdentity] = useState<ProjectIdentity>(() => {
     const folderName = path.basename(rootPath);
-    return {
-      ...DEFAULT_IDENTITY,
-      title: folderName
-    };
+    return { ...DEFAULT_IDENTITY, title: folderName };
   });
 
   useEffect(() => {
-    if (!process.env.OPENAI_API_KEY) {
-      return; // Keep the initial fallback
-    }
+    if (!process.env.OPENAI_API_KEY) return;
 
     let isMounted = true;
 
-    const load = async () => {
+    // Non-blocking async wrapper
+    const fetchIdentity = async () => {
       try {
-        const [currentHash, cache] = await Promise.all([
-          getProjectHash(rootPath),
-          loadCache()
-        ]);
-
-        // Check Cache
+        const currentHash = await getProjectHash(rootPath);
+        const cache = await loadIdentityCache();
+        
         const cachedEntry = cache[rootPath];
+        
+        // 1. Try Cache
         if (cachedEntry && cachedEntry.hash === currentHash) {
-          if (isMounted) {
-            setIdentity({
-              emoji: cachedEntry.emoji,
-              title: cachedEntry.title,
-              gradientStart: cachedEntry.gradientStart,
-              gradientEnd: cachedEntry.gradientEnd
-            });
-          }
+          if (isMounted) setIdentity(cachedEntry);
           return;
         }
 
-        // Cache Miss - Generate in background without blocking UI
-        // Pass the full path so AI can use parent folder context
-        const newIdentity = await generateIdentity(rootPath);
+        // 2. Generate (Non-blocking API call)
+        const newIdentity = await generateProjectIdentity(rootPath);
 
         if (newIdentity && isMounted) {
           cache[rootPath] = {
             ...newIdentity,
             hash: currentHash,
             timestamp: Date.now(),
-            model: 'gpt-4o-mini'
+            model: 'gpt-5-mini'
           };
-          await saveCache(cache);
+          await saveIdentityCache(cache);
           setIdentity(newIdentity);
         }
-      } catch (error) {
-        // Fail silently - keep showing the folder name
+      } catch (e) {
+        // Fail silently, keep default
       }
     };
 
-    load();
+    fetchIdentity();
 
     return () => { isMounted = false; };
   }, [rootPath]);

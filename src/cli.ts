@@ -111,7 +111,29 @@ Canopy - Terminal-based file browser for developers
 
 USAGE
   canopy [path] [options]
-  ... (omitted for brevity)
+
+OPTIONS
+  -e, --editor <cmd>    Command to open files (default: $EDITOR or code)
+  -f, --filter <query>  Initial filter query
+  -d, --max-depth <n>   Maximum recursion depth for directory traversal
+  -c, --config <path>   Path to custom configuration file
+  -H, --hidden          Show hidden files
+  -g, --git             Force enable git status (default: auto)
+  --no-git              Disable git status
+  --no-watch            Disable file watching
+  --debug               Enable debug logging
+  -h, --help            Show this help message
+  -v, --version         Show version information
+
+ARGS
+  [path]                Directory to browse (default: current directory)
+
+EXAMPLES
+  canopy                    # Open current directory
+  canopy src                # Open src directory
+  canopy -f "test"          # Filter for files matching "test"
+  canopy -H                 # Show hidden files
+  canopy --editor vim       # Use vim to open files
 `;
   console.log(helpText);
 }

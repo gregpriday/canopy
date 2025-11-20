@@ -68,6 +68,7 @@ npm run typecheck
     - `useEffect` cleanups are mandatory for watchers and timers.
 4.  **Error Handling:** Fail gracefully. If git is missing or a directory is unreadable, log a warning and continue with reduced functionality. Do not crash the app.
 5.  **Testing:** Use `vitest` and `ink-testing-library`. Tests should mirror the `src` structure in the `tests` directory.
+6.  **Git Commits:** **NEVER create git commits unless explicitly asked by the user.** Only stage changes or create commits when the user specifically requests it. Make code changes and let the user decide when to commit.
 
 ## Implementation Status
 

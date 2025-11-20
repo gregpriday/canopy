@@ -1,9 +1,8 @@
-import { generateEmoji } from './services/emoji/generator.js';
-import { getProjectHash, loadCache } from './services/emoji/cache.js';
+import { generateProjectIdentity, getProjectHash, loadIdentityCache } from './services/ai/index.js';
 import path from 'node:path';
 
 async function runDebug() {
-  console.log('--- Emoji Generation Debugger ---');
+  console.log('--- Identity Generation Debugger ---');
   
   const cwd = process.cwd();
   const name = path.basename(cwd);
@@ -19,13 +18,14 @@ async function runDebug() {
 
   console.log('\n1. Checking Cache...');
   try {
-    const cache = await loadCache();
+    const cache = await loadIdentityCache();
     const hash = await getProjectHash(cwd);
     console.log(`Current Hash: ${hash}`);
     
     const entry = cache[cwd];
     if (entry) {
       console.log('Cache Entry Found:');
+      console.log(`  Title: ${entry.title}`);
       console.log(`  Emoji: ${entry.emoji}`);
       console.log(`  Stored Hash: ${entry.hash}`);
       console.log(`  Match? ${entry.hash === hash ? 'YES' : 'NO'}`);
@@ -38,11 +38,14 @@ async function runDebug() {
 
   console.log('\n2. Testing Generation...');
   try {
-    const emoji = await generateEmoji(name);
-    if (emoji) {
-      console.log(`\n🎉 Success! Generated Emoji: ${emoji}`);
+    const identity = await generateProjectIdentity(cwd);
+    if (identity) {
+      console.log(`\n🎉 Success! Generated Identity:`);
+      console.log(`  Emoji: ${identity.emoji}`);
+      console.log(`  Title: ${identity.title}`);
+      console.log(`  Gradient: ${identity.gradientStart} -> ${identity.gradientEnd}`);
     } else {
-      console.log('\n❌ Failed to generate emoji.');
+      console.log('\n❌ Failed to generate identity.');
     }
   } catch (e) {
     console.error('Generation failed:', e);

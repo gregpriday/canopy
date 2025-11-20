@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { relative } from 'node:path';
 import type { Worktree } from '../types/index.js';
-import type { ProjectIdentity } from '../services/emoji/cache.js';
+import type { ProjectIdentity } from '../services/ai/index.js';
 
 interface HeaderProps {
   cwd: string;

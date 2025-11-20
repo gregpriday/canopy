@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Canopy is a terminal-based file browser built with Ink (React for CLIs). It's designed for developers working with AI agents, providing features like live file watching, git integration, git worktree support, and CopyTree integration for easy AI context sharing. Named after South Africa's tallest indigenous tree, symbolizing oversight and observation.
 
+## Git Workflow
+
+**CRITICAL: Do not create git commits unless explicitly requested by the user.** Only stage changes or create commits when the user specifically asks for it. Make code changes and let the user decide when to commit.
+
 ## Build Commands
 
 **Important:** You must run `npm run build` after making any code changes to verify them with `npm start` or `canopy`.
