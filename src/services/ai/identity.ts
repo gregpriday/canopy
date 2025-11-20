@@ -1,25 +1,6 @@
 import { getAIClient } from './client.js';
 import type { ProjectIdentity } from './cache.js';
-
-function extractOutputText(response: any): string | null {
-  if (typeof response?.output_text === 'string' && response.output_text.trim().length > 0) {
-    return response.output_text;
-  }
-
-  if (Array.isArray(response?.output)) {
-    for (const item of response.output) {
-      if (Array.isArray(item?.content)) {
-        for (const content of item.content) {
-          if (typeof content?.text === 'string' && content.text.trim().length > 0) {
-            return content.text;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
-}
+import { extractOutputText } from './utils.js';
 
 export async function generateProjectIdentity(pathOrName: string): Promise<ProjectIdentity | null> {
   const client = getAIClient();
@@ -28,18 +9,11 @@ export async function generateProjectIdentity(pathOrName: string): Promise<Proje
   try {
     const response = await client.responses.create({
       model: 'gpt-5-mini',
-      input: `Analyze this project path: "${pathOrName}".
-      
-Return a JSON object with:
-1. "emoji": A single representative emoji.
-2. "title": Title Case folder name (no hyphens).
-3. "gradientStart": Hex color (Bright/Neon/Pastel).
-4. "gradientEnd": Hex color (Bright/Neon/Pastel).
-
-Avoid dark colors. Output JSON only.`,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
+      instructions: 'You create visual identities for projects. Choose a representative emoji, convert folder name to Title Case (remove hyphens/underscores), and pick two bright/neon/pastel gradient colors. Avoid dark colors.',
+      input: `Project path: "${pathOrName}"`,
+      text: {
+        format: {
+          type: "json_schema",
           name: "project_identity",
           strict: true,
           schema: {
@@ -61,18 +35,21 @@ Avoid dark colors. Output JSON only.`,
 
     const text = extractOutputText(response);
     if (!text) {
-      console.error('[canopy] Identity: empty response from model');
+      console.error(
+        '[canopy] Identity: empty response from model',
+        `(status: ${response?.status}, id: ${response?.id})`
+      );
       return null;
     }
 
     try {
       return JSON.parse(text) as ProjectIdentity;
     } catch (parseError) {
-      console.error('[canopy] Identity: failed to parse JSON', parseError);
+      console.error('[canopy] Identity: failed to parse JSON', { text, parseError });
       return null;
     }
   } catch (error) {
-    console.error('[canopy] generateProjectIdentity failed', error);
+    console.error('[canopy] generateProjectIdentity failed:', error);
     return null;
   }
 }

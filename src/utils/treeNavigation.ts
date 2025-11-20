@@ -171,3 +171,24 @@ export function createFlattenedTree(
   const markedTree = markExpanded(fileTree);
   return flattenVisibleTree(markedTree);
 }
+
+/**
+ * Recursively search tree for a node with the given path.
+ *
+ * @param tree - Tree nodes to search
+ * @param targetPath - Path to find
+ * @returns true if path exists in tree, false otherwise
+ */
+export function findNodeInTree(tree: TreeNode[], targetPath: string): boolean {
+  for (const node of tree) {
+    if (node.path === targetPath) {
+      return true;
+    }
+    if (node.children && node.children.length > 0) {
+      if (findNodeInTree(node.children, targetPath)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}

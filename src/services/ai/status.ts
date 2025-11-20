@@ -1,29 +1,9 @@
 import { getAIClient } from './client.js';
+import { extractOutputText } from './utils.js';
 
 export interface AIStatus {
   emoji: string;
   description: string;
-}
-
-// Extract text from Responses API output; falls back to walking the raw payload
-function extractOutputText(response: any): string | null {
-  if (typeof response?.output_text === 'string' && response.output_text.trim().length > 0) {
-    return response.output_text;
-  }
-
-  if (Array.isArray(response?.output)) {
-    for (const item of response.output) {
-      if (Array.isArray(item?.content)) {
-        for (const content of item.content) {
-          if (typeof content?.text === 'string' && content.text.trim().length > 0) {
-            return content.text;
-          }
-        }
-      }
-    }
-  }
-
-  return null;
 }
 
 export async function generateStatusUpdate(diff: string, readme: string): Promise<AIStatus | null> {
@@ -37,17 +17,25 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
 
     const response = await client.responses.create({
       model: 'gpt-5-nano',
-      input: `CONTEXT:\n${readmeSnippet}\n\nCHANGES:\n${diffSnippet}\n\nTask: Describe the active work in one short sentence (max 8 words). Respond as JSON only with shape { "emoji": "string", "description": "string" }.`,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
+      instructions: 'You summarize git diffs. Output ONLY what changed in max 5 words. Examples: "Fixed API response format", "Added user authentication", "Refactored database queries". Be specific and concise.',
+      input: diffSnippet,
+      text: {
+        format: {
+          type: 'json_schema',
           name: 'status_update',
           strict: true,
           schema: {
             type: 'object',
             properties: {
-              emoji: { type: 'string' },
-              description: { type: 'string' }
+              emoji: {
+                type: 'string',
+                description: 'Single emoji representing the change'
+              },
+              description: {
+                type: 'string',
+                description: 'Maximum 5 words describing what changed',
+                maxLength: 40
+              }
             },
             required: ['emoji', 'description'],
             additionalProperties: false
@@ -55,12 +43,15 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
         }
       },
       reasoning: { effort: 'minimal' },
-      max_output_tokens: 96
+      max_output_tokens: 48
     } as any);
 
     const text = extractOutputText(response);
     if (!text) {
-      console.error('[canopy] AI status: empty response from model');
+      console.error(
+        '[canopy] AI status: empty response from model',
+        `(status: ${response?.status}, id: ${response?.id})`
+      );
       return null;
     }
 
@@ -72,7 +63,7 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
       }
       return parsed as AIStatus;
     } catch (parseError) {
-      console.error('[canopy] AI status: failed to parse JSON', parseError);
+      console.error('[canopy] AI status: failed to parse JSON', { text, parseError });
       return null;
     }
   } catch (error) {

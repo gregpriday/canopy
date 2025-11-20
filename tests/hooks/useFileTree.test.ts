@@ -8,6 +8,7 @@ import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { TreeNode, GitStatus } from '../../src/types/index.js';
 import * as fileTreeUtils from '../../src/utils/fileTree.js';
 import * as filterUtils from '../../src/utils/filter.js';
+import { events } from '../../src/services/events.js';
 
 // Mock the utilities
 vi.mock('../../src/utils/fileTree.js');
@@ -121,13 +122,14 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      result.current.expandFolder('/test/src');
+      events.emit('nav:expand', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
@@ -138,6 +140,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -145,14 +148,14 @@ describe('useFileTree', () => {
 
     // Expand first
     act(() => {
-      result.current.expandFolder('/test/src');
+      events.emit('nav:expand', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
 
     // Then collapse
     act(() => {
-      result.current.collapseFolder('/test/src');
+      events.emit('nav:collapse', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(false);
@@ -163,6 +166,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -170,14 +174,14 @@ describe('useFileTree', () => {
 
     // Toggle to expand
     act(() => {
-      result.current.toggleFolder('/test/src');
+      events.emit('nav:toggle-expand', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
 
     // Toggle to collapse
     act(() => {
-      result.current.toggleFolder('/test/src');
+      events.emit('nav:toggle-expand', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(false);
@@ -188,13 +192,14 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      result.current.selectPath('/test/src/App.tsx');
+      events.emit('nav:select', { path: '/test/src/App.tsx' });
     });
 
     expect(result.current.selectedPath).toBe('/test/src/App.tsx');
@@ -205,6 +210,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -212,14 +218,14 @@ describe('useFileTree', () => {
 
     // Select first
     act(() => {
-      result.current.selectPath('/test/README.md');
+      events.emit('nav:select', { path: '/test/README.md' });
     });
 
     expect(result.current.selectedPath).toBe('/test/README.md');
 
     // Clear selection
     act(() => {
-      result.current.selectPath(null);
+      events.emit('nav:select', { path: null });
     });
 
     expect(result.current.selectedPath).toBe(null);
@@ -334,6 +340,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -344,7 +351,9 @@ describe('useFileTree', () => {
 
     // Trigger refresh
     await act(async () => {
-      await result.current.refresh();
+      events.emit('sys:refresh');
+      // Wait for refresh to complete
+      await new Promise(resolve => setTimeout(resolve, 10));
     });
 
     expect(fileTreeUtils.buildFileTree).toHaveBeenCalledWith('/test', DEFAULT_CONFIG, true);
@@ -363,6 +372,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -377,11 +387,8 @@ describe('useFileTree', () => {
     vi.mocked(fileTreeUtils.buildFileTree).mockReturnValue(refreshPromise);
 
     // Start refresh
-    let refreshComplete = false;
     act(() => {
-      result.current.refresh().then(() => {
-        refreshComplete = true;
-      });
+      events.emit('sys:refresh');
     });
 
     // Loading should remain false to avoid UI flicker
@@ -389,7 +396,7 @@ describe('useFileTree', () => {
 
     // Resolve refresh
     resolveLoad!(mockTree);
-    await waitFor(() => expect(refreshComplete).toBe(true));
+    await waitFor(() => expect(result.current.loading).toBe(false));
 
     expect(result.current.loading).toBe(false);
   });
@@ -399,6 +406,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -416,7 +424,9 @@ describe('useFileTree', () => {
 
     // Trigger refresh
     await act(async () => {
-      await result.current.refresh();
+      events.emit('sys:refresh');
+      // Wait for error handling
+      await new Promise(resolve => setTimeout(resolve, 10));
     });
 
     expect(result.current.tree).toEqual(originalTree); // Tree preserved on error
@@ -510,6 +520,7 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
@@ -517,14 +528,15 @@ describe('useFileTree', () => {
 
     // Expand a folder
     act(() => {
-      result.current.expandFolder('/test/src');
+      events.emit('nav:expand', { path: '/test/src' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
 
     // Refresh
     await act(async () => {
-      await result.current.refresh();
+      events.emit('sys:refresh');
+      await new Promise(resolve => setTimeout(resolve, 10));
     });
 
     // Expansion state should be preserved
@@ -536,15 +548,16 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      result.current.expandFolder('/test/src');
-      result.current.expandFolder('/test/utils');
-      result.current.expandFolder('/test/components');
+      events.emit('nav:expand', { path: '/test/src' });
+      events.emit('nav:expand', { path: '/test/utils' });
+      events.emit('nav:expand', { path: '/test/components' });
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
@@ -558,14 +571,15 @@ describe('useFileTree', () => {
       useFileTree({
         rootPath: '/test',
         config: DEFAULT_CONFIG,
+        viewportHeight: 20,
       })
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     act(() => {
-      result.current.expandFolder('/test/src');
-      result.current.expandFolder('/test/src'); // Expand again
+      events.emit('nav:expand', { path: '/test/src' });
+      events.emit('nav:expand', { path: '/test/src' }); // Expand again
     });
 
     expect(result.current.expandedFolders.has('/test/src')).toBe(true);
@@ -651,6 +665,7 @@ describe('useFileTree', () => {
         config: DEFAULT_CONFIG,
         filterQuery: 'README',
         gitStatusMap,
+        viewportHeight: 20,
       })
     );
 
@@ -663,7 +678,8 @@ describe('useFileTree', () => {
 
     // Refresh
     await act(async () => {
-      await result.current.refresh();
+      events.emit('sys:refresh');
+      await new Promise(resolve => setTimeout(resolve, 10));
     });
 
     // Filter and git status should still be applied after refresh
@@ -692,5 +708,317 @@ describe('useFileTree', () => {
 
     expect(result.current.tree).toEqual([]);
     expect(result.current.loading).toBe(false);
+  });
+
+  describe('selection validation after file deletion', () => {
+    it('moves selection to parent when selected file is deleted', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/src/App.tsx',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection
+      expect(result.current.selectedPath).toBe('/test/src/App.tsx');
+
+      // Simulate file deletion: rebuild tree without the deleted file
+      const treeWithoutFile: TreeNode[] = [
+        {
+          name: 'src',
+          path: '/test/src',
+          type: 'directory',
+          depth: 0,
+          children: [], // App.tsx removed
+        },
+        {
+          name: 'README.md',
+          path: '/test/README.md',
+          type: 'file',
+          depth: 0,
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(treeWithoutFile);
+
+      // Trigger refresh (simulating file watcher)
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should move to parent directory
+      expect(result.current.selectedPath).toBe('/test/src');
+    });
+
+    it('moves selection to parent when selected folder is deleted', async () => {
+      const treeWithNestedFolders: TreeNode[] = [
+        {
+          name: 'src',
+          path: '/test/src',
+          type: 'directory',
+          depth: 0,
+          children: [
+            {
+              name: 'components',
+              path: '/test/src/components',
+              type: 'directory',
+              depth: 1,
+              children: [
+                {
+                  name: 'Button.tsx',
+                  path: '/test/src/components/Button.tsx',
+                  type: 'file',
+                  depth: 2,
+                },
+              ],
+            },
+          ],
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(treeWithNestedFolders);
+
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/src/components',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection
+      expect(result.current.selectedPath).toBe('/test/src/components');
+
+      // Simulate folder deletion: rebuild tree without the deleted folder
+      const treeWithoutFolder: TreeNode[] = [
+        {
+          name: 'src',
+          path: '/test/src',
+          type: 'directory',
+          depth: 0,
+          children: [], // components folder removed
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(treeWithoutFolder);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should move to parent directory
+      expect(result.current.selectedPath).toBe('/test/src');
+    });
+
+    it('falls back to root when both target and parent are deleted', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/src/App.tsx',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection
+      expect(result.current.selectedPath).toBe('/test/src/App.tsx');
+
+      // Simulate deletion of entire src folder: rebuild tree without src
+      const treeWithoutSrcFolder: TreeNode[] = [
+        {
+          name: 'README.md',
+          path: '/test/README.md',
+          type: 'file',
+          depth: 0,
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(treeWithoutSrcFolder);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should fall back to root (first node in tree)
+      expect(result.current.selectedPath).toBe('/test/README.md');
+    });
+
+    it('maintains selection at root when root is selected and unrelated file deleted', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/src',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection (root-level folder)
+      expect(result.current.selectedPath).toBe('/test/src');
+
+      // Simulate deletion of unrelated file: rebuild tree without README
+      const treeWithoutReadme: TreeNode[] = [
+        {
+          name: 'src',
+          path: '/test/src',
+          type: 'directory',
+          depth: 0,
+          children: [
+            {
+              name: 'App.tsx',
+              path: '/test/src/App.tsx',
+              type: 'file',
+              depth: 1,
+            },
+          ],
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(treeWithoutReadme);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should remain at root folder
+      expect(result.current.selectedPath).toBe('/test/src');
+    });
+
+    it('clears selection when tree becomes empty', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/README.md',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection
+      expect(result.current.selectedPath).toBe('/test/README.md');
+
+      // Simulate all files deleted: rebuild tree as empty
+      const emptyTree: TreeNode[] = [];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(emptyTree);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should be cleared
+      expect(result.current.selectedPath).toBe(null);
+    });
+
+    it('does not change selection when selected path still exists after refresh', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          initialSelectedPath: '/test/README.md',
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // Verify initial selection
+      expect(result.current.selectedPath).toBe('/test/README.md');
+
+      // Simulate refresh where selected file still exists (but maybe other files changed)
+      const unchangedTree: TreeNode[] = [
+        {
+          name: 'src',
+          path: '/test/src',
+          type: 'directory',
+          depth: 0,
+          children: [
+            {
+              name: 'NewFile.tsx',
+              path: '/test/src/NewFile.tsx',
+              type: 'file',
+              depth: 1,
+            },
+          ],
+        },
+        {
+          name: 'README.md',
+          path: '/test/README.md',
+          type: 'file',
+          depth: 0,
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(unchangedTree);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should remain unchanged
+      expect(result.current.selectedPath).toBe('/test/README.md');
+    });
+
+    it('skips validation when no selection exists', async () => {
+      const { result } = renderHook(() =>
+        useFileTree({
+          rootPath: '/test',
+          config: DEFAULT_CONFIG,
+          // No initial selection
+          viewportHeight: 20,
+        })
+      );
+
+      await waitFor(() => expect(result.current.loading).toBe(false));
+
+      // No selection initially
+      expect(result.current.selectedPath).toBe(null);
+
+      // Simulate refresh with different tree
+      const newTree: TreeNode[] = [
+        {
+          name: 'NewFolder',
+          path: '/test/NewFolder',
+          type: 'directory',
+          depth: 0,
+          children: [],
+        },
+      ];
+
+      vi.mocked(fileTreeUtils.buildFileTree).mockResolvedValue(newTree);
+
+      // Trigger refresh
+      await act(async () => {
+        events.emit('sys:refresh');
+        await new Promise(resolve => setTimeout(resolve, 10));
+      });
+
+      // Selection should remain null (not auto-selected to first node)
+      expect(result.current.selectedPath).toBe(null);
+    });
   });
 });

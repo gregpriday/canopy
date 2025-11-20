@@ -147,7 +147,8 @@ export async function getGitStatusCached(
 		const cached = GIT_STATUS_CACHE.get(cwd);
 		if (cached) {
 			perfMonitor.recordMetric('git-status-cache-hit', 1);
-			return cached;
+			// Return a new Map instance to ensure React detects changes via reference equality
+			return new Map(cached);
 		}
 	}
 

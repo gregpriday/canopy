@@ -45,8 +45,10 @@ describe('AI Services Integration', () => {
       expect(result).toEqual(mockResponse);
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
         model: 'gpt-5-mini',
-        response_format: expect.objectContaining({
-          type: 'json_schema'
+        text: expect.objectContaining({
+          format: expect.objectContaining({
+            type: 'json_schema'
+          })
         })
       }));
       
@@ -108,11 +110,12 @@ describe('AI Services Integration', () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
         model: 'gpt-5-nano',
       }));
-      
-      // Check that input contains our data
+
+      // Check that input contains diff and instructions exist
       const callArgs = mockCreate.mock.calls[0][0];
       expect(callArgs.input).toContain(diff);
-      expect(callArgs.input).toContain(readme);
+      expect(callArgs.instructions).toBeDefined();
+      expect(callArgs.instructions).toContain('summarize');
     });
 
     it('should return null for empty diff', async () => {

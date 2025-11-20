@@ -11,6 +11,8 @@ import {
   getCurrentNode,
   getRightArrowAction,
   getLeftArrowAction,
+  findNodeInTree,
+  getParentPath,
 } from '../utils/treeNavigation.js';
 
 export interface UseFileTreeOptions {
@@ -243,6 +245,45 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     [filteredTree, expandedFolders]
   );
 
+  // --- Validate selection after tree changes ---
+  // When the tree is rebuilt (e.g., file watcher triggers refresh), ensure the
+  // selected path still exists. If not, move to parent → sibling → root fallback.
+  useEffect(() => {
+    // Skip validation during initial load or if no selection exists
+    if (loading || !selectedPath) {
+      return;
+    }
+
+    // Handle empty tree case: clear selection
+    if (tree.length === 0) {
+      setSelectedPath(null);
+      return;
+    }
+
+    // Check if current selection still exists in the new tree
+    const selectionExists = findNodeInTree(tree, selectedPath);
+
+    if (!selectionExists) {
+      // Strategy A: Try to select the parent directory
+      const parentPath = getParentPath(selectedPath);
+
+      if (parentPath && findNodeInTree(tree, parentPath)) {
+        // Parent exists, move selection there
+        setSelectedPath(parentPath);
+      } else {
+        // Strategy B: Fall back to root if parent is also gone
+        // Try to use rootPath first, then fall back to first node
+        if (findNodeInTree(tree, rootPath)) {
+          setSelectedPath(rootPath);
+        } else if (tree.length > 0) {
+          setSelectedPath(tree[0].path);
+        } else {
+          // Tree became empty, clear selection
+          setSelectedPath(null);
+        }
+      }
+    }
+  }, [tree, selectedPath, rootPath, loading]);
 
   // --- Event Listeners for Navigation, Selection, Expansion ---
   useEffect(() => {
