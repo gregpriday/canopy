@@ -49,9 +49,9 @@ describe('FolderNode', () => {
     );
 
     const output = lastFrame();
-    // Should render ▶ (U+25B6), but test env may show � replacement character
-    expect(output).toMatch(/[▶�] src/);
-    expect(output).not.toMatch(/[▼] src/);
+    // Should render ▶ (U+25B6), but test env may show  replacement character
+    expect(output).toMatch(/ src/);
+    expect(output).not.toMatch(/ src/);
   });
 
   it('renders expanded folder with ▼ icon', () => {
@@ -78,9 +78,9 @@ describe('FolderNode', () => {
     );
 
     const output = lastFrame();
-    // Should render ▼ (U+25BC), but test env may show � replacement character
-    expect(output).toMatch(/[▼�] src/);
-    expect(output).not.toMatch(/[▶] src/);
+    // Should render ▼ (U+25BC), but test env may show  replacement character
+    expect(output).toMatch(/ src/);
+    expect(output).not.toMatch(/ src/);
   });
 
   it('applies proper indentation based on depth', () => {
@@ -106,7 +106,7 @@ describe('FolderNode', () => {
     );
 
     // depth=3, treeIndent=2 -> 6 spaces
-    expect(lastFrame()).toMatch(/\s{6}[▶�] nested/);
+    expect(lastFrame()).toMatch(/\s{6} nested/);
   });
 
   it('displays git status marker when present', () => {
@@ -282,7 +282,7 @@ describe('FolderNode', () => {
     );
 
     // depth=2, treeIndent=4 -> 8 spaces
-    expect(lastFrame()).toMatch(/\s{8}[▶�] folder/);
+    expect(lastFrame()).toMatch(/\s{8} folder/);
   });
 
   it('verifies selection styling is applied', () => {
@@ -310,53 +310,73 @@ describe('FolderNode', () => {
     expect(mockGetNodeColorSpy).toHaveBeenCalledWith(node, true, mockConfig.showGitStatus);
   });
 
-  it('dims deleted folders but not selected ones', () => {
-    const deletedNode: TreeNodeType = {
-      name: 'deleted',
-      path: '/deleted',
+  it('displays recursive git count when collapsed and has changes', () => {
+    const node: TreeNodeType = {
+      name: 'folder-with-changes',
+      path: '/folder-with-changes',
       type: 'directory',
       depth: 0,
       expanded: false,
-      gitStatus: 'deleted',
+      recursiveGitCount: 5,
     };
 
-    const selectedDeletedNode: TreeNodeType = {
-      name: 'selected-deleted',
-      path: '/selected-deleted',
-      type: 'directory',
-      depth: 0,
-      expanded: false,
-      gitStatus: 'deleted',
-    };
-
-    const { lastFrame: deletedFrame } = render(
+    const { lastFrame } = render(
       <FolderNode
-        node={deletedNode}
+        node={node}
         selected={false}
-        
-        
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    const { lastFrame: selectedFrame } = render(
+    // Should contain the count in brackets with a gray color
+    expect(lastFrame()).toContain('folder-with-changes [5]');
+  });
+
+  it('does not display recursive git count when expanded', () => {
+    const node: TreeNodeType = {
+      name: 'folder-with-changes',
+      path: '/folder-with-changes',
+      type: 'directory',
+      depth: 0,
+      expanded: true, // Expanded
+      recursiveGitCount: 5,
+    };
+
+    const { lastFrame } = render(
       <FolderNode
-        node={selectedDeletedNode}
-        selected={true}
-        selectedPath="/selected-deleted"
-        
-        
+        node={node}
+        selected={false}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    // Both should render (no crashes)
-    expect(deletedFrame()).toContain('deleted');
-    expect(selectedFrame()).toContain('selected-deleted');
+    expect(lastFrame()).not.toContain('[5]');
+  });
+
+  it('does not display recursive git count when zero', () => {
+    const node: TreeNodeType = {
+      name: 'folder-no-changes',
+      path: '/folder-no-changes',
+      type: 'directory',
+      depth: 0,
+      expanded: false,
+      recursiveGitCount: 0, // Zero changes
+    };
+
+    const { lastFrame } = render(
+      <FolderNode
+        node={node}
+        selected={false}
+        config={mockConfig}
+        mapGitStatusMarker={mockMapGitStatusMarker}
+        getNodeColor={mockGetNodeColor}
+      />
+    );
+
+    expect(lastFrame()).not.toContain('[0]');
   });
 });

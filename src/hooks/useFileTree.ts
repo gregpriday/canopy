@@ -124,20 +124,39 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
       return tree;
     }
 
-    // Recursively attach git status to nodes
-    function attachGitStatus(nodes: TreeNode[]): TreeNode[] {
-      return nodes.map(node => {
-        const gitStatus = gitStatusMap?.get(node.path);
-        const updatedNode: TreeNode = {
-          ...node,
-          gitStatus,
-          children: node.children ? attachGitStatus(node.children) : undefined,
-        };
-        return updatedNode;
-      });
+    // Helper to process nodes and return node + count
+    function processNodeWithStatus(node: TreeNode): { node: TreeNode; count: number } {
+      const gitStatus = gitStatusMap?.get(node.path);
+      
+      // If this specific node has a status (modified/added/etc), count it
+      const selfCount = gitStatus ? 1 : 0;
+      
+      let childSum = 0;
+      let newChildren: TreeNode[] | undefined;
+
+      if (node.children) {
+        newChildren = [];
+        for (const child of node.children) {
+          const { node: processedChild, count } = processNodeWithStatus(child);
+          newChildren.push(processedChild);
+          childSum += count;
+        }
+      }
+
+      const totalCount = selfCount + childSum;
+
+      const updatedNode: TreeNode = {
+        ...node,
+        gitStatus,
+        children: newChildren,
+        recursiveGitCount: totalCount,
+      };
+
+      return { node: updatedNode, count: totalCount };
     }
 
-    return attachGitStatus(tree);
+    // Map root nodes
+    return tree.map(node => processNodeWithStatus(node).node);
   }, [tree, gitStatusMap, gitStatusSignature]);
 
   // Apply filters to tree (git status filter first, then name filter)

@@ -30,7 +30,7 @@ describe('FileNode', () => {
     return 'white';
   };
 
-  it('renders file with dash icon', () => {
+  it('renders file with generic icon', () => {
     const node: TreeNodeType = {
       name: 'test.txt',
       path: '/test.txt',
@@ -42,14 +42,13 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    expect(lastFrame()).toContain('- test.txt');
+    expect(lastFrame()).toContain(' test.txt');
   });
 
   it('applies proper indentation based on depth', () => {
@@ -64,7 +63,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -72,7 +70,7 @@ describe('FileNode', () => {
     );
 
     // depth=3, treeIndent=2 -> 6 spaces
-    expect(lastFrame()).toMatch(/\s{6}- deep\.txt/);
+    expect(lastFrame()).toMatch(/\s{6} deep\.txt/);
   });
 
   it('displays git status marker for modified file', () => {
@@ -88,7 +86,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -111,7 +108,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -136,7 +132,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={configNoGit}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -162,7 +157,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={customConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -170,7 +164,7 @@ describe('FileNode', () => {
     );
 
     // depth=2, treeIndent=4 -> 8 spaces
-    expect(lastFrame()).toMatch(/\s{8}- file\.txt/);
+    expect(lastFrame()).toMatch(/\s{8} file\.txt/);
   });
 
   it('renders all git status types correctly', () => {
@@ -195,7 +189,6 @@ describe('FileNode', () => {
         <FileNode
           node={node}
           selected={false}
-          
           config={mockConfig}
           mapGitStatusMarker={mockMapGitStatusMarker}
           getNodeColor={mockGetNodeColor}
@@ -227,7 +220,6 @@ describe('FileNode', () => {
       <FileNode
         node={deletedNode}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -238,7 +230,6 @@ describe('FileNode', () => {
       <FileNode
         node={selectedDeletedNode}
         selected={true}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -262,7 +253,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -270,7 +260,8 @@ describe('FileNode', () => {
     );
 
     // Should have no indentation (depth 0)
-    expect(lastFrame()).toMatch(/^- README\.md/);
+    // Expects Markdown icon 
+    expect(lastFrame()).toMatch(/^ README\.md/);
   });
 
   it('renders deeply nested file correctly', () => {
@@ -285,7 +276,6 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
-        
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -293,6 +283,7 @@ describe('FileNode', () => {
     );
 
     // depth=5, treeIndent=2 -> 10 spaces
-    expect(lastFrame()).toMatch(/\s{10}- utils\.ts/);
+    // Expects TS icon 
+    expect(lastFrame()).toMatch(/\s{10} utils\.ts/);
   });
 });

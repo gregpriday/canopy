@@ -29,7 +29,7 @@ describe('TreeNode', () => {
       />
     );
 
-    expect(lastFrame()).toContain('- test.txt');
+    expect(lastFrame()).toContain(' test.txt');
   });
 
   it('renders collapsed folder with ▶ icon', () => {
@@ -53,10 +53,10 @@ describe('TreeNode', () => {
     );
 
     const output = lastFrame();
-    // Should render ▶ (U+25B6), but test env may show � replacement character
-    expect(output).toMatch(/[▶�] src/);
-    // Fail if it's always showing the wrong character (would indicate corrupted source)
-    expect(output).not.toMatch(/[▼] src/);
+    // Should render  (Nerd Font folder icon)
+    expect(output).toContain(' src');
+    // Fail if it's always showing the wrong character
+    expect(output).not.toContain(' src');
   });
 
   it('renders expanded folder with ▼ icon', () => {
@@ -81,10 +81,10 @@ describe('TreeNode', () => {
     );
 
     const output = lastFrame();
-    // Should render ▼ (U+25BC), but test env may show � replacement character
-    expect(output).toMatch(/[▼�] src/);
-    // Fail if it's showing wrong character (would indicate corrupted source)
-    expect(output).not.toMatch(/[▶] src/);
+    // Should render  (Nerd Font open folder icon)
+    expect(output).toContain(' src');
+    // Fail if it's showing wrong character
+    expect(output).not.toContain(' src');
   });
 
   it('applies indentation based on depth', () => {
@@ -106,8 +106,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // With treeIndent=2 and depth=3, should have 6 leading spaces
-    expect(lastFrame()).toMatch(/\s{6}- deep\.txt/);
+    // With treeIndent=2 and depth=3, should have 6 leading spaces followed by file icon
+    expect(lastFrame()).toMatch(/\s{6} deep\.txt/);
   });
 
   it('displays git status marker for modified file', () => {
@@ -228,8 +228,6 @@ describe('TreeNode', () => {
     // Both should render (no crashes) and contain filename
     expect(modifiedFrame()).toContain('modified.txt');
     expect(deletedFrame()).toContain('deleted.txt');
-    // Note: We can't easily assert specific colors in ink-testing-library,
-    // but the component should use default white color instead of yellow/red
   });
 
   it('does not render children when folder is collapsed', () => {
@@ -261,8 +259,8 @@ describe('TreeNode', () => {
     );
 
     const output = lastFrame();
-    // Unicode may render as replacement character in test env
-    expect(output).toMatch(/[▶�] src/);
+    // Should render  (Nerd Font folder icon)
+    expect(output).toContain(' src');
     expect(output).not.toContain('hidden.txt');
   });
 
@@ -285,8 +283,6 @@ describe('TreeNode', () => {
       />
     );
 
-    // Check that output contains the filename
-    // (exact styling may vary, but file should be there)
     expect(lastFrame()).toContain('selected.txt');
   });
 
@@ -311,10 +307,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // Should render without crashing
-    // Unicode may render as replacement character in test env
     const output = lastFrame();
-    expect(output).toMatch(/[▼�] folder/);
+    expect(output).toContain(' folder');
   });
 
   it('handles empty children array', () => {
@@ -338,9 +332,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // Unicode may render as replacement character in test env
     const output = lastFrame();
-    expect(output).toMatch(/[▼�] empty/);
+    expect(output).toContain(' empty');
   });
 
   it('uses custom treeIndent from config', () => {
@@ -364,8 +357,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // depth=2, treeIndent=4 -> 8 spaces
-    expect(lastFrame()).toMatch(/\s{8}- file\.txt/);
+    // depth=2, treeIndent=4 -> 8 spaces followed by file icon
+    expect(lastFrame()).toMatch(/\s{8} file\.txt/);
   });
 
   it('renders all git status types correctly', () => {

@@ -42,26 +42,38 @@ export function FolderNode({
     if (style.dimColor) isDimmed = true;
   }
 
-  // 3. Render Selected State (Inverted)
+  // 3. Recursive Git Count (Hidden Changes)
+  // Only show if collapsed and has changes > 0
+  const showHiddenChanges = !node.expanded && node.recursiveGitCount && node.recursiveGitCount > 0;
+
+  // 4. Render Selected State (Inverted)
   if (selected) {
     return (
       <Box>
         <Text color="gray" dimColor>{treeGuide}</Text>
         <Box paddingX={1}>
           <Text backgroundColor="blue" color="white" bold>
-            {icon} {node.name}{gitMarker}
+            {icon} {node.name}
+            {showHiddenChanges && <Text color="gray"> [{node.recursiveGitCount}]</Text>}
+            {gitMarker}
           </Text>
         </Box>
       </Box>
     );
   }
 
-  // 4. Render Standard State
+  // 5. Render Standard State
   return (
     <Box>
       <Text color="gray" dimColor>{treeGuide}</Text>
       <Text color={color} dimColor={isDimmed} bold={isBold}>
-        {icon} {node.name}{gitMarker}
+        {icon} {node.name}
+      </Text>
+      {showHiddenChanges && (
+        <Text color="gray" dimColor> [{node.recursiveGitCount}]</Text>
+      )}
+      <Text color={color}>
+        {gitMarker}
       </Text>
     </Box>
   );

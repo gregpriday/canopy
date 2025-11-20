@@ -14,6 +14,7 @@ export interface TreeNode {
   children?: TreeNode[];
   expanded?: boolean;
   depth: number;
+  recursiveGitCount?: number; // Added: Tracks total changes in subtree
 }
 
 export interface Notification {
