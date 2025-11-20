@@ -22,6 +22,7 @@ import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { saveSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
+import { clearTerminalScreen } from './utils/terminal.js';
 
 interface AppProps {
   cwd: string;
@@ -380,6 +381,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const handleQuit = async () => {
     events.emit('sys:quit');
     clearGitStatus();
+    clearTerminalScreen();
     exit();
   };
 

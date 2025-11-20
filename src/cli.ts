@@ -8,6 +8,7 @@ import App from './App.js';
 import { loadConfig } from './utils/config.js';
 import { loadEnv } from './utils/envLoader.js';
 import type { CanopyConfig } from './types/index.js';
+import { clearTerminalScreen } from './utils/terminal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -194,6 +195,7 @@ async function main(): Promise<void> {
 
     await waitUntilExit();
 
+    clearTerminalScreen();
     process.exit(0);
 
   } catch (error) {
