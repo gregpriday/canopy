@@ -16,12 +16,12 @@ import { useFileTree } from './hooks/useFileTree.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile } from './utils/fileOpener.js';
+import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
 import clipboardy from 'clipboardy';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
-import { createFileWatcher, buildIgnorePatterns } from './utils/fileWatcher.js';
 import type { FileWatcher } from './utils/fileWatcher.js';
 import { saveSessionState } from './utils/state.js';
 import {
@@ -213,71 +213,29 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     ).length;
   }, [gitStatus]);
 
+  const totalFileCount = useMemo(() => countTotalFiles(fileTree), [fileTree]);
+
+  // NEW: Time-based polling instead of file watching
   useEffect(() => {
-    if (watcherRef.current) {
-      void watcherRef.current.stop().catch((err) => {
-        console.error('Error stopping watcher:', err);
-      });
-      watcherRef.current = null;
-    }
+    if (noWatch) return;
 
-    if (noWatch) {
-      return;
-    }
+    // Define polling interval (4000ms = 4 seconds)
+    // We can move this to config later if desired
+    const POLL_INTERVAL_MS = 4000;
 
-    try {
-      const watcher = createFileWatcher(activeRootPath, {
-        ignored: buildIgnorePatterns(config.customIgnores || []),
-        debounce: config.refreshDebounce,
-        usePolling: config.usePolling,
-        onAdd: () => {
-          refreshTreeRef.current();
-          refreshGitStatusRef.current();
-        },
-        onChange: () => {
-          refreshTreeRef.current();
-          refreshGitStatusRef.current();
-        },
-        onUnlink: () => {
-          refreshTreeRef.current();
-          refreshGitStatusRef.current();
-        },
-        onAddDir: () => {
-          refreshTreeRef.current();
-          refreshGitStatusRef.current();
-        },
-        onUnlinkDir: () => {
-          refreshTreeRef.current();
-          refreshGitStatusRef.current();
-        },
-        onError: (error) => {
-          setNotification({
-            type: 'error',
-            message: `File watcher error: ${error.message}`,
-          });
-        },
-      });
+    const intervalId = setInterval(() => {
+      // 1. Refresh the file tree (detects adds/deletes)
+      // We use the ref to ensure we call the latest version of the function
+      refreshTreeRef.current();
 
-      watcher.start();
-      watcherRef.current = watcher;
-    } catch (error) {
-      console.error('Failed to start file watcher:', error);
-      setNotification({
-        type: 'warning',
-        message: `File watcher disabled: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-      watcherRef.current = null;
-    }
+      // 2. Refresh Git status (detects modifications/M/A/D)
+      // This ensures colors update when you save a file
+      refreshGitStatusRef.current();
+    }, POLL_INTERVAL_MS);
 
-    return () => {
-      if (watcherRef.current) {
-        void watcherRef.current.stop().catch((err) => {
-          console.error('Error stopping watcher during cleanup:', err);
-        });
-        watcherRef.current = null;
-      }
-    };
-  }, [activeRootPath, config.refreshDebounce, config.customIgnores, config.usePolling, noWatch]);
+    // Cleanup on unmount or when noWatch changes
+    return () => clearInterval(intervalId);
+  }, [noWatch]);
 
   // Handle command bar open/close
   const handleOpenCommandBar = () => {
@@ -615,7 +573,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       <StatusBar
         ref={statusBarRef}
         notification={notification}
-        fileCount={fileTree.length}
+        fileCount={totalFileCount}
         modifiedCount={modifiedCount}
         filterQuery={filterActive ? filterQuery : null}
         activeRootPath={activeRootPath}

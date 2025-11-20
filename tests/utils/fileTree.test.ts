@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { buildFileTree, clearDirCache } from '../../src/utils/fileTree.js';
+import { buildFileTree, clearDirCache, countTotalFiles } from '../../src/utils/fileTree.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { CanopyConfig } from '../../src/types/index.js';
 import fs from 'fs-extra';
@@ -475,5 +475,37 @@ describe('buildFileTree', () => {
     const tree = await buildFileTree(testDir, config);
 
     expect(tree.map(n => n.name)).toEqual(['normal.txt']);
+  });
+});
+
+describe('countTotalFiles', () => {
+  it('counts files recursively', () => {
+    const nodes = [
+      { type: 'file' },
+      {
+        type: 'directory',
+        children: [
+          { type: 'file' },
+          { type: 'file' },
+          {
+            type: 'directory',
+            children: [{ type: 'file' }],
+          },
+        ],
+      },
+    ] as any; // Cast as any to avoid full TreeNode structure
+    expect(countTotalFiles(nodes)).toBe(4);
+  });
+
+  it('returns 0 for empty tree', () => {
+    expect(countTotalFiles([])).toBe(0);
+  });
+
+  it('ignores directories in count', () => {
+    const nodes = [
+      { type: 'directory', children: [] },
+      { type: 'directory' },
+    ] as any;
+    expect(countTotalFiles(nodes)).toBe(0);
   });
 });

@@ -415,3 +415,19 @@ async function loadGitignorePatterns(rootPath: string): Promise<string[]> {
     return [];
   }
 }
+
+/**
+ * Recursively counts all files (not directories) in the tree.
+ */
+export function countTotalFiles(nodes: TreeNode[]): number {
+  let count = 0;
+  for (const node of nodes) {
+    if (node.type === 'file') {
+      count++;
+    }
+    if (node.children) {
+      count += countTotalFiles(node.children);
+    }
+  }
+  return count;
+}
