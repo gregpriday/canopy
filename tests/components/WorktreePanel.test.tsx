@@ -1,8 +1,10 @@
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { WorktreePanel } from '../../src/components/WorktreePanel.js';
 import type { Worktree } from '../../src/types/index.js';
+import { events } from '../../src/services/events.js';
+import type { CanopyEventMap } from '../../src/services/events.js';
 
 describe('WorktreePanel', () => {
   const mockWorktrees: Worktree[] = [
@@ -36,6 +38,15 @@ describe('WorktreePanel', () => {
     onClose: ReturnType<typeof vi.fn>;
   };
 
+  const subscriptions: Array<() => void> = [];
+
+  const listen = <K extends keyof CanopyEventMap>(event: K) => {
+    const handler = vi.fn<(payload: CanopyEventMap[K]) => void>();
+    const unsubscribe = events.on(event, handler);
+    subscriptions.push(unsubscribe);
+    return handler;
+  };
+
   beforeEach(() => {
     defaultProps = {
       worktrees: mockWorktrees,
@@ -43,6 +54,15 @@ describe('WorktreePanel', () => {
       onSelect: vi.fn(),
       onClose: vi.fn(),
     };
+
+    subscriptions.length = 0;
+  });
+
+  afterEach(() => {
+    while (subscriptions.length > 0) {
+      const unsubscribe = subscriptions.pop();
+      unsubscribe?.();
+    }
   });
 
   describe('rendering', () => {
@@ -384,6 +404,7 @@ describe('WorktreePanel', () => {
   describe('selection with Enter', () => {
     it('calls onSelect when Enter is pressed', () => {
       const onSelect = vi.fn();
+      const switchSpy = listen('sys:worktree:switch');
       const { stdin } = render(
         <WorktreePanel
           {...defaultProps}
@@ -396,6 +417,7 @@ describe('WorktreePanel', () => {
 
       expect(onSelect).toHaveBeenCalledWith('wt-main');
       expect(onSelect).toHaveBeenCalledTimes(1);
+      expect(switchSpy).toHaveBeenCalledWith({ worktreeId: 'wt-main' });
     });
 
     it('selects the currently highlighted item', async () => {

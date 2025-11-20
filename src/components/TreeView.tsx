@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Box, Text } from 'ink';
 import type { TreeNode, CanopyConfig } from '../types/index.js';
+import { events } from '../services/events.js';
 import { TreeNode as TreeNodeComponent } from './TreeNode.js';
 import {
   flattenVisibleTree,
@@ -8,7 +9,6 @@ import {
   findNodeIndex,
   calculateScrollToNode,
 } from '../utils/treeViewVirtualization.js';
-import { useKeyboard } from '../hooks/useKeyboard.js';
 import { useMouse } from '../hooks/useMouse.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 import { useViewportHeight } from '../hooks/useViewportHeight.js';
@@ -17,25 +17,17 @@ import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 interface TreeViewProps {
   fileTree: TreeNode[];
   selectedPath: string;
-  onSelect: (path: string) => void;
   config: CanopyConfig;
   expandedPaths?: Set<string>; // Optional controlled expansion
-  onToggleExpand?: (path: string) => void; // Callback for expansion changes
-  disableKeyboard?: boolean; // Disable internal keyboard handlers when parent handles them
   disableMouse?: boolean; // Disable mouse interactions
-  onCopyPath?: (path: string) => void; // Handler for copy action (mouse click)
 }
 
 export const TreeView: React.FC<TreeViewProps> = ({
   fileTree,
   selectedPath,
-  onSelect,
   config,
   expandedPaths: controlledExpandedPaths,
-  onToggleExpand,
-  disableKeyboard = false,
   disableMouse = false,
-  onCopyPath,
 }) => {
   // Header (3) + StatusBar (4) = 7 reserved rows
   const viewportHeight = useViewportHeight(7);
@@ -45,7 +37,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
 
   // Track expanded folders (use controlled if provided, otherwise internal state)
   const [internalExpandedPaths, setInternalExpandedPaths] = useState<Set<string>>(new Set());
-  const isControlledExpansion = controlledExpandedPaths != null && onToggleExpand != null;
+  const isControlledExpansion = controlledExpandedPaths != null;
   const expandedPaths = isControlledExpansion ? controlledExpandedPaths : internalExpandedPaths;
 
   // Flatten the tree (memoized - only recalculate when tree structure or expansion changes)
@@ -86,53 +78,61 @@ export const TreeView: React.FC<TreeViewProps> = ({
     return calculateVisibleWindow(flattenedTree, scrollOffset, viewportHeight);
   }, [flattenedTree, scrollOffset, viewportHeight]);
 
+  const emitSelect = useCallback((path: string) => {
+    events.emit('nav:select', { path });
+  }, []);
+
+  const emitToggleExpand = useCallback((path: string) => {
+    events.emit('nav:toggle-expand', { path });
+  }, []);
+
   // Navigation handlers
   const handleNavigateUp = useCallback(() => {
     const newIndex = Math.max(0, cursorIndex - 1);
     if (flattenedTree[newIndex]) {
-      onSelect(flattenedTree[newIndex].path);
+      emitSelect(flattenedTree[newIndex].path);
     }
-  }, [cursorIndex, flattenedTree, onSelect]);
+  }, [cursorIndex, flattenedTree, emitSelect]);
 
   const handleNavigateDown = useCallback(() => {
     const newIndex = Math.min(flattenedTree.length - 1, cursorIndex + 1);
     if (flattenedTree[newIndex]) {
-      onSelect(flattenedTree[newIndex].path);
+      emitSelect(flattenedTree[newIndex].path);
     }
-  }, [cursorIndex, flattenedTree, onSelect]);
+  }, [cursorIndex, flattenedTree, emitSelect]);
 
   const handlePageUp = useCallback(() => {
     const newIndex = Math.max(0, cursorIndex - viewportHeight);
     if (flattenedTree[newIndex]) {
-      onSelect(flattenedTree[newIndex].path);
+      emitSelect(flattenedTree[newIndex].path);
     }
-  }, [cursorIndex, viewportHeight, flattenedTree, onSelect]);
+  }, [cursorIndex, viewportHeight, flattenedTree, emitSelect]);
 
   const handlePageDown = useCallback(() => {
     const newIndex = Math.min(flattenedTree.length - 1, cursorIndex + viewportHeight);
     if (flattenedTree[newIndex]) {
-      onSelect(flattenedTree[newIndex].path);
+      emitSelect(flattenedTree[newIndex].path);
     }
-  }, [cursorIndex, viewportHeight, flattenedTree, onSelect]);
+  }, [cursorIndex, viewportHeight, flattenedTree, emitSelect]);
 
   const handleHome = useCallback(() => {
     if (flattenedTree[0]) {
-      onSelect(flattenedTree[0].path);
+      emitSelect(flattenedTree[0].path);
     }
-  }, [flattenedTree, onSelect]);
+  }, [flattenedTree, emitSelect]);
 
   const handleEnd = useCallback(() => {
     const lastIndex = flattenedTree.length - 1;
     if (flattenedTree[lastIndex]) {
-      onSelect(flattenedTree[lastIndex].path);
+      emitSelect(flattenedTree[lastIndex].path);
     }
-  }, [flattenedTree, onSelect]);
+  }, [flattenedTree, emitSelect]);
 
   const handleToggleExpand = useCallback(() => {
     const node = flattenedTree[cursorIndex];
     if (node && node.type === 'directory') {
       if (isControlledExpansion) {
-        onToggleExpand?.(node.path);
+        emitToggleExpand(node.path);
         return;
       }
 
@@ -146,11 +146,11 @@ export const TreeView: React.FC<TreeViewProps> = ({
         return newSet;
       });
     }
-  }, [cursorIndex, flattenedTree, isControlledExpansion, onToggleExpand]);
+  }, [cursorIndex, flattenedTree, isControlledExpansion, emitToggleExpand]);
 
   const handleToggle = useCallback((path: string) => {
     if (isControlledExpansion) {
-      onToggleExpand?.(path);
+      emitToggleExpand(path);
       return;
     }
 
@@ -163,7 +163,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
       }
       return newSet;
     });
-  }, [isControlledExpansion, onToggleExpand]);
+    // Also emit so upstream listeners stay in sync
+    emitToggleExpand(path);
+  }, [isControlledExpansion, emitToggleExpand]);
 
   const handleNavigateLeft = useCallback(() => {
     const node = flattenedTree[cursorIndex];
@@ -178,12 +180,12 @@ export const TreeView: React.FC<TreeViewProps> = ({
       const targetDepth = node.depth - 1;
       for (let i = cursorIndex - 1; i >= 0; i--) {
         if (flattenedTree[i].depth === targetDepth) {
-          onSelect(flattenedTree[i].path);
+          emitSelect(flattenedTree[i].path);
           return;
         }
       }
     }
-  }, [cursorIndex, flattenedTree, handleToggle, onSelect]);
+  }, [cursorIndex, flattenedTree, handleToggle, emitSelect]);
 
   const handleNavigateRight = useCallback(() => {
     const node = flattenedTree[cursorIndex];
@@ -197,41 +199,27 @@ export const TreeView: React.FC<TreeViewProps> = ({
         // Move to first child (which is the next node in flattened tree)
         const nextIndex = cursorIndex + 1;
         if (flattenedTree[nextIndex]) {
-          onSelect(flattenedTree[nextIndex].path);
+          emitSelect(flattenedTree[nextIndex].path);
         }
       }
     }
-  }, [cursorIndex, flattenedTree, handleToggle, onSelect]);
+  }, [cursorIndex, flattenedTree, handleToggle, emitSelect]);
 
   const handleOpenFile = useCallback(() => {
     const node = flattenedTree[cursorIndex];
     if (!node) return;
 
     if (node.type === 'file') {
-      onSelect(node.path); // For now, opening a file = selecting it
+      emitSelect(node.path); // For now, opening a file = selecting it
     } else {
       // For directories, toggle expansion
       handleToggle(node.path);
     }
-  }, [cursorIndex, flattenedTree, handleToggle, onSelect]);
+  }, [cursorIndex, flattenedTree, handleToggle, emitSelect]);
 
   const handleScrollChange = useCallback((newOffset: number) => {
     setScrollOffset(newOffset);
   }, []);
-
-  // Wire up keyboard navigation (only if not disabled)
-  useKeyboard(disableKeyboard ? {} : {
-    onNavigateUp: handleNavigateUp,
-    onNavigateDown: handleNavigateDown,
-    onNavigateLeft: handleNavigateLeft,
-    onNavigateRight: handleNavigateRight,
-    onPageUp: handlePageUp,
-    onPageDown: handlePageDown,
-    onHome: handleHome,
-    onEnd: handleEnd,
-    onOpenFile: handleOpenFile,
-    onToggleExpand: handleToggleExpand,
-  });
 
   // Calculate header offset for mouse interaction
   // Header is 3 rows (border + content + border)
@@ -245,10 +233,9 @@ export const TreeView: React.FC<TreeViewProps> = ({
     scrollOffset,
     viewportHeight,
     headerHeight: headerOffset,
-    onSelect,
+    onSelect: emitSelect,
     onToggle: handleToggle,
-    onOpen: onSelect, // For now, open = select
-    onCopy: onCopyPath,
+    onOpen: emitSelect, // For now, open = select
     onContextMenu: () => {}, // Not implemented yet
     onScrollChange: handleScrollChange,
     config,
@@ -312,8 +299,6 @@ export const TreeView: React.FC<TreeViewProps> = ({
           node={node}
           selected={node.path === selectedPath}
           selectedPath={selectedPath}
-          onSelect={onSelect}
-          onToggle={handleToggle}
           config={config}
         />
       ))}

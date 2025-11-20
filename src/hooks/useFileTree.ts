@@ -1,7 +1,17 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import type { TreeNode, CanopyConfig, GitStatus } from '../types/index.js';
 import { buildFileTree } from '../utils/fileTree.js';
 import { filterTreeByName, filterTreeByGitStatus } from '../utils/filter.js';
+import { events } from '../services/events.js'; // Import event bus
+import {
+  createFlattenedTree,
+  moveSelection,
+  jumpToStart,
+  jumpToEnd,
+  getCurrentNode,
+  getRightArrowAction,
+  getLeftArrowAction,
+} from '../utils/treeNavigation.js';
 
 export interface UseFileTreeOptions {
   rootPath: string;
@@ -11,6 +21,7 @@ export interface UseFileTreeOptions {
   gitStatusFilter?: GitStatus | GitStatus[] | null;
   initialSelectedPath?: string | null;
   initialExpandedFolders?: Set<string>;
+  viewportHeight: number; // Added
 }
 
 export interface UseFileTreeResult {
@@ -19,11 +30,6 @@ export interface UseFileTreeResult {
   expandedFolders: Set<string>;
   selectedPath: string | null;
   loading: boolean;
-  expandFolder: (path: string) => void;
-  collapseFolder: (path: string) => void;
-  toggleFolder: (path: string) => void;
-  selectPath: (path: string | null) => void;
-  refresh: () => Promise<void>;
 }
 
 /**
@@ -35,14 +41,15 @@ export interface UseFileTreeResult {
  * - Selection state
  * - Filter integration
  * - Git status integration
+ * - Navigation via event bus
  *
  * @param options - Configuration options
  * @returns Tree state and actions
  */
 export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
-  const { rootPath, config, filterQuery, gitStatusMap, gitStatusFilter, initialSelectedPath, initialExpandedFolders } = options;
+  const { rootPath, config, filterQuery, gitStatusMap, gitStatusFilter, initialSelectedPath, initialExpandedFolders, viewportHeight } = options;
 
-  // State
+  // Internal State
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(initialExpandedFolders || new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(initialSelectedPath || null);
@@ -53,14 +60,63 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
   const refreshIdRef = useRef(0);
   const isInitialLoadRef = useRef(true);
 
+  // --- Internal Actions (triggered by events) ---
+
+  const selectPath = (path: string | null) => {
+    setSelectedPath(path);
+  };
+
+  const expandFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      next.add(path);
+      return next;
+    });
+  };
+
+  const collapseFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      next.delete(path);
+      return next;
+    });
+  };
+
+  const toggleFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  };
+
+  const refreshTree = async () => {
+    const currentRefreshId = ++refreshIdRef.current;
+    try {
+      const newTree = await buildFileTree(rootPath, config, true);
+      if (currentRefreshId === refreshIdRef.current) {
+        setTree([...newTree]);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Failed to refresh tree:', error);
+      if (currentRefreshId === refreshIdRef.current) {
+        setLoading(false);
+      }
+    }
+  };
+
+
   // Build initial tree when rootPath or config changes
   useEffect(() => {
     let cancelled = false;
 
     async function loadTree() {
       setLoading(true);
-      // Clear selection and expansion when rootPath changes (worktree switch)
-      // But preserve them on initial load to allow state restoration
       if (!isInitialLoadRef.current) {
         setSelectedPath(null);
         setExpandedFolders(new Set());
@@ -76,7 +132,7 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
       } catch (error) {
         console.error('Failed to build file tree:', error);
         if (!cancelled) {
-          setTree([]); // Empty tree on error
+          setTree([]);
           setLoading(false);
         }
       }
@@ -84,7 +140,6 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
 
     loadTree();
 
-    // Cleanup: cancel if component unmounts or dependencies change
     return () => {
       cancelled = true;
     };
@@ -112,8 +167,6 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     initialStateSignatureRef.current = signature;
   }, [initialSelectedPath, initialExpandedFolders]);
 
-  // Apply git status to tree nodes when gitStatusMap changes
-  // Convert Map to stable array for dependency tracking (Map reference doesn't change when mutated)
   const gitStatusSignature = useMemo(
     () => (gitStatusMap ? Array.from(gitStatusMap.entries()).sort((a, b) => a[0].localeCompare(b[0])) : []),
     [gitStatusMap]
@@ -124,11 +177,9 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
       return tree;
     }
 
-    // Helper to process nodes and return node + count
     function processNodeWithStatus(node: TreeNode): { node: TreeNode; count: number } {
       const gitStatus = gitStatusMap?.get(node.path);
       
-      // If this specific node has a status (modified/added/etc), count it
       const selfCount = gitStatus ? 1 : 0;
       
       let childSum = 0;
@@ -155,97 +206,136 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
       return { node: updatedNode, count: totalCount };
     }
 
-    // Map root nodes
     return tree.map(node => processNodeWithStatus(node).node);
   }, [tree, gitStatusMap, gitStatusSignature]);
 
-  // Apply filters to tree (git status filter first, then name filter)
   const filteredTree = useMemo(() => {
     let result = treeWithGitStatus;
 
-    // Apply git status filter first
     if (gitStatusFilter) {
       try {
         result = filterTreeByGitStatus(result, gitStatusFilter);
       } catch (error) {
         console.warn('Git status filter error:', error);
-        result = treeWithGitStatus; // Return unfiltered on error
+        result = treeWithGitStatus;
       }
     }
 
-    // Apply name filter second
     if (filterQuery) {
       try {
         result = filterTreeByName(result, filterQuery);
       } catch (error) {
         console.warn('Name filter error:', error);
-        // If name filter fails, return git-filtered tree (don't apply name filter)
       }
     }
 
     return result;
   }, [treeWithGitStatus, filterQuery, gitStatusFilter]);
 
-  // Expansion actions
-  const expandFolder = useCallback((path: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      next.add(path);
-      return next;
+  // Create flattened tree for navigation
+  const flattenedTree = useMemo(
+    () => createFlattenedTree(filteredTree, expandedFolders),
+    [filteredTree, expandedFolders]
+  );
+
+
+  // --- Event Listeners for Navigation, Selection, Expansion ---
+  useEffect(() => {
+    const unsubscribes = [
+      events.on('nav:select', (payload) => {
+        selectPath(payload.path);
+      }),
+      events.on('nav:expand', (payload) => {
+        expandFolder(payload.path);
+      }),
+      events.on('nav:collapse', (payload) => {
+        collapseFolder(payload.path);
+      }),
+      events.on('nav:move', (payload) => {
+        if (flattenedTree.length === 0) return;
+
+        let newPath: string | null = null;
+        const currentSelectedPath = selectedPath || '';
+
+        switch (payload.direction) {
+          case 'up':
+            newPath = moveSelection(flattenedTree, currentSelectedPath, -1);
+            break;
+          case 'down':
+            newPath = moveSelection(flattenedTree, currentSelectedPath, 1);
+            break;
+          case 'left': {
+            const currentNode = getCurrentNode(flattenedTree, currentSelectedPath);
+            const action = getLeftArrowAction(currentNode, flattenedTree, expandedFolders);
+            if (action.type === 'collapse' && action.path) {
+              collapseFolder(action.path);
+            } else if (action.type === 'parent' && action.path) {
+              newPath = action.path;
+            }
+            break;
+          }
+          case 'right': {
+            const currentNode = getCurrentNode(flattenedTree, currentSelectedPath);
+            const action = getRightArrowAction(currentNode, expandedFolders);
+            if (action === 'expand' && currentNode) {
+              expandFolder(currentNode.path);
+            } else if (action === 'open' && currentNode) {
+              events.emit('file:open', { path: currentNode.path });
+            }
+            break;
+          }
+          case 'pageUp':
+            newPath = moveSelection(flattenedTree, currentSelectedPath, -viewportHeight);
+            break;
+          case 'pageDown':
+            newPath = moveSelection(flattenedTree, currentSelectedPath, viewportHeight);
+            break;
+          case 'home':
+            newPath = jumpToStart(flattenedTree);
+            break;
+          case 'end':
+            newPath = jumpToEnd(flattenedTree);
+            break;
+        }
+
+        if (newPath) {
+          selectPath(newPath);
+        }
+      }),
+      events.on('nav:toggle-expand', ({ path }) => {
+        if (expandedFolders.has(path)) {
+          collapseFolder(path);
+        } else {
+          expandFolder(path);
+        }
+      }),
+      events.on('nav:primary', ({ path }) => {
+        const currentNode = getCurrentNode(flattenedTree, path);
+        if (!currentNode) return;
+
+        if (currentNode.type === 'directory') {
+          if (expandedFolders.has(currentNode.path)) {
+            collapseFolder(currentNode.path);
+          } else {
+            expandFolder(currentNode.path);
+          }
+        } else {
+          events.emit('file:open', { path: currentNode.path });
+        }
+      }),
+    ];
+
+    return () => {
+      unsubscribes.forEach(unsub => unsub());
+    };
+  }, [flattenedTree, selectedPath, expandedFolders, viewportHeight]);
+
+  // --- Event Listener for Refresh ---
+  useEffect(() => {
+    return events.on('sys:refresh', () => {
+      refreshTree();
     });
-  }, []);
-
-  const collapseFolder = useCallback((path: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      next.delete(path);
-      return next;
-    });
-  }, []);
-
-  const toggleFolder = useCallback((path: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
-  }, []);
-
-  // Selection action
-  const selectPath = useCallback((path: string | null) => {
-    setSelectedPath(path);
-  }, []);
-
-  // Refresh action
-  const refresh = useCallback(async () => {
-    // 1. Increment ID to track this specific request
-    const currentRefreshId = ++refreshIdRef.current;
-
-    // 2. DO NOT set loading to true (this causes flicker and might block UI updates)
-    // setLoading(true);
-
-    try {
-      // 3. FORCE refresh is strictly TRUE here
-      const newTree = await buildFileTree(rootPath, config, true);
-
-      // 4. Safety check: only update if this is still the latest request
-      if (currentRefreshId === refreshIdRef.current) {
-        // 5. FORCE update by creating a new array reference
-        setTree([...newTree]);
-
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Failed to refresh tree:', error);
-      if (currentRefreshId === refreshIdRef.current) {
-        setLoading(false);
-      }
-    }
-  }, [rootPath, config]);
+  }, [rootPath, config]); // refreshTree depends on rootPath and config
 
   return {
     tree: filteredTree,
@@ -253,10 +343,5 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     expandedFolders,
     selectedPath,
     loading,
-    expandFolder,
-    collapseFolder,
-    toggleFolder,
-    selectPath,
-    refresh,
   };
 }

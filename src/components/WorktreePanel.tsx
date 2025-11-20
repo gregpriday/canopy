@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Box, Text, useInput } from 'ink';
+import { events } from '../services/events.js';
 import type { Worktree } from '../types/index.js';
 
 export interface WorktreePanelProps {
@@ -7,8 +8,8 @@ export interface WorktreePanelProps {
   worktrees: Worktree[];
   /** Currently active worktree ID */
   activeWorktreeId: string | null;
-  /** Callback when user selects a worktree */
-  onSelect: (worktreeId: string) => void;
+  /** Optional callback when user selects a worktree */
+  onSelect?: (worktreeId: string) => void;
   /** Callback to close the panel */
   onClose: () => void;
 }
@@ -79,7 +80,8 @@ export const WorktreePanel: React.FC<WorktreePanelProps> = ({
       // Select current worktree
       const currentIndex = cursorRef.current ?? 0;
       if (worktrees[currentIndex]) {
-        onSelect(worktrees[currentIndex].id);
+        events.emit('sys:worktree:switch', { worktreeId: worktrees[currentIndex].id });
+        onSelect?.(worktrees[currentIndex].id);
       }
     } else if (key.escape) {
       // Close panel without selecting

@@ -23,13 +23,28 @@ export async function gatherContext(rootPath: string): Promise<ContextPayload> {
       diff = '';
     }
   }
+
+  // 2. Append Untracked Files (if any)
+  // git diff HEAD doesn't show untracked files, so we list them explicitly
+  try {
+    const untracked = await git.raw(['ls-files', '--others', '--exclude-standard']);
+    if (untracked && untracked.trim().length > 0) {
+      const untrackedList = untracked.trim();
+      if (diff.length > 0) {
+        diff += '\n\n';
+      }
+      diff += `Untracked files:\n${untrackedList}`;
+    }
+  } catch (e) {
+    // Ignore errors listing untracked files
+  }
   
   // Truncate to 10k characters to keep it "Nano" friendly
   const truncatedDiff = diff.length > 10000 
     ? diff.substring(0, 10000) + '\n...(diff truncated)'
     : diff;
 
-  // 2. Get README Context (Max 2,000 chars)
+  // 3. Get README Context (Max 2,000 chars)
   let readmeContent = '';
   try {
     const readmeFiles = await globby(['README.md', 'readme.md', 'README.txt'], { 

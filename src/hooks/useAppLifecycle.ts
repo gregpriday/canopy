@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { loadConfig } from '../utils/config.js';
 import { getWorktrees, getCurrentWorktree } from '../utils/worktree.js';
 import { loadInitialState } from '../utils/state.js';
+import { logDebug, logWarn, logError } from '../utils/logger.js';
 import type { CanopyConfig, Worktree, Notification } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
@@ -85,7 +86,7 @@ export function useAppLifecycle({
           config = await loadConfig(cwd);
           if (!isMountedRef.current) return;
         } catch (error) {
-          console.warn('Failed to load config, using defaults:', error);
+          logWarn('Failed to load config, using defaults:', { error });
           if (isMountedRef.current) {
             setNotification({
               type: 'warning',
@@ -129,7 +130,7 @@ export function useAppLifecycle({
           throw error;
         }
         // State loading is optional - not being in a git repo is OK
-        console.debug('Could not load initial state:', error);
+        logDebug('Could not load initial state:', { error });
         if (!isMountedRef.current) return;
       }
 
@@ -148,7 +149,7 @@ export function useAppLifecycle({
       }
     } catch (error) {
       // Catch any unexpected errors
-      console.error('Lifecycle initialization failed:', error);
+      logError('Lifecycle initialization failed:', error);
       if (isMountedRef.current) {
         setState(prev => ({
           ...prev,

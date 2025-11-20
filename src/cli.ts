@@ -175,6 +175,12 @@ async function main(): Promise<void> {
       ...parsedArgs.configOverrides,
     };
 
+    const supportsRaw = Boolean(process.stdin && (process.stdin as any).isTTY && typeof (process.stdin as any).setRawMode === 'function');
+    if (!supportsRaw) {
+      console.error('Raw mode is not supported in this environment. Cannot start interactive UI.');
+      process.exit(1);
+    }
+
     process.stdout.write(ENTER_ALT_SCREEN);
 
     const { waitUntilExit } = render(
@@ -185,7 +191,7 @@ async function main(): Promise<void> {
         noGit: parsedArgs.noGit,
         initialFilter: parsedArgs.initialFilter,
       }),
-      { exitOnCtrlC: false }
+      { exitOnCtrlC: false, stdin: supportsRaw ? process.stdin : undefined, stdout: process.stdout }
     );
 
     await waitUntilExit();

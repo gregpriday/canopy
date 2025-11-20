@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import type { Notification, GitStatus } from '../types/index.js';
 import { perfMonitor } from '../utils/perfMetrics.js';
@@ -7,7 +7,7 @@ import { ActionGroup } from './StatusBar/ActionGroup.js';
 import { InlineInput } from './StatusBar/InlineInput.js';
 import { runCopyTree } from '../utils/copytree.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
-// Import the new type
+import { events } from '../services/events.js'; // Import event bus
 import type { AIStatus } from '../services/ai/index.js';
 
 interface StatusBarProps {
@@ -20,19 +20,12 @@ interface StatusBarProps {
   activeRootPath?: string;
   
   commandMode: boolean;
-  onSetCommandMode: (active: boolean) => void;
-  onCommandSubmit: (command: string) => void;
 
-  // New props for AI Status
   aiStatus?: AIStatus | null;
   isAnalyzing?: boolean;
 }
 
-export interface StatusBarRef {
-  triggerCopyTree: () => Promise<void>;
-}
-
-export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
+export const StatusBar: React.FC<StatusBarProps> = ({
   notification,
   fileCount,
   modifiedCount,
@@ -41,18 +34,12 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
   showPerformance = false,
   activeRootPath = '.',
   commandMode,
-  onSetCommandMode,
-  onCommandSubmit,
-  aiStatus,     // Destructure new props
+  aiStatus,
   isAnalyzing,
-}, ref) => {
+}) => {
   const [feedback, setFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [input, setInput] = useState('');
   const { stdout } = useStdout();
-
-  useImperativeHandle(ref, () => ({
-    triggerCopyTree: handleCopyTree,
-  }));
 
   useEffect(() => {
     if (feedback) {
@@ -63,10 +50,24 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
     }
   }, [feedback]);
 
-  const handleCopyTree = async () => {
+  // Subscribe to event bus for copy-tree requests
+  useEffect(() => {
+    return events.on('file:copy-tree', async (payload) => {
+       // If payload.rootPath is provided, use it, otherwise use activeRootPath
+       const targetPath = payload.rootPath || activeRootPath;
+       // We can call the same handleCopyTree function logic here
+       // but since it relies on state/props, we'll just call the function directly.
+       // Ideally, we'd extract the logic, but calling the internal function is fine.
+       // Since handleCopyTree is defined in the component scope, we can just call it.
+       await handleCopyTree(targetPath);
+    });
+  }, [activeRootPath]);
+
+  const handleCopyTree = async (rootPathOverride?: string) => {
     try {
       setFeedback({ message: '📎 Running CopyTree...', type: 'success' });
-      const output = await runCopyTree(activeRootPath);
+      const target = rootPathOverride || activeRootPath;
+      const output = await runCopyTree(target);
       
       const lines = output
         .split('\n')
@@ -100,12 +101,12 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
 
   const handleCommandSubmitInternal = (value: string) => {
     const fullCommand = value.startsWith('/') ? value : `/${value}`;
-    onCommandSubmit(fullCommand);
-    onSetCommandMode(false);
+    events.emit('ui:command:submit', { input: fullCommand });
+    events.emit('ui:modal:close', { id: 'command-bar' });
   };
 
   const handleCommandCancel = () => {
-    onSetCommandMode(false);
+    events.emit('ui:modal:close', { id: 'command-bar' });
   };
 
   if (commandMode) {
@@ -160,7 +161,6 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
       borderStyle="single" 
       paddingX={1} 
       justifyContent={feedback ? 'flex-start' : 'space-between'}
-      // Ensure we take full width to push CopyTree button to the right
       width="100%"
     >
       {feedback ? (
@@ -188,26 +188,26 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
               )}
             </Box>
 
-            {/* AI Status Line */}
-            {(aiStatus || isAnalyzing) && (
-               <Box marginTop={0}> 
-                 {isAnalyzing && !aiStatus ? (
-                   <Text dimColor> 🧠 Analyzing...</Text>
+            {/* Status / AI Line */}
+            <Box marginTop={0}> 
+                 {isAnalyzing ? (
+                   <Text dimColor>🧠 Analyzing changes...</Text>
                  ) : aiStatus ? (
-                   <Text color="magenta"> {aiStatus.emoji} {aiStatus.description}</Text>
-                 ) : null}
-               </Box>
-            )}
+                   <Text color="magenta">{aiStatus.emoji} {aiStatus.description}</Text>
+                 ) : (
+                   <Text color="green">🌲 Canopy</Text>
+                 )}
+            </Box>
           </Box>
           
           <ActionGroup>
             <ActionButton
               label="CopyTree"
-              onAction={handleCopyTree}
+              onAction={() => handleCopyTree()}
             />
           </ActionGroup>
         </>
       )}
     </Box>
   );
-});
+};

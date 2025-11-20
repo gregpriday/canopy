@@ -4,8 +4,10 @@ import {
 	isGitRepository,
 	invalidateGitStatusCache,
 } from '../utils/git.js';
+import { logWarn } from '../utils/logger.js';
 import type { GitStatus } from '../types/index.js';
 import { debounce } from '../utils/debounce.js';
+import { events } from '../services/events.js';
 
 /**
  * Hook return value interface
@@ -19,6 +21,8 @@ export interface UseGitStatusReturn {
 	refresh: (forceRefresh?: boolean) => void;
 	/** Clear git status immediately (for worktree switches) */
 	clear: () => void;
+	/** Whether the initial status fetch is in progress */
+	isLoading: boolean;
 }
 
 /**
@@ -58,6 +62,7 @@ export function useGitStatus(
 	// State
 	const [gitStatus, setGitStatus] = useState<Map<string, GitStatus>>(new Map());
 	const [gitEnabled, setGitEnabled] = useState<boolean>(false);
+	const [isLoading, setIsLoading] = useState<boolean>(true);
 
 	// Ref to track if component is mounted (prevent setState after unmount)
 	const isMountedRef = useRef<boolean>(true);
@@ -82,6 +87,7 @@ export function useGitStatus(
 				if (isMountedRef.current) {
 					setGitStatus(new Map());
 					setGitEnabled(false);
+					setIsLoading(false);
 				}
 				return;
 			}
@@ -154,11 +160,14 @@ export function useGitStatus(
 					}
 
 					// Git command failed - log warning and disable
-					console.warn('Failed to fetch git status:', (error as Error).message);
+					logWarn('Failed to fetch git status:', { message: (error as Error).message });
 					setGitEnabled(false);
 					setGitStatus(new Map());
 				} finally {
 					ongoingFetchRef.current = null;
+					if (isMountedRef.current) {
+						setIsLoading(false);
+					}
 				}
 			})();
 
@@ -200,6 +209,12 @@ export function useGitStatus(
 		},
 		[],
 	);
+
+	useEffect(() => {
+		return events.on('sys:refresh', () => {
+			refresh(true);
+		});
+	}, [refresh]);
 
 	/**
 	 * Clear git status immediately (synchronous).
@@ -248,5 +263,6 @@ export function useGitStatus(
 		gitEnabled,
 		refresh,
 		clear,
+		isLoading,
 	};
 }

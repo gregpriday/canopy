@@ -6,7 +6,7 @@ import {
   saveIdentityCache,
   generateProjectIdentity,
   type ProjectIdentity
-} from '../services/ai/index.js'; // UPDATED IMPORT
+} from '../services/ai/index.js';
 
 const DEFAULT_IDENTITY: ProjectIdentity = {
   emoji: '🌲',
@@ -16,6 +16,7 @@ const DEFAULT_IDENTITY: ProjectIdentity = {
 };
 
 export function useProjectIdentity(rootPath: string) {
+  // Initialize with default
   const [identity, setIdentity] = useState<ProjectIdentity>(() => {
     const folderName = path.basename(rootPath);
     return { ...DEFAULT_IDENTITY, title: folderName };
@@ -26,42 +27,48 @@ export function useProjectIdentity(rootPath: string) {
 
     let isMounted = true;
 
-    // Non-blocking async wrapper
     const fetchIdentity = async () => {
       try {
         const currentHash = await getProjectHash(rootPath);
         const cache = await loadIdentityCache();
-        
         const cachedEntry = cache[rootPath];
         
-        // 1. Try Cache
+        // 1. Try Cache Match
         if (cachedEntry && cachedEntry.hash === currentHash) {
-          if (isMounted) setIdentity(cachedEntry);
+          if (isMounted) {
+             // OPTIMIZATION: Only update state if it actually changed
+             // This prevents the UI from "blinking" or re-rendering unnecessarily
+             if (cachedEntry.emoji !== identity.emoji || cachedEntry.title !== identity.title) {
+                setIdentity(cachedEntry);
+             }
+          }
           return;
         }
 
-        // 2. Generate (Non-blocking API call)
+        // 2. Generate New Identity (Cache Miss)
         const newIdentity = await generateProjectIdentity(rootPath);
 
         if (newIdentity && isMounted) {
-          cache[rootPath] = {
+          const entry = {
             ...newIdentity,
             hash: currentHash,
             timestamp: Date.now(),
             model: 'gpt-5-mini'
           };
+          
+          cache[rootPath] = entry;
           await saveIdentityCache(cache);
           setIdentity(newIdentity);
         }
       } catch (e) {
-        // Fail silently, keep default
+        console.error("Identity check failed", e);
       }
     };
 
     fetchIdentity();
 
     return () => { isMounted = false; };
-  }, [rootPath]);
+  }, [rootPath]); 
 
   return identity;
 }

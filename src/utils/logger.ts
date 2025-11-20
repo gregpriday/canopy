@@ -16,6 +16,7 @@ const SENSITIVE_KEYS = new Set(['token', 'password', 'apiKey', 'secret', 'access
 
 // Add a check for debug mode
 const IS_DEBUG = process.env.NODE_ENV === 'development' || process.env.YELLOWWOOD_DEBUG;
+const IS_TEST = process.env.NODE_ENV === 'test';
 
 /**
  * Safely stringify values, handling circular references and sensitive data
@@ -52,7 +53,7 @@ function safeStringify(value: unknown): string {
  * Log a debug message (development only, filtered in production)
  */
 export function logDebug(message: string, context?: LogContext): void {
-  if (IS_DEBUG) {
+  if (IS_DEBUG && !IS_TEST) {
     console.log(`[DEBUG] ${message}`, context ? safeStringify(context) : '');
   }
 }
@@ -61,7 +62,7 @@ export function logDebug(message: string, context?: LogContext): void {
  * Log an info message
  */
 export function logInfo(message: string, context?: LogContext): void {
-  if (IS_DEBUG) {
+  if (IS_DEBUG && !IS_TEST) {
     console.log(`[INFO] ${message}`, context ? safeStringify(context) : '');
   }
 }
@@ -70,7 +71,7 @@ export function logInfo(message: string, context?: LogContext): void {
  * Log a warning message
  */
 export function logWarn(message: string, context?: LogContext): void {
-  if (IS_DEBUG) {
+  if (IS_DEBUG && !IS_TEST) {
     console.warn(`[WARN] ${message}`, context ? safeStringify(context) : '');
   }
 }
@@ -79,6 +80,8 @@ export function logWarn(message: string, context?: LogContext): void {
  * Log an error message
  */
 export function logError(message: string, error?: unknown, context?: LogContext): void {
+  if (IS_TEST) return; // Suppress errors in tests to keep output clean
+  
   const errorDetails = error ? getErrorDetails(error) : undefined;
   console.error(
     `[ERROR] ${message}`,

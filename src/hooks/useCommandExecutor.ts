@@ -5,6 +5,7 @@ import clipboardy from 'clipboardy';
 import type { CommandServices } from '../commands/types.js';
 import { getCommand, loadCoreCommands } from '../commands/registry.js';
 import type { Notification, TreeNode } from '../types/index.js';
+import { events } from '../services/events.js'; // Import event bus
 
 // Ensure core commands are loaded
 loadCoreCommands();
@@ -14,13 +15,14 @@ interface ExecutorParams {
   selectedPath: string | null;
   fileTree: TreeNode[];
   expandedPaths: Set<string>;
-  setNotification: (n: Notification) => void;
+  // setNotification REMOVED - handled via event bus
   refreshTree: () => Promise<void>;
   exitApp: () => void;
 }
 
 export function useCommandExecutor(params: ExecutorParams) {
-  const { cwd, selectedPath, fileTree, expandedPaths, setNotification, refreshTree, exitApp } = params;
+  // Removed setNotification destructuring
+  const { cwd, selectedPath, fileTree, expandedPaths, refreshTree, exitApp } = params;
 
   const execute = useCallback(async (input: string) => {
     // 1. Parse Input
@@ -28,14 +30,16 @@ export function useCommandExecutor(params: ExecutorParams) {
     const command = getCommand(cmdName);
 
     if (!command) {
-      setNotification({ type: 'error', message: `Unknown command: ${cmdName}` });
+      // Emit event instead of calling setNotification
+      events.emit('ui:notify', { type: 'error', message: `Unknown command: ${cmdName}` });
       return;
     }
 
     // 2. Build Services Object (The Bridge)
     const services: CommandServices = {
       ui: {
-        notify: setNotification,
+        // Adapter: service calls events.emit
+        notify: (n: Notification) => events.emit('ui:notify', n),
         refresh: refreshTree,
         exit: exitApp,
       },
@@ -59,12 +63,12 @@ export function useCommandExecutor(params: ExecutorParams) {
     try {
       const result = await command.execute(args, services);
       if (result.message) {
-        setNotification({ type: 'success', message: result.message });
+        events.emit('ui:notify', { type: 'success', message: result.message });
       }
     } catch (error: any) {
-      setNotification({ type: 'error', message: error.message || 'Command failed' });
+      events.emit('ui:notify', { type: 'error', message: error.message || 'Command failed' });
     }
-  }, [cwd, selectedPath, fileTree, expandedPaths, setNotification, refreshTree]);
+  }, [cwd, selectedPath, fileTree, expandedPaths, refreshTree]);
 
   return { execute };
 }

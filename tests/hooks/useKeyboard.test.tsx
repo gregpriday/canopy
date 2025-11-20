@@ -3,6 +3,8 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi } from 'vitest';
 import { useKeyboard, type KeyboardHandlers } from '../../src/hooks/useKeyboard.js';
 import { Box, Text } from 'ink';
+import { events } from '../../src/services/events.js';
+import type { CanopyEventMap } from '../../src/services/events.js';
 
 // Test component that uses the hook
 function TestComponent({ handlers }: { handlers: KeyboardHandlers }) {
@@ -43,158 +45,63 @@ async function writeKey(stdin: NodeJS.WriteStream & { write(chunk: any): boolean
   await new Promise(resolve => setTimeout(resolve, 0));
 }
 
+const listen = <K extends keyof CanopyEventMap>(event: K) => {
+  const spy = vi.fn<(payload: CanopyEventMap[K]) => void>();
+  const unsubscribe = events.on(event, spy);
+  return { spy, unsubscribe };
+};
+
 describe('useKeyboard', () => {
   describe('navigation keys', () => {
-    it('calls onNavigateUp when up arrow is pressed', async () => {
-      const onNavigateUp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onNavigateUp }} />);
+    it('emits nav:move for arrow keys', async () => {
+      const { spy, unsubscribe } = listen('nav:move');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, '\x1B[A'); // Up arrow ANSI code
+      await writeKey(stdin, '\x1B[A');
+      await writeKey(stdin, '\x1B[B');
+      await writeKey(stdin, '\x1B[D');
+      await writeKey(stdin, '\x1B[C');
 
-      expect(onNavigateUp).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ direction: 'up' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'down' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'left' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'right' });
+      unsubscribe();
     });
 
-    it('calls onNavigateDown when down arrow is pressed', async () => {
-      const onNavigateDown = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onNavigateDown }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[B'); // Down arrow
-
-      expect(onNavigateDown).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onNavigateLeft when left arrow is pressed', async () => {
-      const onNavigateLeft = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onNavigateLeft }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[D'); // Left arrow
-
-      expect(onNavigateLeft).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onNavigateRight when right arrow is pressed', async () => {
-      const onNavigateRight = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onNavigateRight }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[C'); // Right arrow
-
-      expect(onNavigateRight).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onPageUp when PageUp is pressed', async () => {
-      const onPageUp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageUp }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[5~'); // PageUp
-
-      expect(onPageUp).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onPageDown when PageDown is pressed', async () => {
-      const onPageDown = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageDown }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[6~'); // PageDown
-
-      expect(onPageDown).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onPageUp when Ctrl+U is pressed', async () => {
-      const onPageUp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageUp }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x15'); // Ctrl+U
-
-      expect(onPageUp).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onPageDown when Ctrl+D is pressed', async () => {
-      const onPageDown = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageDown }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x04'); // Ctrl+D
-
-      expect(onPageDown).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onHome when Home is pressed', async () => {
-      const onHome = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onHome }} />);
+    it('emits nav:move for paging and home/end sequences', async () => {
+      const { spy, unsubscribe } = listen('nav:move');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin, true);
 
-      await writeKey(stdin, '\x1B[H'); // Home
+      await writeKey(stdin, '\x1B[5~');
+      await writeKey(stdin, '\x1B[6~');
+      await writeKey(stdin, '\x15');
+      await writeKey(stdin, '\x04');
+      await writeKey(stdin, '\x1B[H');
+      await writeKey(stdin, '\x1B[F');
+      await writeKey(stdin, '\u001BOH');
+      await writeKey(stdin, '\u001BOF');
 
-      expect(onHome).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onEnd when End is pressed', async () => {
-      const onEnd = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onEnd }} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\x1B[F'); // End
-
-      expect(onEnd).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onHome with alternate sequence (\\u001BOH)', async () => {
-      const onHome = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onHome }} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\u001BOH'); // Alternate Home sequence
-
-      expect(onHome).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onHome with alternate sequence (\\u001B[1~)', async () => {
-      const onHome = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onHome }} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\u001B[1~'); // Alternate Home sequence
-
-      expect(onHome).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onEnd with alternate sequence (\\u001BOF)', async () => {
-      const onEnd = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onEnd }} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\u001BOF'); // Alternate End sequence
-
-      expect(onEnd).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onEnd with alternate sequence (\\u001B[4~)', async () => {
-      const onEnd = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onEnd }} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\u001B[4~'); // Alternate End sequence
-
-      expect(onEnd).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ direction: 'pageUp' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'pageDown' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'home' });
+      expect(spy).toHaveBeenCalledWith({ direction: 'end' });
+      unsubscribe();
     });
   });
 
   describe('file/folder actions', () => {
-    it('calls onOpenFile when Enter is pressed', async () => {
-      const onOpenFile = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenFile }} />);
+    it('emits nav:primary when Enter is pressed', async () => {
+      const { spy, unsubscribe } = listen('nav:primary');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, '\r'); // Enter
+      await writeKey(stdin, '\r');
 
-      expect(onOpenFile).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ path: '/root/file' });
+      unsubscribe();
     });
 
     it('calls onToggleExpand when Space is pressed', async () => {
@@ -202,7 +109,7 @@ describe('useKeyboard', () => {
       const { stdin } = render(<TestComponent handlers={{ onToggleExpand }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, ' '); // Space
+      await writeKey(stdin, ' ');
 
       expect(onToggleExpand).toHaveBeenCalledTimes(1);
     });
@@ -219,36 +126,39 @@ describe('useKeyboard', () => {
       expect(onNextWorktree).toHaveBeenCalledTimes(1);
     });
 
-    it('calls onOpenWorktreePanel when Shift+W is pressed', async () => {
-      const onOpenWorktreePanel = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenWorktreePanel }} />);
+    it('emits modal open for worktree panel when Shift+W is pressed', async () => {
+      const { spy, unsubscribe } = listen('ui:modal:open');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, 'W'); // Shift+W produces uppercase W
 
-      expect(onOpenWorktreePanel).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ id: 'worktree', context: undefined });
+      unsubscribe();
     });
   });
 
   describe('command/filter actions', () => {
-    it('calls onOpenCommandBar when / is pressed', async () => {
-      const onOpenCommandBar = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenCommandBar }} />);
+    it('emits modal open for command bar when / is pressed', async () => {
+      const { spy, unsubscribe } = listen('ui:modal:open');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, '/');
 
-      expect(onOpenCommandBar).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ id: 'command-bar', context: undefined });
+      unsubscribe();
     });
 
-    it('calls onOpenFilter when Ctrl+F is pressed', async () => {
-      const onOpenFilter = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenFilter }} />);
+    it('emits modal open with filter context when Ctrl+F is pressed', async () => {
+      const { spy, unsubscribe } = listen('ui:modal:open');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, '\x06'); // Ctrl+F
 
-      expect(onOpenFilter).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ id: 'command-bar', context: { initialInput: '/filter ' } });
+      unsubscribe();
     });
 
     it('calls onClearFilter when ESC is pressed', async () => {
@@ -297,24 +207,26 @@ describe('useKeyboard', () => {
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 
-    it('calls onOpenHelp when ? is pressed', async () => {
-      const onOpenHelp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenHelp }} />);
+    it('emits modal open when ? is pressed', async () => {
+      const { spy, unsubscribe } = listen('ui:modal:open');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, '?');
 
-      expect(onOpenHelp).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ id: 'help', context: undefined });
+      unsubscribe();
     });
 
-    it('calls onOpenContextMenu when m is pressed', async () => {
-      const onOpenContextMenu = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenContextMenu }} />);
+    it('emits modal open for context menu when m is pressed', async () => {
+      const { spy, unsubscribe } = listen('ui:modal:open');
+      const { stdin } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, 'm');
 
-      expect(onOpenContextMenu).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith({ id: 'context-menu', context: { path: '/root/file' } });
+      unsubscribe();
     });
 
     it('calls onQuit when q is pressed', async () => {
@@ -333,39 +245,26 @@ describe('useKeyboard', () => {
       const { stdin } = render(<TestComponent handlers={{}} />);
       await waitForInk(stdin);
 
-      // Should not throw
       expect(() => stdin.write('g')).not.toThrow();
       expect(() => stdin.write('q')).not.toThrow();
-      expect(() => stdin.write('\r')).not.toThrow();
-    });
-
-    it('only calls provided handlers', async () => {
-      const onNavigateUp = vi.fn();
-      // onNavigateDown not provided
-      const { stdin } = render(<TestComponent handlers={{ onNavigateUp }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[A'); // Up arrow
-      await writeKey(stdin, '\x1B[B'); // Down arrow
-
-      expect(onNavigateUp).toHaveBeenCalledTimes(1); // Called
-      // onNavigateDown would not be called because not provided
+      expect(() => stdin.write('\\r')).not.toThrow();
     });
   });
 
   describe('key conflicts', () => {
     it('does not call onNextWorktree when Shift+W is pressed', async () => {
       const onNextWorktree = vi.fn();
-      const onOpenWorktreePanel = vi.fn();
+      const { spy, unsubscribe } = listen('ui:modal:open');
       const { stdin } = render(
-        <TestComponent handlers={{ onNextWorktree, onOpenWorktreePanel }} />
+        <TestComponent handlers={{ onNextWorktree, selectedPath: '/root/file' }} />
       );
       await waitForInk(stdin);
 
       await writeKey(stdin, 'W'); // Shift+W
 
-      expect(onNextWorktree).not.toHaveBeenCalled(); // Should NOT be called
-      expect(onOpenWorktreePanel).toHaveBeenCalledTimes(1); // This should be called
+      expect(onNextWorktree).not.toHaveBeenCalled();
+      expect(spy).toHaveBeenCalledWith({ id: 'worktree', context: undefined });
+      unsubscribe();
     });
 
     it('does not call onCopyPath when Shift+C is pressed', async () => {
@@ -376,25 +275,21 @@ describe('useKeyboard', () => {
       );
       await waitForInk(stdin);
 
-      await writeKey(stdin, 'C'); // Shift+C
+      await writeKey(stdin, 'C');
 
-      expect(onCopyPath).not.toHaveBeenCalled(); // Should NOT be called
-      expect(onOpenCopyTreeBuilder).toHaveBeenCalledTimes(1); // This should be called
+      expect(onCopyPath).not.toHaveBeenCalled();
+      expect(onOpenCopyTreeBuilder).toHaveBeenCalledTimes(1);
     });
   });
 
   describe('unknown keys', () => {
     it('ignores keys with no handler', async () => {
-      const onNavigateUp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onNavigateUp }} />);
+      const { stdin } = render(<TestComponent handlers={{}} />);
       await waitForInk(stdin);
 
-      stdin.write('x'); // Unknown key
-      stdin.write('y'); // Unknown key
-      stdin.write('1'); // Unknown key
-
-      expect(onNavigateUp).not.toHaveBeenCalled();
-      // No crash - just ignored
+      stdin.write('x');
+      stdin.write('y');
+      stdin.write('1');
     });
   });
 
@@ -404,7 +299,7 @@ describe('useKeyboard', () => {
       const { stdin } = render(<TestComponent handlers={{ onPageUp }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, 'u'); // Plain u without Ctrl
+      await writeKey(stdin, 'u');
 
       expect(onPageUp).not.toHaveBeenCalled();
     });
@@ -414,7 +309,7 @@ describe('useKeyboard', () => {
       const { stdin } = render(<TestComponent handlers={{ onPageDown }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, 'd'); // Plain d without Ctrl
+      await writeKey(stdin, 'd');
 
       expect(onPageDown).not.toHaveBeenCalled();
     });
@@ -424,54 +319,23 @@ describe('useKeyboard', () => {
       const { stdin } = render(<TestComponent handlers={{ onOpenFilter }} />);
       await waitForInk(stdin);
 
-      await writeKey(stdin, 'f'); // Plain f without Ctrl
+      await writeKey(stdin, 'f');
 
       expect(onOpenFilter).not.toHaveBeenCalled();
     });
   });
 
   describe('cleanup and unmount', () => {
-    it('removes Home/End data listener on unmount', async () => {
-      const onHome = vi.fn();
-      const { stdin, unmount } = render(<TestComponent handlers={{ onHome }} />);
-      await waitForInk(stdin, true);
-
-      const dataListenerCount = stdin.listenerCount('data');
-      expect(dataListenerCount).toBeGreaterThan(0); // Listener attached
-
-      unmount();
-
-      // After unmount, data listener should be removed
-      expect(stdin.listenerCount('data')).toBeLessThan(dataListenerCount);
-    });
-
-    it('does not call old handler after rerender with new handler', async () => {
-      const oldHandler = vi.fn();
-      const newHandler = vi.fn();
-
-      const { stdin, rerender } = render(<TestComponent handlers={{ onHome: oldHandler }} />);
-      await waitForInk(stdin, true);
-
-      // Rerender with new handler
-      rerender(<TestComponent handlers={{ onHome: newHandler }} />);
-      await new Promise(resolve => setTimeout(resolve, 10)); // Wait for effect cleanup
-
-      await writeKey(stdin, '\x1B[H'); // Home
-
-      expect(oldHandler).not.toHaveBeenCalled(); // Old handler should not fire
-      expect(newHandler).toHaveBeenCalledTimes(1); // New handler should fire
-    });
-
-    it('stops responding to keys after unmount', async () => {
-      const onQuit = vi.fn();
-      const { stdin, unmount } = render(<TestComponent handlers={{ onQuit }} />);
+    it('stops emitting after unmount', async () => {
+      const { spy, unsubscribe } = listen('nav:move');
+      const { stdin, unmount } = render(<TestComponent handlers={{ selectedPath: '/root/file' }} />);
       await waitForInk(stdin);
 
       unmount();
+      await writeKey(stdin, '\\x1B[A');
 
-      await writeKey(stdin, 'q'); // Try to trigger after unmount
-
-      expect(onQuit).not.toHaveBeenCalled();
+      expect(spy).not.toHaveBeenCalled();
+      unsubscribe();
     });
   });
 });

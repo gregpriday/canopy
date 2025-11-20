@@ -12,8 +12,6 @@ describe('StatusBar', () => {
     modifiedCount: 0,
     activeRootPath: '.',
     commandMode: false,
-    onSetCommandMode: vi.fn(),
-    onCommandSubmit: vi.fn(),
   };
 
   describe('basic statistics display', () => {

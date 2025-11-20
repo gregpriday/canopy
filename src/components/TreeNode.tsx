@@ -7,8 +7,6 @@ interface TreeNodeProps {
   node: TreeNodeType;
   selected: boolean;
   selectedPath: string;
-  onSelect: (path: string) => void;  // Note: Not currently wired up; will be used for mouse support in #8
-  onToggle: (path: string) => void;  // Note: Not currently wired up; will be used for mouse support in #8
   config: CanopyConfig;
 }
 
@@ -69,8 +67,6 @@ export function TreeNode({
   node,
   selected,
   selectedPath,
-  onSelect,
-  onToggle,
   config,
 }: TreeNodeProps): React.JSX.Element {
   // Delegate to FolderNode or FileNode based on type

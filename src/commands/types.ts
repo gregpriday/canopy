@@ -8,7 +8,7 @@ export interface CommandServices {
   // UI Services
   ui: {
     notify: (notification: Notification) => void;
-    refresh: () => Promise<void>;
+    refresh: () => void; // Changed from Promise<void>
     exit: () => void;
   };
   

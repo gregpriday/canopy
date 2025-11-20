@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react'; // Added useCallback
 import { Box, Text, useApp, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
-import type { StatusBarRef } from './components/StatusBar.js'; // Import the ref type
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { HelpModal } from './components/HelpModal.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import { DEFAULT_CONFIG } from './types/index.js';
-import type { CanopyConfig, TreeNode, Notification, Worktree } from './types/index.js';
+import type { CanopyConfig, Notification, Worktree } from './types/index.js';
 import { useCommandExecutor } from './hooks/useCommandExecutor.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
@@ -17,23 +15,13 @@ import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile } from './utils/fileOpener.js';
 import { countTotalFiles } from './utils/fileTree.js';
-import { copyFilePath } from './utils/clipboard.js';
-import clipboardy from 'clipboardy';
+import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
-import type { FileWatcher } from './utils/fileWatcher.js';
 import { saveSessionState } from './utils/state.js';
-import {
-  createFlattenedTree,
-  moveSelection,
-  jumpToStart,
-  jumpToEnd,
-  getCurrentNode,
-  getRightArrowAction,
-  getLeftArrowAction,
-} from './utils/treeNavigation.js';
+import { events, type ModalId } from './services/events.js'; // Import event bus
 
 interface AppProps {
   cwd: string;
@@ -88,107 +76,163 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setNotification(lifecycleNotification);
     setLifecycleNotification(null);
   }, [lifecycleNotification, setLifecycleNotification]);
+  
+  // Subscribe to UI notifications from event bus
+  useEffect(() => {
+      return events.on('ui:notify', (payload) => {
+          setNotification({ type: payload.type, message: payload.message });
+      });
+  }, []);
 
-  // Command bar state (now managing StatusBar command mode)
-  const [commandMode, setCommandMode] = useState(false);
-  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  // Listen for file:open events
+  useEffect(() => {
+    return events.on('file:open', async (payload) => {
+      if (!payload.path) return;
+      try {
+        await openFile(payload.path, config);
+        events.emit('ui:notify', { type: 'success', message: `Opened ${path.basename(payload.path)}` });
+      } catch (error) {
+        events.emit('ui:notify', { type: 'error', message: `Failed to open file: ${error instanceof Error ? error.message : 'Unknown error'}` });
+      }
+    });
+  }, [config]);
+
+  // Listen for ui:modal:open events
+  const [activeModals, setActiveModals] = useState<Set<ModalId>>(new Set());
+  const [modalContext, setModalContext] = useState<Record<ModalId, any>>({});
 
   // Filter state - initialize from CLI if provided
   const [filterActive, setFilterActive] = useState(!!initialFilter);
   const [filterQuery, setFilterQuery] = useState(initialFilter || '');
 
+  // Context menu state
+  const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
+  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
   // Active worktree state (can change via user actions)
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
-  const [isWorktreePanelOpen, setIsWorktreePanelOpen] = useState(false);
-
-  // Modal/overlay state
-  const [showHelpModal, setShowHelpModal] = useState(false);
 
   // Git visibility state
   const [showGitMarkers, setShowGitMarkers] = useState(config.showGitStatus && !noGit);
+  const effectiveConfig = useMemo(
+    () => ({ ...config, showGitStatus: showGitMarkers }),
+    [config, showGitMarkers]
+  );
 
+  const commandMode = activeModals.has('command-bar');
+  const isWorktreePanelOpen = activeModals.has('worktree');
+  const showHelpModal = activeModals.has('help');
+  const contextMenuOpen = activeModals.has('context-menu');
   // Sync active worktree/path from lifecycle on initialization
   useEffect(() => {
     if (lifecycleStatus === 'ready') {
       setActiveWorktreeId(initialActiveWorktreeId);
       setActiveRootPath(initialActiveRootPath);
+      events.emit('sys:ready', { cwd: activeRootPath });
     }
   }, [lifecycleStatus, initialActiveWorktreeId, initialActiveRootPath]);
 
-  // File watcher ref
-  const watcherRef = useRef<FileWatcher | null>(null);
-  
-  // StatusBar ref to trigger internal methods
-  const statusBarRef = useRef<StatusBarRef>(null);
+  // UseViewportHeight must be declared before useFileTree
+  const viewportHeight = useViewportHeight(8);
 
-  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus } = useGitStatus(
+  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus, isLoading: isGitLoading } = useGitStatus(
     activeRootPath,
     noGit ? false : config.showGitStatus,
     config.refreshDebounce,
   );
 
+  // Listen for sys:refresh events
+  useEffect(() => {
+    return events.on('sys:refresh', () => {
+      refreshGitStatus(); // Refresh git status
+      // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
+    });
+  }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
+
   // NEW: Initialize AI Status Hook
   // We pass the gitStatus map; the hook monitors it for activity/silence
-  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, gitStatus);
+  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, gitStatus, isGitLoading);
 
   const projectIdentity = useProjectIdentity(activeRootPath);
 
-  const refreshGitStatusRef = useRef(refreshGitStatus);
-  refreshGitStatusRef.current = refreshGitStatus;
+  useWatcher(activeRootPath, effectiveConfig, !!noWatch);
 
-  const {
-    tree: fileTree,
-    rawTree,
-    expandedFolders,
-    selectedPath,
-    loading: treeLoading,
-    selectPath,
-    toggleFolder,
-    refresh: refreshTree,
-  } = useFileTree({
+  const { tree: fileTree, rawTree, expandedFolders, selectedPath } = useFileTree({
     rootPath: activeRootPath,
-    config,
+    config: effectiveConfig,
     filterQuery: filterActive ? filterQuery : null,
     gitStatusMap: gitStatus,
+    gitStatusFilter: null,
     initialSelectedPath,
     initialExpandedFolders,
+    viewportHeight,
   });
+
+  useEffect(() => {
+    const handleOpen = events.on('ui:modal:open', ({ id, context }) => {
+      setActiveModals((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      if (context !== undefined) {
+        setModalContext((prev) => ({ ...prev, [id]: context }));
+      }
+      if (id === 'context-menu' && context?.path) {
+        setContextMenuTarget(context.path);
+        setContextMenuPosition({ x: 0, y: 0 });
+      }
+    });
+
+    const handleClose = events.on('ui:modal:close', ({ id }) => {
+      setActiveModals((prev) => {
+        if (!id) {
+          return new Set();
+        }
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setModalContext((prev) => {
+        if (!id) {
+          return {};
+        }
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (!id || id === 'context-menu') {
+        setContextMenuTarget('');
+      }
+    });
+
+    return () => {
+      handleOpen();
+      handleClose();
+    };
+  }, []);
+
+  const refreshTree = useCallback(async () => {
+    events.emit('sys:refresh', undefined);
+  }, []);
+
+  const exitApp = useCallback(() => {
+    exit();
+  }, [exit]);
 
   const { execute } = useCommandExecutor({
     cwd: activeRootPath,
     selectedPath,
-    fileTree,
+    fileTree: rawTree,
     expandedPaths: expandedFolders,
-    setNotification,
     refreshTree,
-    exitApp: exit
+    exitApp,
   });
 
-  // Stable reference for refreshTree to prevent watcher recreation
-  const refreshTreeRef = useRef(refreshTree);
-  refreshTreeRef.current = refreshTree;
-
-  const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
-
-  // Viewport height for navigation calculations (Header=3 + StatusBar=5)
-  const viewportHeight = useViewportHeight(8);
-
-  const flattenedTree = useMemo(
-    () => createFlattenedTree(fileTree, expandedFolders),
-    [fileTree, expandedFolders]
-  );
 
   useEffect(() => {
     return () => {
-      if (watcherRef.current) {
-        void watcherRef.current.stop().catch((err) => {
-          console.error('Error stopping watcher on unmount:', err);
-        });
-      }
-
       if (activeWorktreeId && selectedPath) {
         void saveSessionState(activeWorktreeId, {
           selectedPath,
@@ -200,6 +244,29 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       }
     };
   }, [activeWorktreeId, selectedPath, expandedFolders]);
+
+  useEffect(() => {
+    const unsubscribeSubmit = events.on('ui:command:submit', async ({ input }) => {
+      await execute(input);
+      events.emit('ui:modal:close', { id: 'command-bar' });
+    });
+
+    const unsubscribeFilterSet = events.on('ui:filter:set', ({ query }) => {
+      setFilterActive(true);
+      setFilterQuery(query);
+    });
+
+    const unsubscribeFilterClear = events.on('ui:filter:clear', () => {
+      setFilterActive(false);
+      setFilterQuery('');
+    });
+
+    return () => {
+      unsubscribeSubmit();
+      unsubscribeFilterSet();
+      unsubscribeFilterClear();
+    };
+  }, [execute]);
 
   useEffect(() => {
     if (notification) {
@@ -220,50 +287,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const totalFileCount = useMemo(() => countTotalFiles(fileTree), [fileTree]);
 
-  // NEW: Time-based polling instead of file watching
-  useEffect(() => {
-    if (noWatch) return;
-
-    // Define polling interval (4000ms = 4 seconds)
-    // We can move this to config later if desired
-    const POLL_INTERVAL_MS = 4000;
-
-    const intervalId = setInterval(() => {
-      // 1. Refresh the file tree (detects adds/deletes)
-      // We use the ref to ensure we call the latest version of the function
-      refreshTreeRef.current();
-
-      // 2. Refresh Git status (detects modifications/M/A/D)
-      // This ensures colors update when you save a file
-      refreshGitStatusRef.current();
-    }, POLL_INTERVAL_MS);
-
-    // Cleanup on unmount or when noWatch changes
-    return () => clearInterval(intervalId);
-  }, [noWatch]);
-
-  // Handle command bar open/close
-  const handleOpenCommandBar = () => {
-    setCommandMode(true);
-  };
-
-  const handleCloseCommandBar = () => {
-    setCommandMode(false);
-  };
-
   const handleClearFilter = () => {
-    if (showHelpModal) {
-      setShowHelpModal(false);
-    } else if (contextMenuOpen) {
-      setContextMenuOpen(false);
-    } else if (isWorktreePanelOpen) {
-      setIsWorktreePanelOpen(false);
-    } else if (commandMode) {
-      handleCloseCommandBar();
+    if (activeModals.size > 0) {
+      events.emit('ui:modal:close', { id: undefined });
     } else if (filterActive) {
       setFilterActive(false);
       setFilterQuery('');
-      setNotification({
+      events.emit('ui:notify', {
         type: 'info',
         message: 'Filter cleared',
       });
@@ -280,7 +310,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   };
 
-  const handleSwitchWorktree = async (targetWorktree: Worktree) => {
+  const handleSwitchWorktree = useCallback(async (targetWorktree: Worktree) => {
     try {
       if (activeWorktreeId && selectedPath) {
         await saveSessionState(activeWorktreeId, {
@@ -292,11 +322,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
       clearGitStatus();
 
-      if (watcherRef.current) {
-        await watcherRef.current.stop();
-        watcherRef.current = null;
-      }
-
       setActiveWorktreeId(targetWorktree.id);
       setActiveRootPath(targetWorktree.path);
 
@@ -304,230 +329,98 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setFilterQuery('');
 
       setIsWorktreePanelOpen(false);
-      setNotification({
+      events.emit('ui:notify', {
         type: 'success',
         message: `Switched to ${targetWorktree.branch || targetWorktree.name}`,
       });
     } catch (error) {
-      setNotification({
+      events.emit('ui:notify', {
         type: 'error',
         message: `Failed to switch worktree: ${error instanceof Error ? error.message : 'Unknown error'}`,
       });
     }
-  };
+  }, [activeWorktreeId, clearGitStatus, expandedFolders, selectedPath]);
 
-  // Execute command from status bar input
-  const handleCommandSubmit = async (input: string) => {
-    setCommandMode(false);
-    setCommandHistory(prev => [input, ...prev.filter(cmd => cmd !== input)].slice(0, 50));
+  useEffect(() => {
+    return events.on('sys:worktree:switch', async ({ worktreeId }) => {
+      const targetWorktree = worktrees.find(wt => wt.id === worktreeId);
+      if (targetWorktree) {
+        await handleSwitchWorktree(targetWorktree);
+      } else {
+        events.emit('ui:notify', { type: 'error', message: 'Worktree not found' });
+      }
+    });
+  }, [worktrees, handleSwitchWorktree]);
 
-    await execute(input);
-  };
+  // handleOpenSelectedFile removed
 
-  const handleOpenSelectedFile = async () => {
-    if (!selectedPath) return;
+  // handleCopySelectedPath removed
 
-    try {
-      await openFile(selectedPath, config);
-      setNotification({
-        type: 'success',
-        message: `Opened ${path.basename(selectedPath)}`,
-      });
-    } catch (error) {
-      setNotification({
-        type: 'error',
-        message: `Failed to open file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-    }
-  };
-
-  const handleCopySelectedPath = async (targetPath?: string) => {
-    const pathToString = targetPath || selectedPath;
-    if (!pathToString) return;
-
-    try {
-      await copyFilePath(pathToString, activeRootPath, true);
-      const relativePath = await clipboardy.read();
-      const finalCopiedPath = `@${relativePath}`;
-      await clipboardy.write(finalCopiedPath);
-
-      setNotification({
-        type: 'success',
-        message: `Copied: ${finalCopiedPath}`,
-      });
-    } catch (error) {
-      setNotification({
-        type: 'error',
-        message: `Failed to copy path: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
-    }
-  };
-
-  const handleOpenContextMenu = () => {
-    if (!selectedPath) return;
-    setContextMenuTarget(selectedPath);
-    setContextMenuPosition({ x: 0, y: 0 });
-    setContextMenuOpen(true);
-  };
-
-  // Navigation handlers
-  const handleNavigateUp = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = moveSelection(flattenedTree, selectedPath || '', -1);
-    selectPath(newPath);
-  };
-
-  const handleNavigateDown = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = moveSelection(flattenedTree, selectedPath || '', 1);
-    selectPath(newPath);
-  };
-
-  const handlePageUp = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = moveSelection(flattenedTree, selectedPath || '', -viewportHeight);
-    selectPath(newPath);
-  };
-
-  const handlePageDown = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = moveSelection(flattenedTree, selectedPath || '', viewportHeight);
-    selectPath(newPath);
-  };
-
-  const handleHome = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = jumpToStart(flattenedTree);
-    if (newPath) selectPath(newPath);
-  };
-
-  const handleEnd = () => {
-    if (flattenedTree.length === 0) return;
-    const newPath = jumpToEnd(flattenedTree);
-    if (newPath) selectPath(newPath);
-  };
-
-  const handleNavigateLeft = () => {
-    if (flattenedTree.length === 0) return;
-    const currentNode = getCurrentNode(flattenedTree, selectedPath || '');
-    const action = getLeftArrowAction(currentNode, flattenedTree, expandedFolders);
-
-    if (action.type === 'collapse' && action.path) {
-      toggleFolder(action.path);
-    } else if (action.type === 'parent' && action.path) {
-      selectPath(action.path);
-    }
-  };
-
-  const handleNavigateRight = () => {
-    if (flattenedTree.length === 0) return;
-    const currentNode = getCurrentNode(flattenedTree, selectedPath || '');
-    const action = getRightArrowAction(currentNode, expandedFolders);
-
-    if (action === 'expand' && currentNode) {
-      toggleFolder(currentNode.path);
-    } else if (action === 'open') {
-      handleOpenSelectedFile();
-    }
-  };
 
   const handleToggleGitStatus = () => {
     setShowGitMarkers(!showGitMarkers);
-    setNotification({
+    events.emit('ui:notify', {
       type: 'info',
       message: showGitMarkers ? 'Git markers hidden' : 'Git markers shown',
     });
   };
 
-  const handleOpenHelp = () => {
-    setShowHelpModal(!showHelpModal);
-  };
-
   const handleQuit = async () => {
-    if (watcherRef.current) {
-      try {
-        await watcherRef.current.stop();
-      } catch (error) {
-        console.error('Error stopping watcher on quit:', error);
-      }
-    }
+    events.emit('sys:quit', undefined);
     clearGitStatus();
     exit();
   };
 
   const handleOpenCopyTreeBuilder = () => {
-    setNotification({
+    events.emit('ui:notify', {
       type: 'info',
       message: 'CopyTree builder coming in Phase 2',
     });
   };
 
   const handleOpenFilter = () => {
-    setCommandMode(true);
-    // Logic to prefill '/filter ' will be handled in StatusBar if needed,
-    // but since StatusBar only listens to commandMode, we might need a separate effect or prop for initial input.
-    // For now, the user just types /filter.
-    // Note: To perfectly replicate 'Ctrl+F -> /filter ', we might need a way to set the input.
-    // InlineInput handles its own state. 
-    // I'll add 'initialInput' to StatusBar if needed, but for now let's stick to basic command mode.
+    events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
   };
 
-  const anyModalOpen = showHelpModal || commandMode || contextMenuOpen || isWorktreePanelOpen;
+  const anyModalOpen = activeModals.size > 0;
 
   useKeyboard({
-    onNavigateUp: anyModalOpen ? undefined : handleNavigateUp,
-    onNavigateDown: anyModalOpen ? undefined : handleNavigateDown,
-    onNavigateLeft: anyModalOpen ? undefined : handleNavigateLeft,
-    onNavigateRight: anyModalOpen ? undefined : handleNavigateRight,
-    onPageUp: anyModalOpen ? undefined : handlePageUp,
-    onPageDown: anyModalOpen ? undefined : handlePageDown,
-    onHome: anyModalOpen ? undefined : handleHome,
-    onEnd: anyModalOpen ? undefined : handleEnd,
-
-    onOpenFile: anyModalOpen ? undefined : handleOpenSelectedFile,
     onToggleExpand: anyModalOpen ? undefined : () => {
       if (selectedPath) {
-        toggleFolder(selectedPath);
+        events.emit('nav:toggle-expand', { path: selectedPath });
       }
     },
 
-    onOpenCommandBar: anyModalOpen ? undefined : handleOpenCommandBar,
+    onOpenCommandBar: undefined,
     onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
     onClearFilter: handleClearFilter,
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
-    onOpenWorktreePanel: anyModalOpen ? undefined : () => setIsWorktreePanelOpen(true),
+    onOpenWorktreePanel: undefined,
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
-
-    onCopyPath: anyModalOpen ? undefined : () => {
-      statusBarRef.current?.triggerCopyTree();
-    },
+    
     onOpenCopyTreeBuilder: anyModalOpen ? undefined : handleOpenCopyTreeBuilder,
-    onCopyTreeShortcut: anyModalOpen ? undefined : () => {
-      statusBarRef.current?.triggerCopyTree();
-    },
 
     onRefresh: anyModalOpen ? undefined : () => {
-      refreshTree();
-      refreshGitStatus();
+      events.emit('sys:refresh', undefined);
     },
-    onOpenHelp: handleOpenHelp,
-    onOpenContextMenu: anyModalOpen ? undefined : handleOpenContextMenu,
+    onOpenHelp: undefined,
+    onOpenContextMenu: anyModalOpen ? undefined : () => {
+        if (selectedPath) {
+            events.emit('ui:modal:open', { id: 'context-menu', context: { path: selectedPath } });
+        }
+    },
     onQuit: handleQuit,
     onForceExit: handleQuit,
     onWarnExit: () => {
-      setNotification({
+      events.emit('ui:notify', {
         type: 'warning',
         message: 'Press Ctrl+C again to quit',
       });
     },
+    selectedPath: selectedPath,
   });
-
-  const effectiveConfig = useMemo(
-    () => ({ ...config, showGitStatus: showGitMarkers }),
-    [config, showGitMarkers]
-  );
 
   if (lifecycleStatus === 'initializing') {
     return (
@@ -559,24 +452,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         filterQuery={filterQuery}
         currentWorktree={currentWorktree}
         worktreeCount={worktrees.length}
-        onWorktreeClick={() => setIsWorktreePanelOpen(true)}
+        onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
         identity={projectIdentity}
       />
       <Box flexGrow={1}>
         <TreeView
           fileTree={fileTree}
           selectedPath={selectedPath || ''}
-          onSelect={selectPath}
           config={effectiveConfig}
           expandedPaths={expandedFolders}
-          onToggleExpand={toggleFolder}
-          disableKeyboard={true}
           disableMouse={anyModalOpen}
-          onCopyPath={handleCopySelectedPath}
+          // onCopyPath={handleCopySelectedPath} // Removed
         />
       </Box>
       <StatusBar
-        ref={statusBarRef}
         notification={notification}
         fileCount={totalFileCount}
         modifiedCount={modifiedCount}
@@ -585,8 +474,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         filterQuery={filterActive ? filterQuery : null}
         activeRootPath={activeRootPath}
         commandMode={commandMode}
-        onSetCommandMode={setCommandMode}
-        onCommandSubmit={handleCommandSubmit}
       />
       {contextMenuOpen && (
         <ContextMenu
@@ -594,20 +481,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           rootPath={activeRootPath}
           position={contextMenuPosition}
           config={config}
-          onClose={() => setContextMenuOpen(false)}
+          onClose={() => events.emit('ui:modal:close', { id: 'context-menu' })}
           onAction={(actionType, result) => {
             if (result.success) {
-              setNotification({
+              events.emit('ui:notify', {
                 type: 'success',
                 message: result.message || 'Action completed',
               });
             } else {
-              setNotification({
+              events.emit('ui:notify', {
                 type: 'error',
-                message: result.message || 'Action failed',
+                message: `Failed to switch worktree: ${result.message || 'Unknown error'}`,
               });
             }
-            setContextMenuOpen(false);
+            events.emit('ui:modal:close', { id: 'context-menu' });
           }}
         />
       )}
@@ -615,18 +502,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         <WorktreePanel
           worktrees={worktrees}
           activeWorktreeId={activeWorktreeId}
-          onSelect={(worktreeId) => {
-            const targetWorktree = worktrees.find(wt => wt.id === worktreeId);
-            if (targetWorktree) {
-              handleSwitchWorktree(targetWorktree);
-            }
-          }}
-          onClose={() => setIsWorktreePanelOpen(false)}
+          onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
         />
       )}
       <HelpModal
         visible={showHelpModal}
-        onClose={() => setShowHelpModal(false)}
+        onClose={() => events.emit('ui:modal:close', { id: 'help' })}
       />
     </Box>
   );
