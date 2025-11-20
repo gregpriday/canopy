@@ -69,6 +69,12 @@ export function useAIStatus(rootPath: string, gitStatusMap: Map<string, GitStatu
 
     // 3. Check for Diff Changes
     const checkDiffAndSchedule = async () => {
+        // Prevent concurrent checks while already analyzing
+        if (isAnalyzing) {
+            logDebug('skip: already-analyzing');
+            return;
+        }
+
         try {
             const context = await gatherContext(rootPath);
             const newDiff = context.diff;
