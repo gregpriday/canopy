@@ -21,6 +21,7 @@ import { copyFilePath } from './utils/clipboard.js';
 import clipboardy from 'clipboardy';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
+import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import type { FileWatcher } from './utils/fileWatcher.js';
 import { saveSessionState } from './utils/state.js';
@@ -126,6 +127,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     noGit ? false : config.showGitStatus,
     config.refreshDebounce,
   );
+
+  // NEW: Initialize AI Status Hook
+  // We pass the gitStatus map; the hook monitors it for activity/silence
+  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, gitStatus);
 
   const projectIdentity = useProjectIdentity(activeRootPath);
 
@@ -575,6 +580,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         notification={notification}
         fileCount={totalFileCount}
         modifiedCount={modifiedCount}
+        aiStatus={aiStatus}
+        isAnalyzing={isAnalyzing}
         filterQuery={filterActive ? filterQuery : null}
         activeRootPath={activeRootPath}
         commandMode={commandMode}

@@ -1,18 +1,20 @@
 import OpenAI from "openai";
 import type { ProjectIdentity } from './cache.js';
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'dummy', // Prevent crash if key missing, check in function
-});
+// Lazy load client
+function getClient(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  return new OpenAI({ apiKey });
+}
 
 export async function generateIdentity(pathOrName: string): Promise<ProjectIdentity | null> {
-  if (!process.env.OPENAI_API_KEY) {
-    return null;
-  }
+  const client = getClient();
+  if (!client) return null;
 
   try {
     const response = await client.chat.completions.create({
-      model: "gpt-4o-mini", // Use 4o-mini if available
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -22,15 +24,6 @@ Analyze the project path or folder name provided.
 Output a JSON object with:
 1. "emoji": A single representative emoji.
 2. "title": Convert the folder name to Title Case. Remove hyphens, underscores, and convert to proper spacing.
-   You can use information from parent folders to create a better title.
-   Examples:
-   - "my-react-app" -> "My React App"
-   - "user_dashboard" -> "User Dashboard"
-   - "canopy" -> "Canopy"
-   - "api-v2-server" -> "API V2 Server"
-   - "nextjs-blog" -> "NextJS Blog"
-   - "projects/foobar/website" -> "Foobar Website"
-   - "clients/acme/admin-panel" -> "Acme Admin Panel"
 3. "gradientStart": A hex color code.
 4. "gradientEnd": A hex color code.
 
