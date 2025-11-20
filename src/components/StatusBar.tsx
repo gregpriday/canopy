@@ -190,14 +190,14 @@ export const StatusBar: React.FC<StatusBarProps> = ({
             </Box>
 
             {/* Status / AI Line */}
-            <Box marginTop={0}> 
+            <Box marginTop={0}>
                  {isAnalyzing ? (
                    <Text dimColor>🧠 Analyzing changes...</Text>
                  ) : aiStatus ? (
                    <Text color="magenta">{aiStatus.emoji} {aiStatus.description}</Text>
                  ) : (
                    <Box>
-                     <Text color="green">🌲 Canopy</Text>
+                     <Text dimColor>✨ Ready for changes</Text>
                      {!hasOpenAIKey && (
                        <Text dimColor> [no OpenAI key]</Text>
                      )}
