@@ -86,10 +86,11 @@ export async function buildFileTree(
   try {
     const stat = await fs.stat(rootPath);
     if (!stat.isDirectory()) {
-      throw new Error(`Path is not a directory: ${rootPath}`);
+      // Path exists but is not a directory - return empty
+      return [];
     }
   } catch (error) {
-    console.error(`Failed to access root path ${rootPath}:`, (error as Error).message);
+    // Path doesn't exist or can't be accessed - return empty
     return [];
   }
 

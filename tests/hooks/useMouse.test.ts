@@ -58,14 +58,9 @@ describe('useMouse', () => {
       expect(onToggle).toHaveBeenCalledWith('src');
     });
 
-    it('opens file on left-click when config is "open"', () => {
-      const onOpen = vi.fn();
-      const config = {
-        ...DEFAULT_CONFIG,
-        ui: { leftClickAction: 'open' as const },
-      };
-
-      const options = createOptions({ onOpen, config });
+    it('copies file path on left-click', () => {
+      const onCopy = vi.fn();
+      const options = createOptions({ onCopy });
       render(React.createElement(TestComponent, options));
 
       const { handleClick } = (global as any).testHandlers;
@@ -80,17 +75,14 @@ describe('useMouse', () => {
         meta: false,
       });
 
-      expect(onOpen).toHaveBeenCalledWith('src/App.tsx');
+      expect(onCopy).toHaveBeenCalledWith('src/App.tsx');
     });
 
-    it('selects file on left-click when config is "select"', () => {
+    it('does not call onOpen or onSelect on left-click (copies instead)', () => {
+      const onOpen = vi.fn();
       const onSelect = vi.fn();
-      const config = {
-        ...DEFAULT_CONFIG,
-        ui: { leftClickAction: 'select' as const },
-      };
-
-      const options = createOptions({ onSelect, config });
+      const onCopy = vi.fn();
+      const options = createOptions({ onOpen, onSelect, onCopy });
       render(React.createElement(TestComponent, options));
 
       const { handleClick } = (global as any).testHandlers;
@@ -105,7 +97,10 @@ describe('useMouse', () => {
         meta: false,
       });
 
-      expect(onSelect).toHaveBeenCalledWith('src/App.tsx');
+      // Should copy, not open or select
+      expect(onCopy).toHaveBeenCalledWith('src/App.tsx');
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(onSelect).not.toHaveBeenCalled();
     });
 
     it('opens context menu on right-click', () => {

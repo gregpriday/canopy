@@ -223,9 +223,8 @@ export const StatusBar = forwardRef<StatusBarRef, StatusBarProps>(({
           </Box>
           
           <ActionGroup>
-            <ActionButton 
-              label="CopyTree" 
-              shortcut="c"
+            <ActionButton
+              label="CopyTree"
               onAction={handleCopyTree}
             />
           </ActionGroup>

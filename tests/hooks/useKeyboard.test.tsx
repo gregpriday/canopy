@@ -275,16 +275,6 @@ describe('useKeyboard', () => {
   });
 
   describe('copy actions', () => {
-    it('calls onCopyPath when c is pressed', async () => {
-      const onCopyPath = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onCopyPath }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, 'c');
-
-      expect(onCopyPath).toHaveBeenCalledTimes(1);
-    });
-
     it('calls onOpenCopyTreeBuilder when Shift+C is pressed', async () => {
       const onOpenCopyTreeBuilder = vi.fn();
       const { stdin } = render(<TestComponent handlers={{ onOpenCopyTreeBuilder }} />);

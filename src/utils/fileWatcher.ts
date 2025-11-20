@@ -4,6 +4,7 @@ import { WatcherError } from './errorTypes.js';
 import { logWarn, logError, logInfo } from './logger.js';
 import { debounce } from './debounce.js';
 import { perfMonitor } from './perfMetrics.js';
+import { trace } from './runtimeLogger.js';
 
 export type FileChangeType = 'add' | 'change' | 'unlink' | 'unlinkDir' | 'addDir';
 
@@ -72,6 +73,8 @@ export function createFileWatcher(
 	rootPath: string,
 	options: FileWatcherOptions = {},
 ): FileWatcher {
+	trace('FileWatcher', 'createFileWatcher called', { rootPath, debounce: options.debounce });
+
 	const {
 		ignored = [],
 		debounce: debounceMs = 100,
@@ -101,6 +104,11 @@ export function createFileWatcher(
 			return;
 		}
 
+		trace('FileWatcher', 'Processing batch', {
+			pendingEventsCount: pendingEvents.length,
+			events: pendingEvents.map(e => `${e.type}:${e.path}`),
+		});
+
 		// Record batch size metric
 		perfMonitor.recordMetric('watcher-batch-size', pendingEvents.length);
 
@@ -117,6 +125,7 @@ export function createFileWatcher(
 
 		// Invoke batch handler
 		if (onBatch) {
+			trace('FileWatcher', 'Calling onBatch handler', { eventCount: uniqueEvents.length });
 			onBatch(uniqueEvents);
 		}
 
@@ -124,18 +133,23 @@ export function createFileWatcher(
 		for (const event of uniqueEvents) {
 			switch (event.type) {
 				case 'add':
+					trace('FileWatcher', 'Calling onAdd handler', { path: event.path });
 					onAdd?.(event.path);
 					break;
 				case 'change':
+					trace('FileWatcher', 'Calling onChange handler', { path: event.path });
 					onChange?.(event.path);
 					break;
 				case 'unlink':
+					trace('FileWatcher', 'Calling onUnlink handler', { path: event.path });
 					onUnlink?.(event.path);
 					break;
 				case 'unlinkDir':
+					trace('FileWatcher', 'Calling onUnlinkDir handler', { path: event.path });
 					onUnlinkDir?.(event.path);
 					break;
 				case 'addDir':
+					trace('FileWatcher', 'Calling onAddDir handler', { path: event.path });
 					onAddDir?.(event.path);
 					break;
 			}
@@ -193,8 +207,10 @@ export function createFileWatcher(
 				// Patterns to ignore
 				ignored,
 
-				// Use efficient native watching when available
-				usePolling: false,
+				// DIAGNOSTIC: Force polling to bypass native FSEvents issues
+				usePolling: true,
+				interval: 100,
+				binaryInterval: 300,
 
 				// Don't follow symlinks (can cause infinite loops)
 				followSymlinks: false,
@@ -203,32 +219,43 @@ export function createFileWatcher(
 				depth: undefined,
 			};
 
+			trace('FileWatcher', 'Chokidar options configured', {
+				usePolling: chokidarOptions.usePolling,
+				ignoreInitial: chokidarOptions.ignoreInitial,
+				debounceMs,
+			});
+
 			// Create the watcher
 			watcher = chokidar.watch(rootPath, chokidarOptions);
 
 			// Register event handlers with batching
 			watcher.on('add', (filePath: string) => {
 				const relativePath = normalizePath(path.relative(rootPath, filePath));
+				trace('FileWatcher', 'Chokidar ADD event', { filePath, relativePath });
 				queueEvent('add', relativePath);
 			});
 
 			watcher.on('change', (filePath: string) => {
 				const relativePath = normalizePath(path.relative(rootPath, filePath));
+				trace('FileWatcher', 'Chokidar CHANGE event', { filePath, relativePath });
 				queueEvent('change', relativePath);
 			});
 
 			watcher.on('unlink', (filePath: string) => {
 				const relativePath = normalizePath(path.relative(rootPath, filePath));
+				trace('FileWatcher', 'Chokidar UNLINK event', { filePath, relativePath });
 				queueEvent('unlink', relativePath);
 			});
 
 			watcher.on('unlinkDir', (dirPath: string) => {
 				const relativePath = normalizePath(path.relative(rootPath, dirPath));
+				trace('FileWatcher', 'Chokidar UNLINKDIR event', { dirPath, relativePath });
 				queueEvent('unlinkDir', relativePath);
 			});
 
 			watcher.on('addDir', (dirPath: string) => {
 				const relativePath = normalizePath(path.relative(rootPath, dirPath));
+				trace('FileWatcher', 'Chokidar ADDDIR event', { dirPath, relativePath });
 				queueEvent('addDir', relativePath);
 			});
 
@@ -259,6 +286,7 @@ export function createFileWatcher(
 
 			// Ready handler (watcher is initialized)
 			watcher.on('ready', () => {
+				trace('FileWatcher', 'Chokidar READY', { rootPath });
 				logInfo('File watcher started', { rootPath });
 			});
 

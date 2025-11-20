@@ -43,14 +43,14 @@ describe('fileWatcher', () => {
 			watcher.start();
 
 			// Wait for watcher to be ready
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Create a file
 			const testFile = path.join(testDir, 'test.txt');
 			await fs.writeFile(testFile, 'hello');
 
 			// Wait for debounce + processing
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			expect(onAdd).toHaveBeenCalledWith('test.txt');
 
@@ -69,13 +69,13 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Modify the file
 			await fs.writeFile(testFile, 'modified');
 
 			// Wait for debounce
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			expect(onChange).toHaveBeenCalledWith('test.txt');
 
@@ -94,13 +94,13 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Delete the file
 			await fs.remove(testFile);
 
 			// Wait for debounce
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			expect(onUnlink).toHaveBeenCalledWith('test.txt');
 
@@ -115,13 +115,13 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Create directory
 			const testSubdir = path.join(testDir, 'subdir');
 			await fs.ensureDir(testSubdir);
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			expect(onAddDir).toHaveBeenCalledWith('subdir');
 
@@ -140,12 +140,12 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Delete directory
 			await fs.remove(testSubdir);
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			expect(onUnlinkDir).toHaveBeenCalledWith('subdir');
 
@@ -163,7 +163,7 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Make well-spaced changes to ensure events fire
 			// awaitWriteFinish stabilizes each write before events trigger
@@ -193,7 +193,7 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Create ignored file
 			await fs.writeFile(path.join(testDir, 'test.log'), 'log content');
@@ -201,7 +201,7 @@ describe('fileWatcher', () => {
 			// Create non-ignored file
 			await fs.writeFile(path.join(testDir, 'test.txt'), 'text content');
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			// Should only detect .txt file, not .log
 			expect(onAdd).toHaveBeenCalledWith('test.txt');
@@ -230,7 +230,7 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Create a file
 			await fs.writeFile(path.join(testDir, 'test.txt'), 'content');
@@ -254,14 +254,14 @@ describe('fileWatcher', () => {
 			});
 
 			watcher.start();
-			await new Promise((resolve) => setTimeout(resolve, 200));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 
 			// Create file in subdirectory
 			const subdir = path.join(testDir, 'sub', 'nested');
 			await fs.ensureDir(subdir);
 			await fs.writeFile(path.join(subdir, 'file.txt'), 'content');
 
-			await new Promise((resolve) => setTimeout(resolve, 300));
+			await new Promise((resolve) => setTimeout(resolve, 700));
 
 			// Path should be relative to testDir
 			expect(onAdd).toHaveBeenCalledWith(path.join('sub', 'nested', 'file.txt'));

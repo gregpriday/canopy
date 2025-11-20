@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useInput, useStdin } from 'ink';
 
 /**
@@ -33,7 +33,7 @@ export interface KeyboardHandlers {
   onToggleGitStatus?: () => void; // g key
 
   // Copy Actions
-  onCopyPath?: () => void;             // c key (no modifiers)
+  onCopyPath?: () => void;             // c key (no modifiers) - REMOVED from keyboard binding but kept for mouse
   onOpenCopyTreeBuilder?: () => void;  // Shift+C key
   onCopyTreeShortcut?: () => void;     // Command+C (meta+c)
 
@@ -71,7 +71,9 @@ const END_SEQUENCES = new Set(['\u001B[F', '\u001BOF', '\u001B[4~', '\u001B[8~',
 
 export function useKeyboard(handlers: KeyboardHandlers): void {
   const { stdin } = useStdin();
-  const [exitConfirm, setExitConfirm] = useState(false);
+  // Use ref instead of state to prevent stale closures in useInput callback
+  const exitConfirmRef = useRef(false);
+  const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!stdin || (!handlers.onHome && !handlers.onEnd)) {
@@ -103,28 +105,37 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
 
   useInput((input, key) => {
     // Handle Ctrl+C (Exit)
-    if (key.ctrl && input === 'c') {
-      if (exitConfirm) {
+    // Check for both standard Ink parsing (key.ctrl + c) and raw ETX character (\u0003)
+    if ((key.ctrl && input === 'c') || input === '\u0003') {
+      if (exitConfirmRef.current) {
         // Second press: quit
         if (handlers.onForceExit) {
           handlers.onForceExit();
         }
       } else {
         // First press: warn
-        setExitConfirm(true);
+        exitConfirmRef.current = true;
         if (handlers.onWarnExit) {
           handlers.onWarnExit();
         }
-        
+
         // Reset confirmation state after 2 seconds
-        setTimeout(() => setExitConfirm(false), 2000);
+        if (exitTimeoutRef.current) clearTimeout(exitTimeoutRef.current);
+        exitTimeoutRef.current = setTimeout(() => {
+          exitConfirmRef.current = false;
+          exitTimeoutRef.current = null;
+        }, 2000);
       }
       return; // Stop propagation
     }
 
     // Reset exit confirm if user does anything else
-    if (exitConfirm) {
-      setExitConfirm(false);
+    if (exitConfirmRef.current) {
+      exitConfirmRef.current = false;
+      if (exitTimeoutRef.current) {
+        clearTimeout(exitTimeoutRef.current);
+        exitTimeoutRef.current = null;
+      }
     }
 
     // Navigation - Arrow keys
@@ -215,10 +226,7 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
     }
 
     // Copy Actions
-    if (input === 'c' && !key.shift && !key.meta && !key.ctrl && handlers.onCopyPath) {
-      handlers.onCopyPath();
-      return;
-    }
+    // 'c' binding removed as requested - onCopyPath still used for mouse interactions
 
     if (input === 'C' && handlers.onOpenCopyTreeBuilder) {
       handlers.onOpenCopyTreeBuilder();

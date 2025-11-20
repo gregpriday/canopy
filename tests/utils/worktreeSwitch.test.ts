@@ -379,9 +379,9 @@ describe('switchWorktree', () => {
       onFileChange: {},
     });
 
-    // .git is always included as exception
+    // .git is always excluded via AI_CONTEXT_IGNORES
     const hasGitDir = result.tree.some(node => node.name === '.git');
-    expect(hasGitDir).toBe(true);
+    expect(hasGitDir).toBe(false);
 
     // Hidden file should be excluded when showHidden = false
     const hasHiddenFile = result.tree.some(node => node.name === '.hidden');

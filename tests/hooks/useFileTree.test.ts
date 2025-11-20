@@ -347,11 +347,11 @@ describe('useFileTree', () => {
       await result.current.refresh();
     });
 
-    expect(fileTreeUtils.buildFileTree).toHaveBeenCalledWith('/test', DEFAULT_CONFIG);
+    expect(fileTreeUtils.buildFileTree).toHaveBeenCalledWith('/test', DEFAULT_CONFIG, true);
     expect(result.current.loading).toBe(false);
   });
 
-  it('sets loading to true during manual refresh', async () => {
+  it('keeps loading false during manual refresh to avoid flicker', async () => {
     let resolveLoad: (value: TreeNode[]) => void;
     const loadPromise = new Promise<TreeNode[]>(resolve => {
       resolveLoad = resolve;
@@ -384,8 +384,8 @@ describe('useFileTree', () => {
       });
     });
 
-    // Loading should be true immediately
-    expect(result.current.loading).toBe(true);
+    // Loading should remain false to avoid UI flicker
+    expect(result.current.loading).toBe(false);
 
     // Resolve refresh
     resolveLoad!(mockTree);
@@ -404,6 +404,9 @@ describe('useFileTree', () => {
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
+    // Store the original tree to verify it's preserved
+    const originalTree = result.current.tree;
+
     // Mock refresh to fail
     vi.mocked(fileTreeUtils.buildFileTree).mockRejectedValue(
       new Error('Refresh failed')
@@ -416,7 +419,7 @@ describe('useFileTree', () => {
       await result.current.refresh();
     });
 
-    expect(result.current.tree).toEqual([]); // Empty tree on error
+    expect(result.current.tree).toEqual(originalTree); // Tree preserved on error
     expect(result.current.loading).toBe(false);
     expect(consoleSpy).toHaveBeenCalledWith(
       'Failed to refresh tree:',

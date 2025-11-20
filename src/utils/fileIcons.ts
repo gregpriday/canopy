@@ -140,7 +140,7 @@ export function getFileIcon(fileName: string): string {
   }
 
   // Default file icon
-  return '';
+  return '-';
 }
 
 /**
@@ -185,5 +185,5 @@ export function getFolderIcon(folderName: string, expanded: boolean): string {
   }
 
   // Default folder icons based on expansion state
-  return expanded ? '' : '';
+  return expanded ? '▼' : '▶';
 }

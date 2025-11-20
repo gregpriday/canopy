@@ -3,8 +3,16 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi } from 'vitest';
 import { Header } from '../../src/components/Header.js';
 import type { Worktree } from '../../src/types/index.js';
+import type { ProjectIdentity } from '../../src/services/emoji/cache.js';
 
 describe('Header', () => {
+  const mockIdentity: ProjectIdentity = {
+    emoji: '🌳',
+    title: 'Canopy',
+    gradientStart: '#00FF00',
+    gradientEnd: '#0000FF',
+  };
+
   const mockWorktree: Worktree = {
     id: '/Users/dev/project',
     path: '/Users/dev/project',
@@ -20,12 +28,14 @@ describe('Header', () => {
           cwd="/Users/dev/project"
           filterActive={false}
           filterQuery=""
+          identity={mockIdentity}
         />
       );
 
       const output = lastFrame();
       expect(output).toContain('Canopy');
-      expect(output).toContain('/Users/dev/project');
+      // Path is rendered as breadcrumbs with " / " separators
+      expect(output).toContain('Users / dev / project');
       expect(output).not.toContain('wt'); // No worktree indicator
     });
 
@@ -37,6 +47,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={3}
+          identity={mockIdentity}
         />
       );
 
@@ -55,12 +66,14 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={2}
+          identity={mockIdentity}
         />
       );
 
       const output = lastFrame();
-      expect(output).toContain('/src/components');
-      expect(output).not.toContain('/Users/dev/project/src/components');
+      // Relative path rendered as breadcrumbs: "src / components"
+      expect(output).toContain('src / components');
+      expect(output).not.toContain('Users / dev / project / src / components');
     });
 
     it('shows absolute path when cwd is outside worktree', () => {
@@ -71,11 +84,13 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
       const output = lastFrame();
-      expect(output).toContain('/Users/dev/other-project');
+      // Absolute path rendered as breadcrumbs
+      expect(output).toContain('Users / dev / other-project');
     });
 
     it('shows absolute path for prefix-only match (not descendant)', () => {
@@ -86,14 +101,15 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
       const output = lastFrame();
-      // Should show full absolute path, not a mangled relative path
-      expect(output).toContain('/Users/dev/project-old');
+      // Should show full absolute path as breadcrumbs, not a mangled relative path
+      expect(output).toContain('Users / dev / project-old');
       // Verify it's showing the absolute path, not trying to make it relative
-      expect(output).not.toMatch(/•\s+\/old/); // Would be wrong relative path
+      expect(output).not.toMatch(/•\s+old/); // Would be wrong relative path
     });
 
     it('shows root path (/) when at worktree root', () => {
@@ -104,6 +120,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
@@ -119,6 +136,7 @@ describe('Header', () => {
           cwd="/Users/dev/project"
           filterActive={true}
           filterQuery=".ts"
+          identity={mockIdentity}
         />
       );
 
@@ -135,6 +153,7 @@ describe('Header', () => {
           filterQuery="*.tsx"
           currentWorktree={mockWorktree}
           worktreeCount={2}
+          identity={mockIdentity}
         />
       );
 
@@ -152,6 +171,7 @@ describe('Header', () => {
           cwd="/Users/dev/project"
           filterActive={false}
           filterQuery=".ts"
+          identity={mockIdentity}
         />
       );
 
@@ -166,6 +186,7 @@ describe('Header', () => {
           cwd="/Users/dev/project"
           filterActive={true}
           filterQuery=""
+          identity={mockIdentity}
         />
       );
 
@@ -183,6 +204,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
@@ -198,6 +220,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={5}
+          identity={mockIdentity}
         />
       );
 
@@ -221,6 +244,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={detachedWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
@@ -244,6 +268,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={featureWorktree}
           worktreeCount={2}
+          identity={mockIdentity}
         />
       );
 
@@ -267,6 +292,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={longBranchWorktree}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
@@ -284,6 +310,7 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           currentWorktree={mockWorktree}
+          identity={mockIdentity}
           // worktreeCount not passed (defaults to 0)
         />
       );
@@ -302,6 +329,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={null}
           worktreeCount={3}
+          identity={mockIdentity}
         />
       );
 
@@ -315,6 +343,7 @@ describe('Header', () => {
           cwd="/Users/dev/project"
           filterActive={false}
           filterQuery=""
+          identity={mockIdentity}
           // currentWorktree not passed (undefined)
           worktreeCount={3}
         />
@@ -340,6 +369,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={detachedWithName}
           worktreeCount={1}
+          identity={mockIdentity}
         />
       );
 
@@ -358,6 +388,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           worktreeCount={2}
+          identity={mockIdentity}
         />
       );
 
@@ -370,26 +401,40 @@ describe('Header', () => {
 
   describe('emoji rendering', () => {
     it('renders project emoji when provided', () => {
+      const emojiIdentity: ProjectIdentity = {
+        emoji: '🚀',
+        title: 'Canopy',
+        gradientStart: '#00FF00',
+        gradientEnd: '#0000FF',
+      };
+
       const { lastFrame } = render(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
           filterQuery=""
-          projectEmoji="🚀"
+          identity={emojiIdentity}
         />
       );
 
       const output = lastFrame();
-      expect(output).toContain('🚀 Canopy');
+      expect(output).toContain('🚀');
     });
 
     it('does not render emoji space when emoji is null', () => {
+      const noEmojiIdentity: ProjectIdentity = {
+        emoji: '',
+        title: 'Canopy',
+        gradientStart: '#00FF00',
+        gradientEnd: '#0000FF',
+      };
+
       const { lastFrame } = render(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
           filterQuery=""
-          projectEmoji={null}
+          identity={noEmojiIdentity}
         />
       );
 
