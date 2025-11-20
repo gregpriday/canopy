@@ -22,6 +22,7 @@ interface TreeViewProps {
   expandedPaths?: Set<string>; // Optional controlled expansion
   onToggleExpand?: (path: string) => void; // Callback for expansion changes
   disableKeyboard?: boolean; // Disable internal keyboard handlers when parent handles them
+  disableMouse?: boolean; // Disable mouse interactions
   onCopyPath?: (path: string) => void; // Handler for copy action (mouse click)
 }
 
@@ -33,6 +34,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
   expandedPaths: controlledExpandedPaths,
   onToggleExpand,
   disableKeyboard = false,
+  disableMouse = false,
   onCopyPath,
 }) => {
   // Header (3) + StatusBar (4) = 7 reserved rows
@@ -254,7 +256,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
 
   // Listen for raw terminal mouse events
   useTerminalMouse({
-    enabled: true,
+    enabled: !disableMouse,
     onMouse: (termEvent) => {
       // Map terminal event to internal logic event
       if (termEvent.button === 'wheel-up') {

@@ -608,6 +608,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           expandedPaths={expandedFolders}
           onToggleExpand={toggleFolder}
           disableKeyboard={true}
+          disableMouse={anyModalOpen}
           onCopyPath={handleCopySelectedPath}
         />
       </Box>
