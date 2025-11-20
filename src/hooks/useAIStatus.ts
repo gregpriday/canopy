@@ -37,15 +37,29 @@ export function useAIStatus(
 
   // 2. Update on Changes
   useEffect(() => {
+    // CASE A: No Changes detected by GitStatus
     if (!hasChanges) {
-      // If git status clears (size 0), clear AI status unless we are just starting up
-      if (!isStartup.current) {
-        setStatus(null);
-        setIsAnalyzing(false);
+      // If we are starting up, ignore
+      if (isStartup.current) return;
+
+      // If we have a status, debounce the clearing.
+      // This handles race conditions where runAnalysis finishes (setting status)
+      // slightly before useGitStatus populates the map.
+      if (status) {
+        const clearTimer = setTimeout(() => {
+           setStatus(null);
+           setIsAnalyzing(false);
+        }, 2000); // 2s grace period
+        return () => clearTimeout(clearTimer);
       }
+
+      // If no status, ensure clean state immediately
+      setStatus(null);
+      setIsAnalyzing(false);
       return;
     }
 
+    // CASE B: Changes detected
     // If we already have a status, use long debounce (60s) to avoid churn.
     // If we DON'T have a status (e.g. recovered from empty state), use short debounce (2s).
     const delay = status ? 60000 : 2000;
