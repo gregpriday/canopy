@@ -120,7 +120,9 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
 
     async function loadTree() {
       setLoading(true);
-      if (!isInitialLoadRef.current) {
+      // Only reset selection if no new initial state is provided
+      // (Let the initialSelectedPath effect handle restoration)
+      if (!isInitialLoadRef.current && !initialSelectedPath) {
         setSelectedPath(null);
         setExpandedFolders(new Set());
       }
@@ -146,13 +148,15 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     return () => {
       cancelled = true;
     };
-  }, [rootPath, config]);
+  }, [rootPath, config, initialSelectedPath]);
 
   useEffect(() => {
     const hasInitialSelection = Boolean(initialSelectedPath);
     const hasInitialExpanded = Boolean(initialExpandedFolders && initialExpandedFolders.size > 0);
 
     if (!hasInitialSelection && !hasInitialExpanded) {
+      // Reset signature ref when no initial state so future signatures can be reapplied
+      initialStateSignatureRef.current = null;
       return;
     }
 

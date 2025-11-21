@@ -22,7 +22,7 @@ import { useGitStatus } from './hooks/useGitStatus.js';
 import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
-import { saveSessionState } from './utils/state.js';
+import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
@@ -118,6 +118,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const selectedPathRef = useRef<string | null>(null);
+
+  // Mutable initial selection state for session restoration during worktree switches
+  const [initialSelection, setInitialSelection] = useState<{
+    selectedPath: string | null;
+    expandedFolders: Set<string>;
+  }>({
+    selectedPath: initialSelectedPath,
+    expandedFolders: initialExpandedFolders,
+  });
+
+  // Track latest requested worktree to prevent race conditions during rapid switches
+  const latestWorktreeSwitchRef = useRef<string | null>(null);
 
   // Listen for file:copy-path events
   useEffect(() => {
@@ -217,8 +229,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     filterQuery: filterActive ? filterQuery : null,
     gitStatusMap: gitStatus,
     gitStatusFilter: null,
-    initialSelectedPath,
-    initialExpandedFolders,
+    initialSelectedPath: initialSelection.selectedPath,
+    initialExpandedFolders: initialSelection.expandedFolders,
     viewportHeight,
   });
 
@@ -371,7 +383,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   };
 
   const handleSwitchWorktree = useCallback(async (targetWorktree: Worktree) => {
+    // Mark this as the latest requested switch to prevent race conditions
+    latestWorktreeSwitchRef.current = targetWorktree.id;
+
     try {
+      // 1. Save current worktree's session BEFORE switching
       if (activeWorktreeId && selectedPath) {
         await saveSessionState(activeWorktreeId, {
           selectedPath,
@@ -380,24 +396,44 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         });
       }
 
-      clearGitStatus();
+      // 2. Load target worktree's session
+      const session = await loadSessionState(targetWorktree.id);
 
+      // 3. Check if a newer switch was requested while we were awaiting - bail out if so
+      if (latestWorktreeSwitchRef.current !== targetWorktree.id) {
+        return; // A newer switch is in progress, don't apply stale state
+      }
+
+      const nextSelectedPath = session?.selectedPath ?? null;
+      const nextExpandedFolders = new Set(session?.expandedFolders ?? []);
+
+      // 4. Update all state atomically
       setActiveWorktreeId(targetWorktree.id);
       setActiveRootPath(targetWorktree.path);
+      setInitialSelection({
+        selectedPath: nextSelectedPath,
+        expandedFolders: nextExpandedFolders,
+      });
 
+      // 5. Reset transient UI state
       setFilterActive(false);
       setFilterQuery('');
+      clearGitStatus();
 
+      // 6. Notify user
       events.emit('ui:modal:close', { id: 'worktree' });
       events.emit('ui:notify', {
         type: 'success',
         message: `Switched to ${targetWorktree.branch || targetWorktree.name}`,
       });
     } catch (error) {
-      events.emit('ui:notify', {
-        type: 'error',
-        message: `Failed to switch worktree: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      });
+      // Only show error if this is still the latest requested switch
+      if (latestWorktreeSwitchRef.current === targetWorktree.id) {
+        events.emit('ui:notify', {
+          type: 'error',
+          message: `Failed to switch worktree: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        });
+      }
     }
   }, [activeWorktreeId, clearGitStatus, expandedFolders, selectedPath]);
 
