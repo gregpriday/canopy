@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getWorktrees, getCurrentWorktree } from '../../src/utils/worktree.js';
+import { getWorktrees, getCurrentWorktree, getMainWorktree } from '../../src/utils/worktree.js';
 import type { Worktree } from '../../src/types/index.js';
 import fs from 'fs-extra';
 import path from 'path';
@@ -261,6 +261,86 @@ describe('worktree utilities', () => {
         // Clean up symlink
         await fs.remove(symlinkPath);
       }
+    });
+  });
+
+  describe('getMainWorktree', () => {
+    it('returns first worktree from array (main repository)', async () => {
+      const worktrees = await getWorktrees(testRepoPath);
+      const main = getMainWorktree(worktrees);
+
+      expect(main).not.toBeNull();
+      expect(main!.path).toBe(testRepoPath);
+      // First worktree is always the main repository
+    });
+
+    it('returns null for empty worktree array', () => {
+      const main = getMainWorktree([]);
+
+      expect(main).toBeNull();
+    });
+
+    it('returns main repo even when called with multiple worktrees', async () => {
+      // Create a feature branch
+      await git.checkoutLocalBranch('feature/test');
+      await fs.writeFile(path.join(testRepoPath, 'feature.txt'), 'feature');
+      await git.add('feature.txt');
+      await git.commit('Add feature');
+
+      // Switch back to main/master
+      const branches = await git.branchLocal();
+      const mainBranch = branches.all.find(b => b === 'main' || b === 'master') || branches.all[0];
+      await git.checkout(mainBranch);
+
+      // Create worktree for feature branch
+      const tmpWtPath = path.join(os.tmpdir(), `canopy-wt-feature-main-${Date.now()}`);
+      await git.raw(['worktree', 'add', tmpWtPath, 'feature/test']);
+      const worktreePath = await fs.realpath(tmpWtPath);
+      createdWorktrees.push(worktreePath);
+
+      const worktrees = await getWorktrees(testRepoPath);
+      const main = getMainWorktree(worktrees);
+
+      expect(main).not.toBeNull();
+      // Main worktree should be the first one (the test repo itself)
+      expect(main!.path).toBe(testRepoPath);
+      // Should NOT be the feature worktree
+      expect(main!.path).not.toBe(worktreePath);
+    });
+
+    it('returns the same object as first element in worktrees array', async () => {
+      const worktrees = await getWorktrees(testRepoPath);
+      const main = getMainWorktree(worktrees);
+
+      expect(main).toBe(worktrees[0]);
+      // Should be the exact same object reference
+    });
+
+    it('main worktree is consistently first across multiple calls', async () => {
+      // Create multiple worktrees to ensure order consistency
+      await git.checkoutLocalBranch('feature/one');
+      await git.checkout('-');
+      await git.checkoutLocalBranch('feature/two');
+      await git.checkout('-');
+
+      const tmpWt1 = path.join(os.tmpdir(), `canopy-wt-one-${Date.now()}`);
+      await git.raw(['worktree', 'add', tmpWt1, 'feature/one']);
+      createdWorktrees.push(await fs.realpath(tmpWt1));
+
+      const tmpWt2 = path.join(os.tmpdir(), `canopy-wt-two-${Date.now()}`);
+      await git.raw(['worktree', 'add', tmpWt2, 'feature/two']);
+      createdWorktrees.push(await fs.realpath(tmpWt2));
+
+      // Call getWorktrees multiple times
+      const worktrees1 = await getWorktrees(testRepoPath);
+      const worktrees2 = await getWorktrees(testRepoPath);
+
+      const main1 = getMainWorktree(worktrees1);
+      const main2 = getMainWorktree(worktrees2);
+
+      // Both should return the same main repo path
+      expect(main1!.path).toBe(main2!.path);
+      expect(main1!.path).toBe(testRepoPath);
     });
   });
 });

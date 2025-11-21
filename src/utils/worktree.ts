@@ -51,6 +51,26 @@ export async function getWorktrees(cwd: string): Promise<Worktree[]> {
 }
 
 /**
+ * Get the main repository worktree from a list of worktrees.
+ * The main worktree is typically the first one listed by git.
+ * Git always lists the main worktree first in `git worktree list` output.
+ *
+ * @param worktrees - Array of worktrees
+ * @returns Main worktree or null if array is empty
+ *
+ * @example
+ * const main = getMainWorktree(worktrees);
+ * // Returns: { id: '/Users/dev/project', path: '/Users/dev/project', ... }
+ */
+export function getMainWorktree(worktrees: Worktree[]): Worktree | null {
+  if (worktrees.length === 0) return null;
+
+  // Git always lists the main worktree first in `git worktree list` output
+  // This is guaranteed by git's behavior
+  return worktrees[0];
+}
+
+/**
  * Identify which worktree contains the given cwd path.
  * Matches by checking if cwd starts with any worktree path.
  * Returns a copy of the matched worktree with isCurrent set to true.

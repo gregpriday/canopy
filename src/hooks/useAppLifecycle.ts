@@ -79,11 +79,28 @@ export function useAppLifecycle({
         setState(prev => ({ ...prev, status: 'initializing', error: null }));
       }
 
-      // Step 1: Load configuration if not provided
+      // Step 1: Detect worktrees BEFORE loading config (for worktree-aware config loading)
+      let worktrees: Worktree[] = [];
+      let currentWorktree: Worktree | null = null;
+
+      if (!noGit) {
+        try {
+          worktrees = await getWorktrees(cwd);
+          if (!isMountedRef.current) return;
+
+          currentWorktree = getCurrentWorktree(cwd, worktrees);
+        } catch (error) {
+          // Not a git repo or git not available - that's OK
+          logDebug('Could not detect worktrees:', { error });
+        }
+      }
+
+      // Step 2: Load configuration if not provided
+      // Pass worktree information for worktree-aware config loading
       let config = initialConfig;
       if (!initialConfig) {
         try {
-          config = await loadConfig(cwd);
+          config = await loadConfig(cwd, currentWorktree, worktrees);
           if (!isMountedRef.current) return;
         } catch (error) {
           logWarn('Failed to load config, using defaults:', { error });
@@ -97,11 +114,10 @@ export function useAppLifecycle({
         }
       }
 
-      // Step 2: Check if worktrees should be enabled
+      // Step 3: Check if worktrees should be enabled
       const worktreesEnabled = !noGit && (config!.worktrees?.enable ?? true);
 
-      // Step 3: Load initial state (always load when git available for session persistence)
-      let worktrees: Worktree[] = [];
+      // Step 4: Load initial state (always load when git available for session persistence)
       let activeWorktreeId: string | null = null;
       let activeRootPath = cwd;
       let initialSelectedPath: string | null = null;
@@ -118,12 +134,11 @@ export function useAppLifecycle({
 
           // Extract worktree information only if worktrees are enabled
           if (worktreesEnabled && initialState.worktree) {
-            // Re-fetch all worktrees for the list
-            worktrees = await getWorktrees(cwd);
-            if (!isMountedRef.current) return;
-
             activeWorktreeId = initialState.worktree.id;
             activeRootPath = initialState.worktree.path;
+
+            // Update currentWorktree to match the one from initial state
+            currentWorktree = initialState.worktree;
           }
 
           // Always store initial state for session restoration
@@ -140,6 +155,11 @@ export function useAppLifecycle({
           logDebug('Could not load initial state:', { error });
           if (!isMountedRef.current) return;
         }
+      }
+
+      // Step 5: Filter worktrees list if worktrees are disabled
+      if (!worktreesEnabled) {
+        worktrees = [];
       }
 
       // Step 3: Update state to ready

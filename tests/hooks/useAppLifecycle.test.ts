@@ -348,7 +348,7 @@ describe('useAppLifecycle', () => {
     // Worktrees should be empty when config disables them
     expect(result.current.worktrees).toEqual([]);
     expect(result.current.activeWorktreeId).toBeNull();
-    // getWorktrees should not have been called
-    expect(worktree.getWorktrees).not.toHaveBeenCalled();
+    // getWorktrees IS called (needed for worktree-aware config loading) but results are filtered
+    expect(worktree.getWorktrees).toHaveBeenCalled();
   });
 });

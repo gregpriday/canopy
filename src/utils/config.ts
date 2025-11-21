@@ -2,48 +2,101 @@ import { cosmiconfig } from 'cosmiconfig';
 import os from 'os';
 import path from 'path';
 import fs from 'fs-extra';
-import { DEFAULT_CONFIG, type CanopyConfig } from '../types/index.js';
+import { DEFAULT_CONFIG, type CanopyConfig, type Worktree } from '../types/index.js';
 import { ConfigError } from './errorTypes.js';
-import { logWarn, logError } from './logger.js';
+import { logWarn, logError, logDebug } from './logger.js';
 
 /**
  * Loads Canopy configuration from project and global config files.
  * Merges configurations with precedence: project > global > defaults.
  *
+ * In worktree scenarios, this function prefers loading configuration from the main
+ * repository root to ensure consistent behavior across all worktrees.
+ *
  * @param cwd - Current working directory to search for project config (defaults to process.cwd())
+ * @param currentWorktree - Optional current worktree (if detected)
+ * @param allWorktrees - Optional list of all worktrees (for finding main repo)
  * @returns Validated and merged configuration
  * @throws Error if config validation fails
  */
-export async function loadConfig(cwd: string = process.cwd()): Promise<CanopyConfig> {
-  // 1. Set up cosmiconfig
-  const explorer = cosmiconfig('canopy', {
+export async function loadConfig(
+  cwd: string = process.cwd(),
+  currentWorktree: Worktree | null = null,
+  allWorktrees: Worktree[] = []
+): Promise<CanopyConfig> {
+  // 1. Determine config search path
+  // If we're in a worktree (not the main repo), prefer loading config from main repo
+  let configSearchPath = cwd;
+
+  if (currentWorktree && allWorktrees.length > 0) {
+    // Get the main repository worktree (first in list)
+    const mainWorktree = allWorktrees[0];
+
+    // If we're NOT in the main worktree, use main worktree path for config
+    if (mainWorktree.id !== currentWorktree.id) {
+      // Verify the main worktree path exists before using it
+      try {
+        const mainPathExists = await fs.pathExists(mainWorktree.path);
+        if (mainPathExists) {
+          configSearchPath = mainWorktree.path;
+          logDebug('Loading config from main repository', {
+            mainRepo: mainWorktree.path,
+            currentWorktree: currentWorktree.path
+          });
+        } else {
+          logWarn('Main repository path does not exist, using current worktree for config', {
+            mainRepo: mainWorktree.path
+          });
+        }
+      } catch (error) {
+        logWarn('Could not verify main repository path, using current worktree for config', {
+          error: (error as Error).message
+        });
+      }
+    }
+  }
+
+  // 2. Set up cosmiconfig
+  const explorerOptions: any = {
     searchPlaces: [
       '.canopy.json',
       'canopy.config.json',
       '.canopyrc',
     ],
-    // Stop at first found file
-    stopDir: cwd,
-  });
+  };
 
-  // 2. Search for project config starting from cwd
+  // Only restrict search to configSearchPath when we're loading from main worktree
+  // This preserves backward compatibility for running from subdirectories
+  if (currentWorktree && allWorktrees.length > 0) {
+    const mainWorktree = allWorktrees[0];
+    if (mainWorktree.id !== currentWorktree.id) {
+      // We're in a non-main worktree - restrict search to main repo path
+      explorerOptions.stopDir = configSearchPath;
+    }
+    // else: We're in main worktree or not in worktree - allow normal parent traversal
+  }
+  // else: No worktree context - allow normal parent traversal
+
+  const explorer = cosmiconfig('canopy', explorerOptions);
+
+  // 3. Search for project config starting from determined path
   let projectConfig = {};
   try {
-    const projectResult = await explorer.search(cwd);
+    const projectResult = await explorer.search(configSearchPath);
     projectConfig = projectResult?.config || {};
   } catch (error) {
     // Handle malformed JSON or other config file errors
-    logWarn('Could not load project config', { cwd, error: (error as Error).message });
+    logWarn('Could not load project config', { cwd: configSearchPath, error: (error as Error).message });
     // Continue with empty project config (fall back to global/defaults)
   }
 
-  // 3. Load global config
+  // 4. Load global config
   const globalConfig = await loadGlobalConfig();
 
-  // 4. Merge: project overrides global overrides defaults
+  // 5. Merge: project overrides global overrides defaults
   const merged = mergeConfigs(DEFAULT_CONFIG, globalConfig, projectConfig);
 
-  // 5. Validate and return
+  // 6. Validate and return
   return validateConfig(merged);
 }
 
