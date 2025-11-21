@@ -17,7 +17,7 @@ export async function generateStatusUpdate(diff: string, readme: string): Promis
 
     const response = await client.responses.create({
       model: 'gpt-5-nano',
-      instructions: 'You summarize git diffs. Output ONLY what changed in max 5 words. Examples: "Fixed API response format", "Added user authentication", "Refactored database queries". Be specific and concise.',
+      instructions: 'You summarize git diffs ordered by recency (most recent changes first). Prioritize earlier files in your summary. Output ONLY what changed in max 5 words. Examples: "Fixed API response format", "Added user authentication", "Refactored database queries". Be specific and concise.',
       input: diffSnippet,
       text: {
         format: {

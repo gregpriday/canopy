@@ -408,6 +408,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const handleQuit = async () => {
     events.emit('sys:quit');
+
+    // Save session state before exiting
+    if (activeWorktreeId && selectedPath) {
+      await saveSessionState(activeWorktreeId, {
+        selectedPath,
+        expandedFolders: Array.from(expandedFolders),
+        timestamp: Date.now(),
+      }).catch((err) => {
+        console.error('Error saving session state on quit:', err);
+      });
+    }
+
     clearGitStatus();
     clearTerminalScreen();
     exit();
@@ -507,7 +519,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           expandedPaths={expandedFolders}
           disableMouse={anyModalOpen}
           viewportHeight={viewportHeight}
-          // onCopyPath={handleCopySelectedPath} // Removed
         />
       </Box>
       <StatusBar

@@ -126,7 +126,12 @@ export async function loadSessionState(
       return null;
     }
 
-    const data = raw as SessionState;
+    // Build session state
+    const data: SessionState = {
+      selectedPath: raw.selectedPath,
+      expandedFolders: raw.expandedFolders,
+      timestamp: raw.timestamp,
+    };
 
     // Ignore stale sessions (> 30 days old)
     const ageMs = Date.now() - data.timestamp;
