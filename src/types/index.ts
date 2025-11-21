@@ -42,6 +42,15 @@ export interface Worktree {
 
   /** Whether this is the currently active worktree based on cwd */
   isCurrent: boolean;
+
+  /** AI-generated summary of work being done (optional) */
+  summary?: string;
+
+  /** Number of modified files in this worktree (optional) */
+  modifiedCount?: number;
+
+  /** Loading state for async summary generation */
+  summaryLoading?: boolean;
 }
 
 export interface OpenerConfig {

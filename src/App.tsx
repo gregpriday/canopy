@@ -21,6 +21,7 @@ import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
+import { useWorktreeSummaries } from './hooks/useWorktreeSummaries.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
@@ -69,6 +70,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setNotification: setLifecycleNotification,
     reinitialize,
   } = useAppLifecycle({ cwd, initialConfig, noWatch, noGit });
+
+  // Enrich worktrees with AI-generated summaries
+  const enrichedWorktrees = useWorktreeSummaries(
+    worktrees,
+    'main',
+    config.worktrees?.refreshIntervalMs || 0
+  );
 
   // Local notification state (merged with lifecycle notifications)
   const [notification, setNotification] = useState<Notification | null>(null);
@@ -354,7 +362,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [notification]);
 
-  const currentWorktree = worktrees.find(wt => wt.id === activeWorktreeId) || null;
+  const currentWorktree = enrichedWorktrees.find(wt => wt.id === activeWorktreeId) || null;
 
   const modifiedCount = useMemo(() => {
     return Array.from(gitStatus.values()).filter(
@@ -382,7 +390,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const handleNextWorktree = () => {
     // Edge case: only one worktree
-    if (worktrees.length <= 1) {
+    if (enrichedWorktrees.length <= 1) {
       events.emit('ui:notify', {
         type: 'info',
         message: 'Only one worktree available',
@@ -398,9 +406,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     lastWorktreeSwitchTime.current = now;
 
     // Find next worktree (wrap around to first after last)
-    const currentIndex = worktrees.findIndex(wt => wt.id === activeWorktreeId);
-    const nextIndex = (currentIndex + 1) % worktrees.length;
-    const nextWorktree = worktrees[nextIndex];
+    const currentIndex = enrichedWorktrees.findIndex(wt => wt.id === activeWorktreeId);
+    const nextIndex = (currentIndex + 1) % enrichedWorktrees.length;
+    const nextWorktree = enrichedWorktrees[nextIndex];
 
     if (nextWorktree) {
       handleSwitchWorktree(nextWorktree);
@@ -456,9 +464,19 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
       // 6. Notify user of success
       events.emit('ui:modal:close', { id: 'worktree' });
+
+      // Build notification message with summary if available
+      let message = `Switched to ${targetWorktree.branch || targetWorktree.name}`;
+      if (targetWorktree.summary) {
+        message += ` — ${targetWorktree.summary}`;
+      }
+      if (targetWorktree.modifiedCount !== undefined && targetWorktree.modifiedCount > 0) {
+        message += ` [${targetWorktree.modifiedCount} files]`;
+      }
+
       events.emit('ui:notify', {
         type: 'success',
-        message: `Switched to ${targetWorktree.branch || targetWorktree.name}`,
+        message,
       });
     } catch (error) {
       // Only show error if this is still the latest requested switch
@@ -478,19 +496,19 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
-      const targetWorktree = worktrees.find(wt => wt.id === worktreeId);
+      const targetWorktree = enrichedWorktrees.find(wt => wt.id === worktreeId);
       if (targetWorktree) {
         await handleSwitchWorktree(targetWorktree);
       } else {
         events.emit('ui:notify', { type: 'error', message: 'Worktree not found' });
       }
     });
-  }, [worktrees, handleSwitchWorktree]);
+  }, [enrichedWorktrees, handleSwitchWorktree]);
 
   // Listen for sys:worktree:cycle (from /wt next or /wt prev)
   useEffect(() => {
     return events.on('sys:worktree:cycle', async ({ direction }) => {
-      if (worktrees.length <= 1) {
+      if (enrichedWorktrees.length <= 1) {
         events.emit('ui:notify', {
           type: 'warning',
           message: 'No other worktrees to switch to',
@@ -498,18 +516,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         return;
       }
 
-      const currentIndex = worktrees.findIndex(wt => wt.id === activeWorktreeId);
-      const nextIndex = (currentIndex + direction + worktrees.length) % worktrees.length;
-      const nextWorktree = worktrees[nextIndex];
+      const currentIndex = enrichedWorktrees.findIndex(wt => wt.id === activeWorktreeId);
+      const nextIndex = (currentIndex + direction + enrichedWorktrees.length) % enrichedWorktrees.length;
+      const nextWorktree = enrichedWorktrees[nextIndex];
 
       await handleSwitchWorktree(nextWorktree);
     });
-  }, [worktrees, activeWorktreeId, handleSwitchWorktree]);
+  }, [enrichedWorktrees, activeWorktreeId, handleSwitchWorktree]);
 
   // Listen for sys:worktree:selectByName (from /wt <pattern>)
   useEffect(() => {
     return events.on('sys:worktree:selectByName', async ({ query }) => {
-      if (worktrees.length === 0) {
+      if (enrichedWorktrees.length === 0) {
         events.emit('ui:notify', {
           type: 'error',
           message: 'No worktrees available',
@@ -520,16 +538,16 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       const q = query.toLowerCase();
 
       // Try exact match on branch first
-      let match = worktrees.find(wt => wt.branch?.toLowerCase() === q);
+      let match = enrichedWorktrees.find(wt => wt.branch?.toLowerCase() === q);
 
       // Then try exact match on name
       if (!match) {
-        match = worktrees.find(wt => wt.name.toLowerCase() === q);
+        match = enrichedWorktrees.find(wt => wt.name.toLowerCase() === q);
       }
 
       // Finally try substring match on path
       if (!match) {
-        match = worktrees.find(wt => wt.path.toLowerCase().includes(q));
+        match = enrichedWorktrees.find(wt => wt.path.toLowerCase().includes(q));
       }
 
       if (match) {
@@ -541,7 +559,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         });
       }
     });
-  }, [worktrees, handleSwitchWorktree]);
+  }, [enrichedWorktrees, handleSwitchWorktree]);
 
   // handleOpenSelectedFile removed
 
@@ -658,7 +676,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           filterActive={filterActive}
           filterQuery={filterQuery}
           currentWorktree={currentWorktree}
-          worktreeCount={worktrees.length}
+          worktreeCount={enrichedWorktrees.length}
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
           config={effectiveConfig}
@@ -709,7 +727,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       )}
       {isWorktreePanelOpen && (
         <WorktreePanel
-          worktrees={worktrees}
+          worktrees={enrichedWorktrees}
           activeWorktreeId={activeWorktreeId}
           onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
         />

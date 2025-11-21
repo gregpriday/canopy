@@ -146,17 +146,40 @@ export const WorktreePanel: React.FC<WorktreePanelProps> = ({
                 {isActive ? '→ ' : '  '}
               </Text>
 
-              {/* Worktree name, branch, and path */}
-              <Box flexGrow={1}>
+              {/* Worktree name, branch, summary, and path */}
+              <Box flexDirection="column" flexGrow={1}>
+                {/* First line: name and branch */}
                 <Text
                   backgroundColor={isSelected ? palette.selection.background : undefined}
                   color={isSelected ? palette.selection.text : palette.text.secondary}
                 >
                   {worktree.name.padEnd(15)}
                   {worktree.branch ? ` [${worktree.branch}]` : ''}
-                  {' '}
-                  {worktree.path}
                 </Text>
+
+                {/* Second line: summary and modified count */}
+                {(() => {
+                  const hasModifiedFiles =
+                    worktree.modifiedCount !== undefined && worktree.modifiedCount > 0;
+                  const shouldShowSummaryRow =
+                    worktree.summaryLoading || Boolean(worktree.summary) || hasModifiedFiles;
+                  if (!shouldShowSummaryRow) {
+                    return null;
+                  }
+
+                  const summaryText = worktree.summaryLoading ? '⟳ Loading...' : worktree.summary;
+
+                  return (
+                    <Box marginLeft={2}>
+                      {summaryText && (
+                        <Text dimColor>{summaryText}</Text>
+                      )}
+                      {!worktree.summaryLoading && hasModifiedFiles && (
+                        <Text color={palette.git.modified}> [{worktree.modifiedCount} files]</Text>
+                      )}
+                    </Box>
+                  );
+                })()}
               </Box>
             </Box>
           );

@@ -94,15 +94,19 @@ describe('WorktreePanel', () => {
       expect(output).toContain('bugfix-2');
     });
 
-    it('displays worktree paths', () => {
+    it('displays worktree names and branches', () => {
       const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
       const output = lastFrame();
-      expect(output).toContain('/repo/main');
-      expect(output).toContain('/repo/feature');
-      expect(output).toContain('/repo/bugfix');
+      // Check that names and branches are displayed
+      expect(output).toContain('main');
+      expect(output).toContain('[main]');
+      expect(output).toContain('feature-1');
+      expect(output).toContain('[feature-1]');
+      expect(output).toContain('bugfix-2');
+      expect(output).toContain('[bugfix-2]');
     });
 
     it('displays worktree branches', () => {
@@ -142,6 +146,58 @@ describe('WorktreePanel', () => {
 
       // Check for border characters (basic check)
       expect(lastFrame()).toBeTruthy();
+    });
+
+    it('displays summary text and file count when available', () => {
+      const summaryWorktree: Worktree = {
+        ...mockWorktrees[0],
+        summary: 'Fixing terminal output',
+        modifiedCount: 2,
+      };
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreePanel
+          {...defaultProps}
+          worktrees={[summaryWorktree]}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('Fixing terminal output');
+      expect(output).toContain('[2 files]');
+    });
+
+    it('shows loading indicator while summaries fetch', () => {
+      const loadingWorktree: Worktree = {
+        ...mockWorktrees[1],
+        summaryLoading: true,
+      };
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreePanel
+          {...defaultProps}
+          worktrees={[loadingWorktree]}
+          activeWorktreeId="wt-feature"
+        />
+      );
+
+      expect(lastFrame()).toContain('⟳ Loading...');
+    });
+
+    it('still renders modified count even without summary text', () => {
+      const noSummaryWorktree: Worktree = {
+        ...mockWorktrees[2],
+        modifiedCount: 5,
+      };
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreePanel
+          {...defaultProps}
+          worktrees={[noSummaryWorktree]}
+        />
+      );
+
+      expect(lastFrame()).toContain('[5 files]');
     });
   });
 
@@ -775,9 +831,10 @@ describe('WorktreePanel', () => {
         />
       );
 
-      // Should render without crashing, no branch shown
+      // Should render without crashing, showing name but no branch
       expect(lastFrame()).toContain('detached');
-      expect(lastFrame()).toContain('/repo/detached');
+      // Branch should not be shown for detached HEAD
+      expect(lastFrame()).not.toContain('[');
     });
 
     it('shows branch for worktrees that have it', () => {
