@@ -131,6 +131,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Track latest requested worktree to prevent race conditions during rapid switches
   const latestWorktreeSwitchRef = useRef<string | null>(null);
 
+  // Track worktree switching state for UI feedback
+  const [isSwitchingWorktree, setIsSwitchingWorktree] = useState(false);
+  const lastWorktreeSwitchTime = useRef<number>(0);
+  const WORKTREE_SWITCH_DEBOUNCE_MS = 300; // Prevent double-switches
+
   // Listen for file:copy-path events
   useEffect(() => {
     return events.on('file:copy-path', async (payload) => {
@@ -344,7 +349,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     if (notification) {
       const timer = setTimeout(() => {
         setNotification(null);
-      }, 3000);
+      }, 2000); // Auto-clear notifications after 2 seconds
       return () => clearTimeout(timer);
     }
   }, [notification]);
@@ -376,10 +381,27 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   };
 
   const handleNextWorktree = () => {
-    if (worktrees.length <= 1) return;
+    // Edge case: only one worktree
+    if (worktrees.length <= 1) {
+      events.emit('ui:notify', {
+        type: 'info',
+        message: 'Only one worktree available',
+      });
+      return;
+    }
+
+    // Debounce rapid key presses to prevent double-switching
+    const now = Date.now();
+    if (now - lastWorktreeSwitchTime.current < WORKTREE_SWITCH_DEBOUNCE_MS) {
+      return; // Ignore rapid presses
+    }
+    lastWorktreeSwitchTime.current = now;
+
+    // Find next worktree (wrap around to first after last)
     const currentIndex = worktrees.findIndex(wt => wt.id === activeWorktreeId);
-    const nextIndex = currentIndex >= 0 && currentIndex < worktrees.length - 1 ? currentIndex + 1 : 0;
+    const nextIndex = (currentIndex + 1) % worktrees.length;
     const nextWorktree = worktrees[nextIndex];
+
     if (nextWorktree) {
       handleSwitchWorktree(nextWorktree);
     }
@@ -389,7 +411,16 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     // Mark this as the latest requested switch to prevent race conditions
     latestWorktreeSwitchRef.current = targetWorktree.id;
 
+    // Show switching state in UI
+    setIsSwitchingWorktree(true);
+
     try {
+      // Show "Switching to..." notification
+      events.emit('ui:notify', {
+        type: 'info',
+        message: `Switching to ${targetWorktree.branch || targetWorktree.name}...`,
+      });
+
       // 1. Save current worktree's session BEFORE switching
       if (activeWorktreeId) {
         await saveSessionState(activeWorktreeId, {
@@ -423,7 +454,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setFilterQuery('');
       clearGitStatus();
 
-      // 6. Notify user
+      // 6. Notify user of success
       events.emit('ui:modal:close', { id: 'worktree' });
       events.emit('ui:notify', {
         type: 'success',
@@ -436,6 +467,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           type: 'error',
           message: `Failed to switch worktree: ${error instanceof Error ? error.message : 'Unknown error'}`,
         });
+      }
+    } finally {
+      // Only clear the indicator if this was the latest requested switch
+      if (latestWorktreeSwitchRef.current === targetWorktree.id) {
+        setIsSwitchingWorktree(false);
       }
     }
   }, [activeWorktreeId, clearGitStatus, expandedFolders, selectedPath]);
@@ -570,6 +606,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
           config={effectiveConfig}
+          isSwitching={isSwitchingWorktree}
         />
       <Box flexGrow={1}>
         <TreeView

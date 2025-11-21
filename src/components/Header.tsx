@@ -15,6 +15,7 @@ interface HeaderProps {
   onWorktreeClick?: () => void;
   identity: ProjectIdentity;
   config: CanopyConfig;
+  isSwitching?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onWorktreeClick,
   identity,
   config,
+  isSwitching = false,
 }) => {
   const { palette } = useTheme();
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
@@ -74,11 +76,11 @@ export const Header: React.FC<HeaderProps> = ({
           <Text dimColor> • </Text>
           <Text dimColor>wt </Text>
           <Text
-            color={palette.accent.primary}
+            color={isSwitching ? palette.alert.warning : palette.accent.primary}
             bold={onWorktreeClick !== undefined}
             underline={onWorktreeClick !== undefined}
           >
-            [{truncatedBranchName}]
+            {isSwitching ? '⟳ ' : ''}[{truncatedBranchName}]
           </Text>
           <Text dimColor> ({worktreeCount})</Text>
         </>
