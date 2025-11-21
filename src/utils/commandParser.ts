@@ -163,7 +163,6 @@ function validateCommand(command: Command): void {
  * - /filter → Issue #25
  * - /git → Issue #26
  * - /changed → Issue #26
- * - /wt → Issue #29
  * - /open → Implemented here (simple)
  */
 export function createCommandRegistry(): Command[] {
@@ -241,36 +240,6 @@ export function createCommandRegistry(): Command[] {
       });
       context.notify({ type: 'info', message: 'Showing all changed files' });
       return { success: true, message: 'Showing all changed files' };
-    },
-  });
-
-  // /wt command (worktree)
-  registerCommand(registry, {
-    name: '/wt',
-    aliases: ['/worktree'],
-    description: 'Worktree operations',
-    usage: '/wt <list|next|prev|name>',
-    execute: async (args, context) => {
-      // Stub - implementation in issue #29
-      if (args.length === 0) {
-        return { success: false, error: 'Usage: /wt <list|next|prev|name>' };
-      }
-
-      const subcommand = args[0];
-
-      if (subcommand === 'list') {
-        context.notify({ type: 'info', message: 'Opening worktree list' });
-        return { success: true, message: 'Worktree list (stub)' };
-      }
-
-      if (subcommand === 'next' || subcommand === 'prev') {
-        context.notify({ type: 'info', message: `Switching to ${subcommand} worktree` });
-        return { success: true, message: `Switch ${subcommand} (stub)` };
-      }
-
-      // Treat as worktree name
-      context.notify({ type: 'info', message: `Switching to worktree: ${subcommand}` });
-      return { success: true, message: `Switch to ${subcommand} (stub)` };
     },
   });
 

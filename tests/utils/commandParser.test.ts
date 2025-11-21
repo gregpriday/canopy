@@ -254,12 +254,6 @@ describe('createCommandRegistry', () => {
     expect(cmd).not.toBeNull();
   });
 
-  it('includes /wt command', () => {
-    const registry = createCommandRegistry();
-    const cmd = findCommand('/wt', registry);
-    expect(cmd).not.toBeNull();
-  });
-
   it('includes /open command', () => {
     const registry = createCommandRegistry();
     const cmd = findCommand('/open', registry);
@@ -285,13 +279,6 @@ describe('createCommandRegistry', () => {
     const cmd = findCommand('/c', registry);
     expect(cmd).not.toBeNull();
     expect(cmd?.name).toBe('/changed');
-  });
-
-  it('supports /worktree alias for /wt', () => {
-    const registry = createCommandRegistry();
-    const cmd = findCommand('/worktree', registry);
-    expect(cmd).not.toBeNull();
-    expect(cmd?.name).toBe('/wt');
   });
 
   it('supports /o alias for /open', () => {
@@ -653,80 +640,6 @@ describe('Built-in commands integration', () => {
       const context = createMockContext();
 
       const result = await executeCommand('/open', registry, context);
-
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('/wt command', () => {
-    it('handles list subcommand', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/wt list', registry, context);
-
-      expect(result.success).toBe(true);
-      expect(context.notify).toHaveBeenCalledWith({
-        type: 'info',
-        message: 'Opening worktree list',
-      });
-    });
-
-    it('handles next subcommand', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/wt next', registry, context);
-
-      expect(result.success).toBe(true);
-      expect(result.message).toBe('Switch next (stub)');
-      expect(context.notify).toHaveBeenCalledWith({
-        type: 'info',
-        message: 'Switching to next worktree',
-      });
-    });
-
-    it('handles prev subcommand', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/wt prev', registry, context);
-
-      expect(result.success).toBe(true);
-      expect(result.message).toBe('Switch prev (stub)');
-      expect(context.notify).toHaveBeenCalledWith({
-        type: 'info',
-        message: 'Switching to prev worktree',
-      });
-    });
-
-    it('handles /worktree alias', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/worktree list', registry, context);
-
-      expect(result.success).toBe(true);
-      expect(context.notify).toHaveBeenCalledWith({
-        type: 'info',
-        message: 'Opening worktree list',
-      });
-    });
-
-    it('handles worktree name', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/wt main', registry, context);
-
-      expect(result.success).toBe(true);
-    });
-
-    it('returns error when no arguments provided', async () => {
-      const registry = createCommandRegistry();
-      const context = createMockContext();
-
-      const result = await executeCommand('/wt', registry, context);
 
       expect(result.success).toBe(false);
     });
