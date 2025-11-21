@@ -101,7 +101,7 @@ export interface CanopyConfig {
 export interface CanopyState {
   fileTree: TreeNode[];
   expandedFolders: Set<string>;
-  selectedPath: string;
+  selectedPath: string | null;
   cursorPosition: number;
   showPreview: boolean;
   showHelp: boolean;

@@ -7,7 +7,7 @@ import { useTheme } from '../theme/ThemeProvider.js';
 interface TreeNodeProps {
   node: TreeNodeType;
   selected: boolean;
-  selectedPath: string;
+  selectedPath: string | null;
   config: CanopyConfig;
 }
 

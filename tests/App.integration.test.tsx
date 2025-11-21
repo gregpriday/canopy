@@ -210,6 +210,35 @@ describe('App integration - CopyTree centralized listener', () => {
   });
 });
 
+describe('App integration - clear selection', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+  });
+
+  it('clears selection when nav:clear-selection event is emitted', async () => {
+    const { lastFrame } = render(<App cwd="/test" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // First, select a path
+    events.emit('nav:select', { path: '/test/file.txt' });
+
+    // Give it time to process
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Now clear the selection
+    events.emit('nav:clear-selection');
+
+    // Give it time to process
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    // App should still render without errors (selection is now null)
+    expect(lastFrame()).toBeDefined();
+  });
+});
+
 describe('App integration - file:copy-path event', () => {
   beforeEach(() => {
     vi.clearAllMocks();

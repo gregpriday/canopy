@@ -16,7 +16,7 @@ import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 
 interface TreeViewProps {
   fileTree: TreeNode[];
-  selectedPath: string;
+  selectedPath: string | null;
   config: CanopyConfig;
   expandedPaths?: Set<string>; // Optional controlled expansion
   disableMouse?: boolean; // Disable mouse interactions
@@ -60,6 +60,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
 
   // Find cursor index based on selected path
   const cursorIndex = useMemo(() => {
+    if (!selectedPath) return -1; // No selection
     const index = findNodeIndex(flattenedTree, selectedPath);
     return index >= 0 ? index : 0;
   }, [flattenedTree, selectedPath]);
@@ -73,7 +74,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
   }, [nodeViewportHeight]);
 
   const prevFlattenedTreeRef = useRef<FlattenedNode[]>(flattenedTree);
-  const prevSelectedPathRef = useRef<string>(selectedPath);
+  const prevSelectedPathRef = useRef<string | null>(selectedPath);
   const isInitialMountRef = useRef(true);
 
   // Calculate visible window (memoized) using node-aware viewport height
@@ -153,6 +154,12 @@ export const TreeView: React.FC<TreeViewProps> = ({
     // should just reveal/hide rows based on the current scroll anchor,
     // not forcefully snap the view back to the selection.
     if (!selectionChanged) {
+      return;
+    }
+
+    // Skip auto-scroll when selection is cleared (selectedPath becomes null)
+    // to avoid jumping the viewport back to the top
+    if (selectedPath === null) {
       return;
     }
 
