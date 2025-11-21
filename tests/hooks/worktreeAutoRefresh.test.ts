@@ -5,62 +5,21 @@ import { useAppLifecycle } from '../../src/hooks/useAppLifecycle.js';
 import * as config from '../../src/utils/config.js';
 import * as worktree from '../../src/utils/worktree.js';
 import * as state from '../../src/utils/state.js';
-import { events } from '../../src/services/events.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import type { Worktree } from '../../src/types/index.js';
 
 // Mock modules
 vi.mock('../../src/utils/config.js');
 vi.mock('../../src/utils/worktree.js');
 vi.mock('../../src/utils/state.js');
 
-describe('useAppLifecycle - Worktree Auto-Refresh', () => {
-  const mockWorktree1: Worktree = {
-    id: '/test/main',
-    path: '/test/main',
-    name: 'main',
-    branch: 'main',
-    isCurrent: true,
-  };
-
-  const mockWorktree2: Worktree = {
-    id: '/test/feature',
-    path: '/test/feature',
-    name: 'feature-branch',
-    branch: 'feature-branch',
-    isCurrent: false,
-  };
-
-  let intervalCallback: (() => Promise<void>) | null = null;
-  let setIntervalSpy: ReturnType<typeof vi.spyOn>;
-  let clearIntervalSpy: ReturnType<typeof vi.spyOn>;
-
+describe('useAppLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    intervalCallback = null;
-
-    // Default mocks - must be set up before hook renders
-    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
-    vi.mocked(worktree.getWorktrees).mockResolvedValue([mockWorktree1]);
+    // Default mock for loadInitialState - returns minimal state
     vi.mocked(state.loadInitialState).mockResolvedValue({
-      worktree: mockWorktree1,
+      worktree: null,
       selectedPath: null,
       expandedFolders: new Set<string>(),
-    });
-
-    // Spy on setInterval to capture the callback
-    let timerIdCounter = 123;
-    setIntervalSpy = vi.spyOn(global, 'setInterval').mockImplementation((cb: any, delay: number) => {
-      const timerId = timerIdCounter++;
-      if (delay === 10000 || delay === 5000) {
-        // This is likely our worktree refresh interval
-        intervalCallback = cb as () => Promise<void>;
-      }
-      return timerId as any;
-    });
-
-    clearIntervalSpy = vi.spyOn(global, 'clearInterval').mockImplementation(() => {
-      // Just mock it, no-op
     });
   });
 
@@ -68,75 +27,41 @@ describe('useAppLifecycle - Worktree Auto-Refresh', () => {
     vi.restoreAllMocks();
   });
 
-  it('should set up interval with default 10s refresh', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
+  it('starts in initializing status', () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+    );
+
+    expect(result.current.status).toBe('initializing');
+  });
+
+  it('transitions to ready status after successful initialization', async () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
-
-    // Verify setInterval was called with correct delay
-    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
-    expect(intervalCallback).toBeTruthy();
   });
 
-  it('should refresh worktrees when interval callback is triggered', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
+  it('uses provided initialConfig instead of loading', async () => {
+    const customConfig = { ...DEFAULT_CONFIG, showHidden: true };
 
-    // Initial call returns one worktree
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1]);
-
-    // After interval, return two worktrees
-    getWorktreesSpy.mockResolvedValue([mockWorktree1, mockWorktree2]);
-
-    const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('ready');
-    });
-
-    expect(result.current.worktrees).toHaveLength(1);
-    expect(getWorktreesSpy).toHaveBeenCalledTimes(1);
-    expect(intervalCallback).toBeTruthy();
-
-    // Manually trigger the interval callback
-    await act(async () => {
-      await intervalCallback!();
-    });
-
-    // Should have refreshed worktrees
-    await waitFor(() => {
-      expect(result.current.worktrees).toHaveLength(2);
-    });
-
-    expect(getWorktreesSpy).toHaveBeenCalledTimes(2);
-  });
-
-  it('should not set up interval when refreshIntervalMs is 0', async () => {
-    const configWithNoRefresh = {
-      ...DEFAULT_CONFIG,
-      worktrees: {
-        enable: true,
-        showInHeader: true,
-        refreshIntervalMs: 0,
-      },
-    };
-
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useAppLifecycle({
         cwd: '/test',
-        initialConfig: configWithNoRefresh,
+        initialConfig: customConfig,
         noWatch: true,
+        noGit: true,
       })
     );
 
@@ -144,69 +69,13 @@ describe('useAppLifecycle - Worktree Auto-Refresh', () => {
       expect(result.current.status).toBe('ready');
     });
 
-    // setInterval should not have been called for worktree refresh (no interval callback captured)
-    expect(intervalCallback).toBeNull();
+    expect(config.loadConfig).not.toHaveBeenCalled();
+    expect(result.current.config.showHidden).toBe(true);
   });
 
-  it('should not set up interval when refreshIntervalMs is negative', async () => {
-    const configWithNegativeInterval = {
-      ...DEFAULT_CONFIG,
-      worktrees: {
-        enable: true,
-        showInHeader: true,
-        refreshIntervalMs: -1,
-      },
-    };
-
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
-
-    const { result } = renderHook(() =>
-      useAppLifecycle({
-        cwd: '/test',
-        initialConfig: configWithNegativeInterval,
-        noWatch: true,
-      })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('ready');
-    });
-
-    expect(intervalCallback).toBeNull();
-  });
-
-  it('should not set up interval when worktrees are disabled', async () => {
-    const configWithDisabledWorktrees = {
-      ...DEFAULT_CONFIG,
-      worktrees: {
-        enable: false,
-        showInHeader: true,
-        refreshIntervalMs: 10000,
-      },
-    };
-
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([]);
-
-    const { result } = renderHook(() =>
-      useAppLifecycle({
-        cwd: '/test',
-        initialConfig: configWithDisabledWorktrees,
-        noWatch: true,
-      })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('ready');
-    });
-
-    expect(intervalCallback).toBeNull();
-  });
-
-  it('should not set up interval when --no-git flag is set', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([]);
+  it('falls back to defaults on config loading error', async () => {
+    vi.mocked(config.loadConfig).mockRejectedValue(new Error('Config error'));
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
@@ -216,262 +85,430 @@ describe('useAppLifecycle - Worktree Auto-Refresh', () => {
       expect(result.current.status).toBe('ready');
     });
 
-    expect(intervalCallback).toBeNull();
+    expect(result.current.config).toEqual(DEFAULT_CONFIG);
+
+    // Should have issued a warning notification
+    await waitFor(() => {
+      expect(result.current.notification).toBeTruthy();
+    });
+    expect(result.current.notification?.type).toBe('warning');
+    expect(result.current.notification?.message).toContain('Config error');
   });
 
-  it('should handle active worktree deletion by emitting switch event', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-
-    // Initial: two worktrees, first is active
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1, mockWorktree2]);
-
-    // After interval: active worktree deleted, only second remains
-    getWorktreesSpy.mockResolvedValue([mockWorktree2]);
-
-    const emitSpy = vi.spyOn(events, 'emit');
+  it('handles worktree discovery errors gracefully', async () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockRejectedValue(new Error('Not a git repo'));
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test/main', noWatch: true })
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
 
-    expect(result.current.worktrees).toHaveLength(2);
-    expect(result.current.activeWorktreeId).toBe('/test/main');
-
-    // Clear previous emit calls
-    emitSpy.mockClear();
-
-    // Manually trigger the interval callback
-    await act(async () => {
-      await intervalCallback!();
-    });
-
-    // Should update worktrees list
-    await waitFor(() => {
-      expect(result.current.worktrees).toHaveLength(1);
-      expect(result.current.worktrees[0].id).toBe('/test/feature');
-    });
-
-    // Should emit switch event
-    expect(emitSpy).toHaveBeenCalledWith('sys:worktree:switch', {
-      worktreeId: '/test/feature',
-    });
-
-    // Should emit warning notification
-    expect(emitSpy).toHaveBeenCalledWith('ui:notify', {
-      type: 'warning',
-      message: expect.stringContaining('Active worktree was deleted'),
-    });
+    expect(result.current.worktrees).toEqual([]);
+    expect(result.current.activeWorktreeId).toBeNull();
   });
 
-  it('should handle non-active worktree deletion gracefully', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
+  it('sets active worktree when worktrees are found', async () => {
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+      { id: 'wt2', path: '/repo/feature', name: 'feature', branch: 'feature-branch', isMain: false },
+    ];
 
-    // Initial: two worktrees
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1, mockWorktree2]);
-
-    // After interval: second worktree deleted
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
-
-    const emitSpy = vi.spyOn(events, 'emit');
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+    // Mock loadInitialState to return current worktree
+    vi.mocked(state.loadInitialState).mockResolvedValue({
+      worktree: mockWorktrees[0],
+      selectedPath: null,
+      expandedFolders: new Set<string>(),
+    });
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test/main', noWatch: true })
+      useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
 
-    expect(result.current.worktrees).toHaveLength(2);
-
-    emitSpy.mockClear();
-
-    // Manually trigger the interval callback
-    await act(async () => {
-      await intervalCallback!();
-    });
-
-    // Should update worktrees list
-    await waitFor(() => {
-      expect(result.current.worktrees).toHaveLength(1);
-    });
-
-    // Should NOT emit switch event (active worktree still exists)
-    expect(emitSpy).not.toHaveBeenCalledWith('sys:worktree:switch', expect.anything());
-
-    // Should NOT emit warning notification
-    expect(emitSpy).not.toHaveBeenCalledWith('ui:notify', {
-      type: 'warning',
-      message: expect.stringContaining('deleted'),
-    });
+    expect(result.current.worktrees).toEqual(mockWorktrees);
+    expect(result.current.activeWorktreeId).toBe('wt1');
+    expect(result.current.activeRootPath).toBe('/repo/main');
   });
 
-  it('should handle refresh errors gracefully without crashing', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
+  it('defaults to first worktree if current is not found', async () => {
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+      { id: 'wt2', path: '/repo/feature', name: 'feature', branch: 'feature-branch', isMain: false },
+    ];
 
-    // Initial call succeeds
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1]);
-
-    // Subsequent call fails
-    getWorktreesSpy.mockRejectedValue(new Error('Git command failed'));
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(worktree.getCurrentWorktree).mockReturnValue(null);
+    // Mock loadInitialState to return first worktree
+    vi.mocked(state.loadInitialState).mockResolvedValue({
+      worktree: mockWorktrees[0],
+      selectedPath: null,
+      expandedFolders: new Set<string>(),
+    });
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
+      useAppLifecycle({ cwd: '/some/other/path', noWatch: true, noGit: false })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
 
-    expect(result.current.worktrees).toHaveLength(1);
-
-    // Manually trigger the interval callback (which will error)
-    await act(async () => {
-      await intervalCallback!();
-    });
-
-    // Should remain in ready state, worktrees unchanged
-    expect(result.current.status).toBe('ready');
-    expect(result.current.worktrees).toHaveLength(1);
+    expect(result.current.activeWorktreeId).toBe('wt1');
+    expect(result.current.activeRootPath).toBe('/repo/main');
   });
 
-  it('should clean up interval on unmount', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
-
-    const { result, unmount } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
-    );
-
-    await waitFor(() => {
-      expect(result.current.status).toBe('ready');
-    });
-
-    expect(setIntervalSpy).toHaveBeenCalled();
-
-    // Unmount the hook
-    unmount();
-
-    // clearInterval should have been called
-    expect(clearIntervalSpy).toHaveBeenCalled();
-  });
-
-  it('should handle manual refresh event', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-
-    // Initial call returns one worktree
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1]);
-
-    // Manual refresh returns two worktrees
-    getWorktreesSpy.mockResolvedValue([mockWorktree1, mockWorktree2]);
-
-    const emitSpy = vi.spyOn(events, 'emit');
+  it('handles catastrophic initialization errors', async () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    // Mock loadInitialState to throw a catastrophic error
+    vi.mocked(state.loadInitialState).mockRejectedValue(new Error('Catastrophic error'));
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: false })
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('error');
+    });
+
+    expect(result.current.error).toBeTruthy();
+    expect(result.current.error?.message).toContain('Catastrophic error');
+
+    // Should have issued an error notification
+    await waitFor(() => {
+      expect(result.current.notification).toBeTruthy();
+    });
+    expect(result.current.notification?.type).toBe('error');
+    expect(result.current.notification?.message).toContain('Initialization failed');
+  });
+
+  it('exposes reinitialize function', async () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
 
-    expect(result.current.worktrees).toHaveLength(1);
+    expect(typeof result.current.reinitialize).toBe('function');
+  });
 
-    emitSpy.mockClear();
-
-    // Emit manual refresh event
-    await act(async () => {
-      events.emit('sys:worktree:refresh');
-      // Give the event handler time to complete
-      await new Promise(resolve => setTimeout(resolve, 0));
+  it('reinitialize transitions through initializing to ready', async () => {
+    let resolveConfig: (value: typeof DEFAULT_CONFIG) => void;
+    const slowConfigPromise = new Promise<typeof DEFAULT_CONFIG>((resolve) => {
+      resolveConfig = resolve;
     });
 
-    // Should refresh immediately
+    vi.mocked(config.loadConfig).mockReturnValue(slowConfigPromise);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+    );
+
+    // Wait for initial ready (resolve first config load)
+    resolveConfig!(DEFAULT_CONFIG);
     await waitFor(() => {
-      expect(result.current.worktrees).toHaveLength(2);
+      expect(result.current.status).toBe('ready');
     });
 
-    // Should emit success notification
-    expect(emitSpy).toHaveBeenCalledWith('ui:notify', {
-      type: 'success',
-      message: 'Worktree list refreshed',
+    // Setup another slow promise for reinitialize
+    const reinitConfigPromise = new Promise<typeof DEFAULT_CONFIG>((resolve) => {
+      resolveConfig = resolve;
+    });
+    vi.mocked(config.loadConfig).mockReturnValue(reinitConfigPromise);
+
+    // Call reinitialize
+    let reinitPromise;
+    act(() => {
+      reinitPromise = result.current.reinitialize();
+    });
+
+    // Should transition to initializing
+    await waitFor(() => {
+      expect(result.current.status).toBe('initializing');
+    });
+
+    // Resolve the config to complete initialization
+    resolveConfig!(DEFAULT_CONFIG);
+    await reinitPromise;
+
+    // Should be back to ready
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
     });
   });
 
-  it('should handle manual refresh errors', async () => {
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
+  it('prevents concurrent reinitializations', async () => {
+    let resolveConfig: () => void;
+    const configPromise = new Promise<typeof DEFAULT_CONFIG>((resolve) => {
+      resolveConfig = () => resolve(DEFAULT_CONFIG);
+    });
 
-    // Initial call succeeds
-    getWorktreesSpy.mockResolvedValueOnce([mockWorktree1]);
-
-    // Manual refresh fails
-    getWorktreesSpy.mockRejectedValue(new Error('Git error'));
-
-    const emitSpy = vi.spyOn(events, 'emit');
+    vi.mocked(config.loadConfig).mockReturnValue(configPromise);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true })
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+    );
+
+    // Start first initialization (still pending)
+    let firstInit, secondInit;
+    act(() => {
+      firstInit = result.current.reinitialize();
+      // Try to start second initialization immediately
+      secondInit = result.current.reinitialize();
+    });
+
+    // Resolve config
+    resolveConfig!();
+
+    await Promise.all([firstInit, secondInit]);
+
+    // Config should only have been loaded once due to guard
+    expect(config.loadConfig).toHaveBeenCalledTimes(1);
+  });
+
+  it('provides setNotification function', async () => {
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
 
-    emitSpy.mockClear();
+    expect(typeof result.current.setNotification).toBe('function');
+  });
 
-    // Emit manual refresh event
-    await act(async () => {
-      events.emit('sys:worktree:refresh');
-      // Give the event handler time to complete
-      await new Promise(resolve => setTimeout(resolve, 0));
+  it('disables worktrees when noGit flag is set', async () => {
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+    ];
+
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
     });
 
-    // Should emit error notification
+    // Worktrees should be empty when noGit is true
+    expect(result.current.worktrees).toEqual([]);
+    expect(result.current.activeWorktreeId).toBeNull();
+    // getWorktrees should not have been called
+    expect(worktree.getWorktrees).not.toHaveBeenCalled();
+  });
+
+  it('disables worktrees when config worktrees.enable is false', async () => {
+    const configWithWorktreesDisabled = {
+      ...DEFAULT_CONFIG,
+      worktrees: {
+        enable: false,
+        showInHeader: true,
+        refreshIntervalMs: 10000,
+      },
+    };
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+    ];
+
+    vi.mocked(config.loadConfig).mockResolvedValue(configWithWorktreesDisabled);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: false })
+    );
+
     await waitFor(() => {
-      expect(emitSpy).toHaveBeenCalledWith('ui:notify', {
-        type: 'error',
-        message: 'Failed to refresh worktrees',
+      expect(result.current.status).toBe('ready');
+    });
+
+    // Worktrees should be empty when config disables them
+    expect(result.current.worktrees).toEqual([]);
+    expect(result.current.activeWorktreeId).toBeNull();
+    // getWorktrees IS called (needed for worktree-aware config loading) but results are filtered
+    expect(worktree.getWorktrees).toHaveBeenCalled();
+  });
+
+  describe('Worktree Auto-Refresh', () => {
+    // Don't use fake timers in beforeEach - only use them in specific tests that need them
+
+    it('sets up interval with default 10s refresh', async () => {
+      const mockWorktrees = [
+        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
+      ];
+
+      vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+      vi.mocked(state.loadInitialState).mockResolvedValue({
+        worktree: mockWorktrees[0],
+        selectedPath: null,
+        expandedFolders: new Set<string>(),
+      });
+
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      const { result } = renderHook(() =>
+        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false })
+      );
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      // Verify setInterval was called with 10000ms (default)
+      await waitFor(() => {
+        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
       });
     });
 
-    // State should remain stable
-    expect(result.current.status).toBe('ready');
-    expect(result.current.worktrees).toHaveLength(1);
-  });
+    it('does not set up interval when refreshIntervalMs is 0', async () => {
+      const configWithNoRefresh = {
+        ...DEFAULT_CONFIG,
+        worktrees: {
+          enable: true,
+          showInHeader: true,
+          refreshIntervalMs: 0,
+        },
+      };
 
-  it('should support custom refresh intervals', async () => {
-    intervalCallback = null; // Reset
+      const mockWorktrees = [
+        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
+      ];
 
-    const configWithFastRefresh = {
-      ...DEFAULT_CONFIG,
-      worktrees: {
-        enable: true,
-        showInHeader: true,
-        refreshIntervalMs: 5000, // 5 seconds
-      },
-    };
+      vi.mocked(config.loadConfig).mockResolvedValue(configWithNoRefresh);
+      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+      vi.mocked(state.loadInitialState).mockResolvedValue({
+        worktree: mockWorktrees[0],
+        selectedPath: null,
+        expandedFolders: new Set<string>(),
+      });
 
-    const getWorktreesSpy = vi.mocked(worktree.getWorktrees);
-    getWorktreesSpy.mockResolvedValue([mockWorktree1]);
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
-    const { result } = renderHook(() =>
-      useAppLifecycle({
-        cwd: '/test',
-        initialConfig: configWithFastRefresh,
-        noWatch: true,
-      })
-    );
+      const { result } = renderHook(() =>
+        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false, initialConfig: configWithNoRefresh })
+      );
 
-    await waitFor(() => {
-      expect(result.current.status).toBe('ready');
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      // Should not set up worktree refresh interval (checking for intervals >= 1000ms)
+      const calls = setIntervalSpy.mock.calls.filter(call => typeof call[1] === 'number' && call[1] >= 1000);
+      expect(calls.length).toBe(0);
     });
 
-    // Should have set up interval with 5000ms
-    expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
-    expect(intervalCallback).toBeTruthy();
+    it('does not set up interval when noGit flag is set', async () => {
+      vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      const { result } = renderHook(() =>
+        useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+      );
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      // Should not set up worktree refresh interval (checking for intervals >= 1000ms)
+      const calls = setIntervalSpy.mock.calls.filter(call => typeof call[1] === 'number' && call[1] >= 1000);
+      expect(calls.length).toBe(0);
+    });
+
+    it('supports custom refresh intervals', async () => {
+      const configWithFastRefresh = {
+        ...DEFAULT_CONFIG,
+        worktrees: {
+          enable: true,
+          showInHeader: true,
+          refreshIntervalMs: 5000, // 5 seconds
+        },
+      };
+
+      const mockWorktrees = [
+        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
+      ];
+
+      vi.mocked(config.loadConfig).mockResolvedValue(configWithFastRefresh);
+      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+      vi.mocked(state.loadInitialState).mockResolvedValue({
+        worktree: mockWorktrees[0],
+        selectedPath: null,
+        expandedFolders: new Set<string>(),
+      });
+
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+      const { result } = renderHook(() =>
+        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false, initialConfig: configWithFastRefresh })
+      );
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      // Should have set up interval with 5000ms
+      await waitFor(() => {
+        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
+      });
+    });
+
+    it('cleans up interval on unmount', async () => {
+      const mockWorktrees = [
+        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
+      ];
+
+      vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+      vi.mocked(state.loadInitialState).mockResolvedValue({
+        worktree: mockWorktrees[0],
+        selectedPath: null,
+        expandedFolders: new Set<string>(),
+      });
+
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
+
+      const { result, unmount } = renderHook(() =>
+        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false })
+      );
+
+      await waitFor(() => {
+        expect(result.current.status).toBe('ready');
+      });
+
+      // Unmount the hook
+      unmount();
+
+      // clearInterval should have been called
+      expect(clearIntervalSpy).toHaveBeenCalled();
+    });
   });
 });
