@@ -128,7 +128,8 @@ export const TreeView: React.FC<TreeViewProps> = ({
   }, [scrollOffset]);
 
   // Auto-scroll to keep cursor visible when selection changes or viewport resizes
-  // Only trigger when selectedPath changes, viewport height changes, or selection drifts off-screen
+  // CRITICAL: Only trigger when selectedPath changes or viewport resizes
+  // Do NOT auto-scroll if user manually scrolled and cursor went off-screen
   useEffect(() => {
     const prevSelectedPath = prevSelectedPathRef.current;
     const prevViewportHeight = prevNodeViewportHeightRef.current;
@@ -138,15 +139,11 @@ export const TreeView: React.FC<TreeViewProps> = ({
     const selectionChanged = prevSelectedPath !== selectedPath;
     const viewportResized = prevViewportHeight !== nodeViewportHeight;
 
-    // Check if selection is currently visible
-    const isSelectionVisible = cursorIndex >= scrollOffset &&
-                                cursorIndex < scrollOffset + nodeViewportHeight;
-
-    // Auto-scroll if:
-    // 1. Selection path changed (user navigated)
+    // Auto-scroll only if:
+    // 1. Selection path changed (user navigated with arrow keys)
     // 2. Viewport height changed (terminal resize)
-    // 3. Selection drifted off-screen due to tree mutations
-    if (!selectionChanged && !viewportResized && isSelectionVisible) {
+    // Do NOT auto-scroll if user manually scrolled away from cursor
+    if (!selectionChanged && !viewportResized) {
       return;
     }
 
@@ -161,7 +158,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
       }
       return strictClamp(nextOffset, flattenedTree.length);
     });
-  }, [selectedPath, cursorIndex, nodeViewportHeight, scrollOffset, strictClamp, flattenedTree.length]);
+  }, [selectedPath, cursorIndex, nodeViewportHeight, strictClamp, flattenedTree.length]);
 
   const emitSelect = useCallback((path: string) => {
     events.emit('nav:select', { path });
