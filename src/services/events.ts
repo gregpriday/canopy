@@ -14,6 +14,10 @@ export interface CopyTreePayload {
   rootPath?: string;
 }
 
+export interface CopyPathPayload {
+  path: string;
+}
+
 export interface NotifyPayload {
   type: NotificationType;
   message: string;
@@ -67,6 +71,7 @@ export type CanopyEventMap = {
 
   'file:open': { path: string };
   'file:copy-tree': CopyTreePayload;
+  'file:copy-path': CopyPathPayload;
 
   'ui:notify': NotifyPayload;
   'ui:command:open': { initialInput?: string };

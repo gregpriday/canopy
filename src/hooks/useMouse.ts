@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { TreeNode, CanopyConfig } from '../types/index.js';
+import { events } from '../services/events.js';
 
 /**
  * Ink's mouse event types (from Ink 6.5).
@@ -29,7 +30,6 @@ export interface UseMouseOptions {
   onSelect: (path: string) => void;
   onToggle: (path: string) => void;
   onOpen: (path: string) => void;
-  onCopy?: (path: string) => void; // Optional copy handler
   onContextMenu: (path: string, position: { x: number; y: number }) => void;
   onScrollChange: (newOffset: number) => void;
   config: CanopyConfig;
@@ -60,7 +60,6 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
     onSelect,
     onToggle,
     onOpen,
-    onCopy,
     onContextMenu,
     onScrollChange,
     config,
@@ -126,24 +125,24 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
           // 1. Calculate Start X: Depth * Indent
           const indent = config.treeIndent || 2;
           const startX = node.depth * indent;
-          
+
           // 2. Calculate End X: Start + Icon (2 chars) + Name length
           // The icon is roughly 2 chars (Icon glyph + space)
           const endX = startX + 2 + node.name.length;
 
           // 3. Only trigger if click is within the Icon or Name
-          if (onCopy && event.x >= startX && event.x <= endX) {
-            onCopy(node.path);
+          if (event.x >= startX && event.x <= endX) {
+            events.emit('file:copy-path', { path: node.path });
           }
         }
       }
 
-      // Middle-click: Copy path if handler available
-      if (event.button === 'middle' && onCopy) {
-        onCopy(node.path);
+      // Middle-click: Copy path
+      if (event.button === 'middle') {
+        events.emit('file:copy-path', { path: node.path });
       }
     },
-    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, onCopy, onContextMenu, config],
+    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, onContextMenu, config],
   );
 
   /**

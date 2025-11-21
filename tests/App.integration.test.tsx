@@ -209,3 +209,96 @@ describe('App integration - CopyTree centralized listener', () => {
     expect(lastFrame()).toBeDefined();
   });
 });
+
+describe('App integration - file:copy-path event', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+  });
+
+  it('handles file:copy-path event and calls copyFilePath', async () => {
+    const { lastFrame } = render(<App cwd="/test/project" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Clear any previous calls
+    vi.mocked(copyFilePath).mockClear();
+
+    // Create a promise to wait for success notification
+    let successReceived = false;
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'success' && payload.message === 'Path copied to clipboard') {
+        successReceived = true;
+      }
+    });
+
+    // Emit file:copy-path event
+    events.emit('file:copy-path', { path: '/test/project/src/App.tsx' });
+
+    // Wait for copyFilePath to be called
+    await waitForCondition(() => vi.mocked(copyFilePath).mock.calls.length > 0);
+
+    // Verify copyFilePath was called with normalized absolute paths
+    expect(copyFilePath).toHaveBeenCalledWith(
+      '/test/project/src/App.tsx',
+      '/test/project',
+      true // relative path output
+    );
+
+    // Wait for success notification
+    await waitForCondition(() => successReceived);
+
+    unsubscribe();
+  });
+
+  it('normalizes relative paths before calling copyFilePath', async () => {
+    const { lastFrame } = render(<App cwd="relative/path" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Clear any previous calls
+    vi.mocked(copyFilePath).mockClear();
+
+    // Emit file:copy-path event with relative path
+    events.emit('file:copy-path', { path: 'src/App.tsx' });
+
+    // Wait for copyFilePath to be called
+    await waitForCondition(() => vi.mocked(copyFilePath).mock.calls.length > 0);
+
+    // Verify paths were normalized to absolute
+    const calls = vi.mocked(copyFilePath).mock.calls;
+    expect(calls[0][0]).toMatch(/^[/\\]/); // Absolute path (starts with / or \)
+    expect(calls[0][1]).toMatch(/^[/\\]/); // Absolute path
+  });
+
+  it('emits error notification when copyFilePath fails', async () => {
+    // Mock failure
+    vi.mocked(copyFilePath).mockRejectedValueOnce(new Error('Clipboard unavailable'));
+
+    const { lastFrame } = render(<App cwd="/test/project" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Create a promise to wait for error notification
+    let errorReceived = false;
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'error' && payload.message.includes('Failed to copy path')) {
+        errorReceived = true;
+      }
+    });
+
+    // Emit file:copy-path event
+    events.emit('file:copy-path', { path: '/test/project/file.txt' });
+
+    // Wait for error notification
+    await waitForCondition(() => errorReceived);
+
+    unsubscribe();
+
+    // App should not crash
+    expect(lastFrame()).toBeDefined();
+  });
+});

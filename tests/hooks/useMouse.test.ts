@@ -1,10 +1,11 @@
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from 'ink-testing-library';
 import { Box } from 'ink';
 import { useMouse } from '../../src/hooks/useMouse.js';
 import type { TreeNode } from '../../src/types/index.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
+import { events } from '../../src/services/events.js';
 
 describe('useMouse', () => {
   const mockTree: TreeNode[] = [
@@ -13,6 +14,16 @@ describe('useMouse', () => {
     { name: 'utils', path: 'src/utils', type: 'directory', depth: 1, expanded: false },
     { name: 'README.md', path: 'README.md', type: 'file', depth: 0 },
   ];
+
+  let emitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    emitSpy = vi.spyOn(events, 'emit');
+  });
+
+  afterEach(() => {
+    emitSpy.mockRestore();
+  });
 
   const createOptions = (overrides = {}) => ({
     fileTree: mockTree,
@@ -58,9 +69,8 @@ describe('useMouse', () => {
       expect(onToggle).toHaveBeenCalledWith('src');
     });
 
-    it('copies file path on left-click', () => {
-      const onCopy = vi.fn();
-      const options = createOptions({ onCopy });
+    it('emits file:copy-path event on left-click', () => {
+      const options = createOptions();
       render(React.createElement(TestComponent, options));
 
       const { handleClick } = (global as any).testHandlers;
@@ -74,14 +84,13 @@ describe('useMouse', () => {
         meta: false,
       });
 
-      expect(onCopy).toHaveBeenCalledWith('src/App.tsx');
+      expect(emitSpy).toHaveBeenCalledWith('file:copy-path', { path: 'src/App.tsx' });
     });
 
-    it('does not call onOpen or onSelect on left-click (copies instead)', () => {
+    it('does not call onOpen or onSelect on left-click (emits copy event instead)', () => {
       const onOpen = vi.fn();
       const onSelect = vi.fn();
-      const onCopy = vi.fn();
-      const options = createOptions({ onOpen, onSelect, onCopy });
+      const options = createOptions({ onOpen, onSelect });
       render(React.createElement(TestComponent, options));
 
       const { handleClick } = (global as any).testHandlers;
@@ -96,8 +105,10 @@ describe('useMouse', () => {
         meta: false,
       });
 
-      // Should copy, not open or select
-      expect(onCopy).toHaveBeenCalledWith('src/App.tsx');
+      // Should emit copy event, not call onOpen or onSelect
+      expect(emitSpy).toHaveBeenCalledWith('file:copy-path', { path: 'src/App.tsx' });
+      expect(onOpen).not.toHaveBeenCalled();
+      expect(onSelect).not.toHaveBeenCalled();
     });
 
     it('opens context menu on right-click', () => {
@@ -183,6 +194,45 @@ describe('useMouse', () => {
       });
 
       expect(onToggle).toHaveBeenCalledWith('src/utils');
+    });
+
+    it('emits file:copy-path on middle-click', () => {
+      const options = createOptions();
+      render(React.createElement(TestComponent, options));
+
+      const { handleClick } = (global as any).testHandlers;
+
+      handleClick({
+        x: 3,
+        y: 2,
+        button: 'middle',
+        shift: false,
+        ctrl: false,
+        meta: false,
+      });
+
+      expect(emitSpy).toHaveBeenCalledWith('file:copy-path', { path: 'src/App.tsx' });
+    });
+
+    it('does not emit copy event when clicking outside file name bounds', () => {
+      const options = createOptions();
+      render(React.createElement(TestComponent, options));
+
+      const { handleClick } = (global as any).testHandlers;
+
+      // Click far to the right, beyond the file name
+      // App.tsx is at depth 1, so indent is 2, icon is 2 chars, name is 7 chars = endX is 11
+      // Clicking at x=20 should not trigger copy
+      handleClick({
+        x: 20,
+        y: 2,
+        button: 'left',
+        shift: false,
+        ctrl: false,
+        meta: false,
+      });
+
+      expect(emitSpy).not.toHaveBeenCalledWith('file:copy-path', expect.anything());
     });
   });
 
