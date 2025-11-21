@@ -1,11 +1,25 @@
 import React from 'react';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { StatusBar } from '../../src/components/StatusBar.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { Notification } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { events } from '../../src/services/events.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('StatusBar', () => {
+  const renderWithTheme = (component) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   // Mock props
   const defaultProps = {
     notification: null,
@@ -17,7 +31,7 @@ describe('StatusBar', () => {
 
   describe('basic statistics display', () => {
     it('displays file count with no modifications', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           fileCount={12}
@@ -31,7 +45,7 @@ describe('StatusBar', () => {
     });
 
     it('displays file count and modified count', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           fileCount={42}
@@ -45,7 +59,7 @@ describe('StatusBar', () => {
     });
 
     it('displays Copy Tree button', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
         />
@@ -58,7 +72,7 @@ describe('StatusBar', () => {
 
   describe('filter display', () => {
     it('displays name filter when active', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           filterQuery=".ts"
@@ -70,7 +84,7 @@ describe('StatusBar', () => {
     });
 
     it('displays git status filter when active', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           filterGitStatus="modified"
@@ -84,7 +98,7 @@ describe('StatusBar', () => {
 
   describe('command mode', () => {
     it('shows inline input when command mode is active', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           commandMode={true}
@@ -106,7 +120,7 @@ describe('StatusBar', () => {
         message: 'Operation completed',
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           notification={notification}
@@ -133,7 +147,7 @@ describe('StatusBar', () => {
     it('shows missing key indicator when OPENAI_API_KEY is absent', () => {
       delete process.env.OPENAI_API_KEY;
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
         />
@@ -146,7 +160,7 @@ describe('StatusBar', () => {
     it('hides missing key indicator when OPENAI_API_KEY is present', () => {
       process.env.OPENAI_API_KEY = 'test-key';
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
         />
@@ -174,7 +188,7 @@ describe('StatusBar', () => {
     });
 
     it('button renders with CopyTree label', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           activeRootPath="/test/path"
@@ -189,7 +203,7 @@ describe('StatusBar', () => {
       // Spy on events.emit to verify the event is emitted
       const emitSpy = vi.spyOn(events, 'emit');
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <StatusBar
           {...defaultProps}
           activeRootPath="/custom/root/path"

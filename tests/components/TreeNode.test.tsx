@@ -1,11 +1,25 @@
 import React from 'react';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi } from 'vitest';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { TreeNode } from '../../src/components/TreeNode.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { TreeNode as TreeNodeType, GitStatus } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('TreeNode', () => {
+  const renderWithTheme = (component) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   const mockConfig = DEFAULT_CONFIG;
   const mockOnSelect = vi.fn();
   const mockOnToggle = vi.fn();
@@ -18,7 +32,7 @@ describe('TreeNode', () => {
       depth: 0,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -41,7 +55,7 @@ describe('TreeNode', () => {
       expanded: false,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -69,7 +83,7 @@ describe('TreeNode', () => {
       children: [],
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -95,7 +109,7 @@ describe('TreeNode', () => {
       depth: 3,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -119,7 +133,7 @@ describe('TreeNode', () => {
       gitStatus: 'modified',
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -142,7 +156,7 @@ describe('TreeNode', () => {
       gitStatus: 'added',
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -167,7 +181,7 @@ describe('TreeNode', () => {
 
     const configNoGit = { ...mockConfig, showGitStatus: false };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -203,7 +217,7 @@ describe('TreeNode', () => {
 
     const configNoGit = { ...mockConfig, showGitStatus: false };
 
-    const { lastFrame: modifiedFrame } = render(
+    const { lastFrame: modifiedFrame } = renderWithTheme(
       <TreeNode
         node={modifiedNode}
         selected={false}
@@ -214,7 +228,7 @@ describe('TreeNode', () => {
       />
     );
 
-    const { lastFrame: deletedFrame } = render(
+    const { lastFrame: deletedFrame } = renderWithTheme(
       <TreeNode
         node={deletedNode}
         selected={false}
@@ -247,7 +261,7 @@ describe('TreeNode', () => {
       ],
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -272,7 +286,7 @@ describe('TreeNode', () => {
       depth: 0,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={true}
@@ -296,7 +310,7 @@ describe('TreeNode', () => {
       // children is undefined
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -321,7 +335,7 @@ describe('TreeNode', () => {
       children: [],
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -346,7 +360,7 @@ describe('TreeNode', () => {
 
     const customConfig = { ...mockConfig, treeIndent: 4 };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <TreeNode
         node={node}
         selected={false}
@@ -379,7 +393,7 @@ describe('TreeNode', () => {
         gitStatus: status,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeNode
           node={node}
           selected={false}

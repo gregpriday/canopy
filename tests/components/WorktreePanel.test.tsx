@@ -5,8 +5,25 @@ import { WorktreePanel } from '../../src/components/WorktreePanel.js';
 import type { Worktree } from '../../src/types/index.js';
 import { events } from '../../src/services/events.js';
 import type { CanopyEventMap } from '../../src/services/events.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('WorktreePanel', () => {
+  const renderWithTheme = (component) => {
+    const result = render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+    return {
+      ...result,
+      rerender: (newComponent) => result.rerender(
+        <ThemeProvider mode="dark">
+          {newComponent}
+        </ThemeProvider>
+      )
+    };
+  };
+
   const mockWorktrees: Worktree[] = [
     {
       id: 'wt-main',
@@ -67,7 +84,7 @@ describe('WorktreePanel', () => {
 
   describe('rendering', () => {
     it('renders all worktrees', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -78,7 +95,7 @@ describe('WorktreePanel', () => {
     });
 
     it('displays worktree paths', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -89,7 +106,7 @@ describe('WorktreePanel', () => {
     });
 
     it('displays worktree branches', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -100,7 +117,7 @@ describe('WorktreePanel', () => {
     });
 
     it('shows title "Git Worktrees"', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -108,7 +125,7 @@ describe('WorktreePanel', () => {
     });
 
     it('shows keyboard hints in footer', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -119,7 +136,7 @@ describe('WorktreePanel', () => {
     });
 
     it('renders border around panel', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -130,7 +147,7 @@ describe('WorktreePanel', () => {
 
   describe('current worktree indicator', () => {
     it('shows arrow indicator for current worktree', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} activeWorktreeId="wt-main" />
       );
 
@@ -140,7 +157,7 @@ describe('WorktreePanel', () => {
     });
 
     it('shows spaces for non-current worktrees', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} activeWorktreeId="wt-main" />
       );
 
@@ -150,7 +167,7 @@ describe('WorktreePanel', () => {
     });
 
     it('updates indicator when activeWorktreeId changes', () => {
-      const { lastFrame, rerender } = render(
+      const { lastFrame, rerender } = renderWithTheme(
         <WorktreePanel {...defaultProps} activeWorktreeId="wt-main" />
       );
 
@@ -170,7 +187,7 @@ describe('WorktreePanel', () => {
     });
 
     it('handles null activeWorktreeId gracefully', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId={null}
@@ -183,7 +200,7 @@ describe('WorktreePanel', () => {
     });
 
     it('handles activeWorktreeId not matching any worktree', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-nonexistent"
@@ -199,7 +216,7 @@ describe('WorktreePanel', () => {
   describe('selection and cursor', () => {
     it('initializes cursor at current worktree position', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -216,7 +233,7 @@ describe('WorktreePanel', () => {
 
     it('selects the main worktree if activeWorktreeId is at beginning', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -230,7 +247,7 @@ describe('WorktreePanel', () => {
 
     it('falls back to first worktree when activeWorktreeId is null', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId={null}
@@ -246,7 +263,7 @@ describe('WorktreePanel', () => {
 
     it('initializes cursor at specific worktree position', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-feature"
@@ -265,7 +282,7 @@ describe('WorktreePanel', () => {
   describe('keyboard navigation', () => {
     it('navigates down with arrow key', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -287,7 +304,7 @@ describe('WorktreePanel', () => {
 
     it('navigates up with arrow key', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-feature"
@@ -309,7 +326,7 @@ describe('WorktreePanel', () => {
 
     it('wraps to last item when pressing up from first', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -332,7 +349,7 @@ describe('WorktreePanel', () => {
 
     it('wraps to first item when pressing down from last', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-bugfix"
@@ -355,7 +372,7 @@ describe('WorktreePanel', () => {
 
     it('allows multiple navigation steps', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -382,7 +399,7 @@ describe('WorktreePanel', () => {
 
     it('handles rapid navigation without errors', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           onSelect={onSelect}
@@ -405,7 +422,7 @@ describe('WorktreePanel', () => {
     it('calls onSelect when Enter is pressed', () => {
       const onSelect = vi.fn();
       const switchSpy = listen('sys:worktree:switch');
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -422,7 +439,7 @@ describe('WorktreePanel', () => {
 
     it('selects the currently highlighted item', async () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -444,7 +461,7 @@ describe('WorktreePanel', () => {
 
     it('does not call onSelect when empty list and Enter pressed', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -463,7 +480,7 @@ describe('WorktreePanel', () => {
   describe('closing with ESC', () => {
     it('calls onClose when ESC is pressed', () => {
       const onClose = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           onClose={onClose}
@@ -479,7 +496,7 @@ describe('WorktreePanel', () => {
     it('does not call onSelect when ESC is pressed', () => {
       const onSelect = vi.fn();
       const onClose = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           onSelect={onSelect}
@@ -496,7 +513,7 @@ describe('WorktreePanel', () => {
     it('closes without switching when ESC is pressed after navigation', () => {
       const onSelect = vi.fn();
       const onClose = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -518,7 +535,7 @@ describe('WorktreePanel', () => {
 
   describe('empty state', () => {
     it('shows empty state message when no worktrees', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -531,7 +548,7 @@ describe('WorktreePanel', () => {
     });
 
     it('shows title in empty state', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -545,7 +562,7 @@ describe('WorktreePanel', () => {
 
     it('allows closing empty panel with ESC', () => {
       const onClose = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -560,7 +577,7 @@ describe('WorktreePanel', () => {
     });
 
     it('shows ESC hint in empty state', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -575,7 +592,7 @@ describe('WorktreePanel', () => {
 
     it('does not call onSelect when Enter pressed in empty state', () => {
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           worktrees={[]}
           activeWorktreeId={null}
@@ -593,7 +610,7 @@ describe('WorktreePanel', () => {
   describe('prop changes', () => {
     it('updates cursor when worktrees array changes', async () => {
       const onSelect = vi.fn();
-      const { rerender, stdin } = render(
+      const { rerender, stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={mockWorktrees.slice(0, 1)}
@@ -624,7 +641,7 @@ describe('WorktreePanel', () => {
 
     it('handles changing activeWorktreeId', () => {
       const onSelect = vi.fn();
-      const { rerender, stdin } = render(
+      const { rerender, stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           activeWorktreeId="wt-main"
@@ -666,7 +683,7 @@ describe('WorktreePanel', () => {
         },
       ];
 
-      const { rerender } = render(
+      const { rerender } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={mockWorktrees}
@@ -691,7 +708,7 @@ describe('WorktreePanel', () => {
   describe('single worktree edge cases', () => {
     it('renders single worktree correctly', () => {
       const singleWorktree = [mockWorktrees[0]];
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={singleWorktree}
@@ -705,7 +722,7 @@ describe('WorktreePanel', () => {
     it('wraps navigation in single worktree list', () => {
       const singleWorktree = [mockWorktrees[0]];
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={singleWorktree}
@@ -726,7 +743,7 @@ describe('WorktreePanel', () => {
     it('selects single worktree with Enter', () => {
       const singleWorktree = [mockWorktrees[0]];
       const onSelect = vi.fn();
-      const { stdin } = render(
+      const { stdin } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={singleWorktree}
@@ -750,7 +767,7 @@ describe('WorktreePanel', () => {
         isCurrent: false,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={[worktreeNoBranch]}
@@ -781,7 +798,7 @@ describe('WorktreePanel', () => {
         },
       ];
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel
           {...defaultProps}
           worktrees={worktrees}
@@ -797,7 +814,7 @@ describe('WorktreePanel', () => {
 
   describe('visual styling', () => {
     it('renders component without crashing', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
@@ -805,13 +822,13 @@ describe('WorktreePanel', () => {
     });
 
     it('displays consistent layout across renders', () => {
-      const { lastFrame: frame1 } = render(
+      const { lastFrame: frame1 } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 
       const output1 = frame1();
 
-      const { lastFrame: frame2 } = render(
+      const { lastFrame: frame2 } = renderWithTheme(
         <WorktreePanel {...defaultProps} />
       );
 

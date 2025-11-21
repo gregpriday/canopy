@@ -2,11 +2,28 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, it, expect, vi } from 'vitest';
 import { HelpModal } from '../../src/components/HelpModal.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('HelpModal', () => {
+  const renderWithTheme = (component) => {
+    const result = render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+    return {
+      ...result,
+      rerender: (newComponent) => result.rerender(
+        <ThemeProvider mode="dark">
+          {newComponent}
+        </ThemeProvider>
+      )
+    };
+  };
+
   it('renders nothing when visible is false', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={false} onClose={onClose} />
     );
 
@@ -15,7 +32,7 @@ describe('HelpModal', () => {
 
   it('hides content when transitioning from visible to hidden', () => {
     const onClose = vi.fn();
-    const { lastFrame, rerender } = render(
+    const { lastFrame, rerender } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -31,7 +48,7 @@ describe('HelpModal', () => {
 
   it('renders help content when visible is true', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -52,7 +69,7 @@ describe('HelpModal', () => {
 
   it('displays all navigation shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -67,7 +84,7 @@ describe('HelpModal', () => {
 
   it('displays all action shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -78,7 +95,7 @@ describe('HelpModal', () => {
 
   it('displays worktree shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -90,7 +107,7 @@ describe('HelpModal', () => {
 
   it('displays command shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -102,7 +119,7 @@ describe('HelpModal', () => {
 
   it('displays git shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -113,7 +130,7 @@ describe('HelpModal', () => {
 
   it('displays copy/copytree shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -125,7 +142,7 @@ describe('HelpModal', () => {
 
   it('displays misc shortcuts', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -140,7 +157,7 @@ describe('HelpModal', () => {
 
   it('shows dismiss instructions in footer', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -152,7 +169,7 @@ describe('HelpModal', () => {
 
   it('calls onClose when ESC is pressed', () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -164,7 +181,7 @@ describe('HelpModal', () => {
 
   it('calls onClose when ? is pressed', () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -176,7 +193,7 @@ describe('HelpModal', () => {
 
   it('does not call onClose for other keys', () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -191,7 +208,7 @@ describe('HelpModal', () => {
 
   it('renders with double border style', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -206,7 +223,7 @@ describe('HelpModal', () => {
 
   it('does not call onClose when not visible (ESC)', () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = renderWithTheme(
       <HelpModal visible={false} onClose={onClose} />
     );
 
@@ -219,7 +236,7 @@ describe('HelpModal', () => {
 
   it('does not call onClose when not visible (?)', () => {
     const onClose = vi.fn();
-    const { stdin } = render(
+    const { stdin } = renderWithTheme(
       <HelpModal visible={false} onClose={onClose} />
     );
 
@@ -232,7 +249,7 @@ describe('HelpModal', () => {
 
   it('includes all navigation shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -246,7 +263,7 @@ describe('HelpModal', () => {
 
   it('includes all action shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -257,7 +274,7 @@ describe('HelpModal', () => {
 
   it('includes worktree shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -268,7 +285,7 @@ describe('HelpModal', () => {
 
   it('includes command shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -279,7 +296,7 @@ describe('HelpModal', () => {
 
   it('includes git shortcut description', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -289,7 +306,7 @@ describe('HelpModal', () => {
 
   it('includes copy/copytree shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 
@@ -300,7 +317,7 @@ describe('HelpModal', () => {
 
   it('includes misc shortcut descriptions', () => {
     const onClose = vi.fn();
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <HelpModal visible={true} onClose={onClose} />
     );
 

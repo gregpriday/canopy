@@ -1,11 +1,25 @@
 import React from 'react';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { TreeView } from '../../src/components/TreeView.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { TreeNode } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('TreeView virtualization', () => {
+  const renderWithTheme = (component) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   let originalRows: number | undefined;
 
   beforeEach(() => {
@@ -62,7 +76,7 @@ describe('TreeView virtualization', () => {
 
   describe('rendering', () => {
     it('renders empty state when fileTree is empty', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={[]}
           selectedPath=""
@@ -79,7 +93,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const smallTree = createLargeTree(10);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={smallTree}
           selectedPath=""
@@ -103,7 +117,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const largeTree = createLargeTree(100);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={largeTree}
           selectedPath=""
@@ -128,7 +142,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const largeTree = createLargeTree(100);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={largeTree}
           selectedPath=""
@@ -146,7 +160,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const tree = createNestedTree();
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={tree}
           selectedPath=""
@@ -173,7 +187,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const tree = createLargeTree(10);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={tree}
           selectedPath="/root/file-5.txt"
@@ -194,7 +208,7 @@ describe('TreeView virtualization', () => {
 
       const tree = createLargeTree(50);
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={tree}
           selectedPath="/root/file-0.txt"
@@ -219,7 +233,7 @@ describe('TreeView virtualization', () => {
       Object.defineProperty(process.stdout, 'rows', { value: 30, writable: true, configurable: true });
 
       const tree = createLargeTree(50);
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <TreeView
           fileTree={tree}
           selectedPath=""

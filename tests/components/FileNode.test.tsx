@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { FileNode } from '../../src/components/FileNode.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { TreeNode as TreeNodeType, GitStatus } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('FileNode', () => {
   const mockConfig = DEFAULT_CONFIG;
@@ -30,6 +31,14 @@ describe('FileNode', () => {
     return 'white';
   };
 
+  const renderWithTheme = (component: React.ReactElement) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   it('renders file with generic icon', () => {
     const node: TreeNodeType = {
       name: 'test.txt',
@@ -38,7 +47,7 @@ describe('FileNode', () => {
       depth: 0,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -59,7 +68,7 @@ describe('FileNode', () => {
       depth: 3,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -82,7 +91,7 @@ describe('FileNode', () => {
       gitStatus: 'modified',
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -104,7 +113,7 @@ describe('FileNode', () => {
       gitStatus: 'added',
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -128,7 +137,7 @@ describe('FileNode', () => {
 
     const configNoGit = { ...mockConfig, showGitStatus: false };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -153,7 +162,7 @@ describe('FileNode', () => {
 
     const customConfig = { ...mockConfig, treeIndent: 4 };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -185,7 +194,7 @@ describe('FileNode', () => {
         gitStatus: status,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <FileNode
           node={node}
           selected={false}
@@ -216,7 +225,7 @@ describe('FileNode', () => {
       gitStatus: 'deleted',
     };
 
-    const { lastFrame: deletedFrame } = render(
+    const { lastFrame: deletedFrame } = renderWithTheme(
       <FileNode
         node={deletedNode}
         selected={false}
@@ -226,7 +235,7 @@ describe('FileNode', () => {
       />
     );
 
-    const { lastFrame: selectedFrame } = render(
+    const { lastFrame: selectedFrame } = renderWithTheme(
       <FileNode
         node={selectedDeletedNode}
         selected={true}
@@ -249,7 +258,7 @@ describe('FileNode', () => {
       depth: 0,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}
@@ -272,7 +281,7 @@ describe('FileNode', () => {
       depth: 5,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FileNode
         node={node}
         selected={false}

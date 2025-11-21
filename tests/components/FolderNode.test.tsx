@@ -1,11 +1,25 @@
 import React from 'react';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi } from 'vitest';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { FolderNode } from '../../src/components/FolderNode.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { TreeNode as TreeNodeType, GitStatus } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('FolderNode', () => {
+  const renderWithTheme = (component) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   const mockConfig = DEFAULT_CONFIG;
   const mockOnSelect = vi.fn();
   const mockOnToggle = vi.fn();
@@ -38,7 +52,7 @@ describe('FolderNode', () => {
       expanded: false,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -64,7 +78,7 @@ describe('FolderNode', () => {
       children: [],
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -92,7 +106,7 @@ describe('FolderNode', () => {
       expanded: false,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -119,7 +133,7 @@ describe('FolderNode', () => {
       gitStatus: 'modified',
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -147,7 +161,7 @@ describe('FolderNode', () => {
 
     const configNoGit = { ...mockConfig, showGitStatus: false };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -184,7 +198,7 @@ describe('FolderNode', () => {
         gitStatus: status,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <FolderNode
           node={node}
           selected={false}
@@ -213,7 +227,7 @@ describe('FolderNode', () => {
       ],
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -240,7 +254,7 @@ describe('FolderNode', () => {
       // children is undefined
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -268,7 +282,7 @@ describe('FolderNode', () => {
 
     const customConfig = { ...mockConfig, treeIndent: 4 };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -296,7 +310,7 @@ describe('FolderNode', () => {
       expanded: false,
     };
 
-    render(
+    renderWithTheme(
       <FolderNode
         node={node}
         selected={true}
@@ -320,7 +334,7 @@ describe('FolderNode', () => {
       recursiveGitCount: 5,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -344,7 +358,7 @@ describe('FolderNode', () => {
       recursiveGitCount: 5,
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}
@@ -367,7 +381,7 @@ describe('FolderNode', () => {
       recursiveGitCount: 0, // Zero changes
     };
 
-    const { lastFrame } = render(
+    const { lastFrame } = renderWithTheme(
       <FolderNode
         node={node}
         selected={false}

@@ -1,11 +1,25 @@
 import React from 'react';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi } from 'vitest';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { Header } from '../../src/components/Header.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { Worktree } from '../../src/types/index.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { ProjectIdentity } from '../../src/services/emoji/cache.js';
+import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('Header', () => {
+  const renderWithTheme = (component) => {
+    return render(
+      <ThemeProvider mode="dark">
+        {component}
+      </ThemeProvider>
+    );
+  };
+
   const mockIdentity: ProjectIdentity = {
     emoji: '🌳',
     title: 'Canopy',
@@ -23,7 +37,7 @@ describe('Header', () => {
 
   describe('basic rendering', () => {
     it('renders app name and cwd without worktree info', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -40,7 +54,7 @@ describe('Header', () => {
     });
 
     it('renders worktree indicator when currentWorktree provided', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -59,7 +73,7 @@ describe('Header', () => {
     });
 
     it('shows relative path when in worktree subdirectory', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project/src/components"
           filterActive={false}
@@ -77,7 +91,7 @@ describe('Header', () => {
     });
 
     it('shows absolute path when cwd is outside worktree', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/other-project"
           filterActive={false}
@@ -94,7 +108,7 @@ describe('Header', () => {
     });
 
     it('shows absolute path for prefix-only match (not descendant)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project-old"
           filterActive={false}
@@ -113,7 +127,7 @@ describe('Header', () => {
     });
 
     it('shows root path (/) when at worktree root', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -131,7 +145,7 @@ describe('Header', () => {
     });
 
     it('renders filter indicator when active', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={true}
@@ -146,7 +160,7 @@ describe('Header', () => {
     });
 
     it('renders both worktree and filter indicators together', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={true}
@@ -166,7 +180,7 @@ describe('Header', () => {
     });
 
     it('does not show filter indicator when filterActive is false with query', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -181,7 +195,7 @@ describe('Header', () => {
     });
 
     it('shows filter indicator when active with empty query', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={true}
@@ -197,7 +211,7 @@ describe('Header', () => {
 
   describe('worktree scenarios', () => {
     it('handles single worktree (count = 1)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -213,7 +227,7 @@ describe('Header', () => {
     });
 
     it('handles multiple worktrees', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -237,7 +251,7 @@ describe('Header', () => {
         isCurrent: true,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -261,7 +275,7 @@ describe('Header', () => {
         isCurrent: true,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project-feature"
           filterActive={false}
@@ -285,7 +299,7 @@ describe('Header', () => {
         isCurrent: true,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -304,7 +318,7 @@ describe('Header', () => {
     });
 
     it('shows worktree indicator even without explicit worktreeCount', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -322,7 +336,7 @@ describe('Header', () => {
     });
 
     it('does not show worktree indicator when currentWorktree is null', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -338,7 +352,7 @@ describe('Header', () => {
     });
 
     it('does not show worktree indicator when currentWorktree is undefined', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -362,7 +376,7 @@ describe('Header', () => {
         isCurrent: true,
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -381,7 +395,7 @@ describe('Header', () => {
 
   describe('visual styling', () => {
     it('uses bullet separator (•) not dash (-)', () => {
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -408,7 +422,7 @@ describe('Header', () => {
         gradientEnd: '#0000FF',
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
@@ -429,7 +443,7 @@ describe('Header', () => {
         gradientEnd: '#0000FF',
       };
 
-      const { lastFrame } = render(
+      const { lastFrame } = renderWithTheme(
         <Header
           cwd="/Users/dev/project"
           filterActive={false}
