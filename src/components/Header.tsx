@@ -2,7 +2,7 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { relative } from 'node:path';
-import type { Worktree } from '../types/index.js';
+import type { Worktree, CanopyConfig } from '../types/index.js';
 import type { ProjectIdentity } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 
@@ -14,6 +14,7 @@ interface HeaderProps {
   worktreeCount?: number;
   onWorktreeClick?: () => void;
   identity: ProjectIdentity;
+  config: CanopyConfig;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -24,6 +25,7 @@ export const Header: React.FC<HeaderProps> = ({
   worktreeCount = 0,
   onWorktreeClick,
   identity,
+  config,
 }) => {
   const { palette } = useTheme();
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
@@ -32,8 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   // Determine worktree display name - use branch, then name, then 'detached'
   const worktreeName = currentWorktree?.branch ?? currentWorktree?.name ?? 'detached';
 
-  // Show worktree indicator when we have worktree data
-  const showWorktreeIndicator = !!currentWorktree;
+  // Show worktree indicator when we have worktree data AND config allows it
+  const showWorktreeIndicator = !!currentWorktree && (config.worktrees?.showInHeader ?? true);
 
   // Format relative path (show cwd relative to worktree root if possible)
   const displayPath = currentWorktree

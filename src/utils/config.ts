@@ -152,6 +152,19 @@ function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
         continue;
       }
 
+      if (
+        typedKey === 'worktrees' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        merged[typedKey] = {
+          ...merged.worktrees,
+          ...value,
+        } as typeof merged.worktrees;
+        continue;
+      }
+
       (merged as any)[typedKey] = value;
     }
   }
@@ -329,6 +342,25 @@ function validateConfig(config: unknown): CanopyConfig {
 
   if (!['asc', 'desc'].includes(c.sortDirection)) {
     errors.push('config.sortDirection must be "asc" or "desc"');
+  }
+
+  // Validate worktrees (optional field)
+  if (c.worktrees !== undefined) {
+    if (!c.worktrees || typeof c.worktrees !== 'object') {
+      errors.push('config.worktrees must be an object');
+    } else {
+      if (typeof c.worktrees.enable !== 'boolean') {
+        errors.push('config.worktrees.enable must be a boolean');
+      }
+      if (typeof c.worktrees.showInHeader !== 'boolean') {
+        errors.push('config.worktrees.showInHeader must be a boolean');
+      }
+      if (c.worktrees.refreshIntervalMs !== undefined) {
+        if (typeof c.worktrees.refreshIntervalMs !== 'number' || c.worktrees.refreshIntervalMs < 0) {
+          errors.push('config.worktrees.refreshIntervalMs must be a non-negative number');
+        }
+      }
+    }
   }
 
   if (errors.length > 0) {

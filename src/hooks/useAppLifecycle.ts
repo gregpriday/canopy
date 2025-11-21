@@ -97,41 +97,49 @@ export function useAppLifecycle({
         }
       }
 
-      // Step 2: Load initial state (includes worktree discovery)
+      // Step 2: Check if worktrees should be enabled
+      const worktreesEnabled = !noGit && (config!.worktrees?.enable ?? true);
+
+      // Step 3: Load initial state (always load when git available for session persistence)
       let worktrees: Worktree[] = [];
       let activeWorktreeId: string | null = null;
       let activeRootPath = cwd;
       let initialSelectedPath: string | null = null;
       let initialExpandedFolders = new Set<string>();
 
-      try {
-        // Load initial state which detects worktree and restores session
-        const initialState = await loadInitialState(cwd, config!);
-        if (!isMountedRef.current) return;
-
-        // Extract worktree information
-        if (initialState.worktree) {
-          // Re-fetch all worktrees for the list
-          worktrees = await getWorktrees(cwd);
+      if (noGit) {
+        // Git completely disabled - skip all git operations
+        logDebug('Git disabled (--no-git flag)');
+      } else {
+        try {
+          // Load initial state which detects worktree and restores session
+          const initialState = await loadInitialState(cwd, config!);
           if (!isMountedRef.current) return;
 
-          activeWorktreeId = initialState.worktree.id;
-          activeRootPath = initialState.worktree.path;
-        }
+          // Extract worktree information only if worktrees are enabled
+          if (worktreesEnabled && initialState.worktree) {
+            // Re-fetch all worktrees for the list
+            worktrees = await getWorktrees(cwd);
+            if (!isMountedRef.current) return;
 
-        // Store initial state for App to use
-        initialSelectedPath = initialState.selectedPath;
-        initialExpandedFolders = initialState.expandedFolders;
-      } catch (error) {
-        // Check if this is a truly catastrophic error (not just "not a git repo")
-        const errorMessage = (error as Error).message;
-        if (errorMessage && errorMessage.includes('Catastrophic')) {
-          // Re-throw catastrophic errors - they should fail initialization
-          throw error;
+            activeWorktreeId = initialState.worktree.id;
+            activeRootPath = initialState.worktree.path;
+          }
+
+          // Always store initial state for session restoration
+          initialSelectedPath = initialState.selectedPath;
+          initialExpandedFolders = initialState.expandedFolders;
+        } catch (error) {
+          // Check if this is a truly catastrophic error (not just "not a git repo")
+          const errorMessage = (error as Error).message;
+          if (errorMessage && errorMessage.includes('Catastrophic')) {
+            // Re-throw catastrophic errors - they should fail initialization
+            throw error;
+          }
+          // State loading is optional - not being in a git repo is OK
+          logDebug('Could not load initial state:', { error });
+          if (!isMountedRef.current) return;
         }
-        // State loading is optional - not being in a git repo is OK
-        logDebug('Could not load initial state:', { error });
-        if (!isMountedRef.current) return;
       }
 
       // Step 3: Update state to ready

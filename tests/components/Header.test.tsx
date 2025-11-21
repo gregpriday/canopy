@@ -1,15 +1,11 @@
 import React from 'react';
 import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi } from 'vitest';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { Header } from '../../src/components/Header.js';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { Worktree } from '../../src/types/index.js';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
+import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { ProjectIdentity } from '../../src/services/emoji/cache.js';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('Header', () => {
   const renderWithTheme = (component) => {
@@ -43,6 +39,8 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -62,6 +60,8 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={3}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -81,6 +81,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={2}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -99,6 +100,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -116,6 +118,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -135,6 +138,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -151,6 +155,7 @@ describe('Header', () => {
           filterActive={true}
           filterQuery=".ts"
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -168,6 +173,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={2}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -186,6 +192,7 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=".ts"
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -201,6 +208,7 @@ describe('Header', () => {
           filterActive={true}
           filterQuery=""
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -219,6 +227,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -235,6 +244,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={5}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -259,6 +269,7 @@ describe('Header', () => {
           currentWorktree={detachedWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -283,6 +294,7 @@ describe('Header', () => {
           currentWorktree={featureWorktree}
           worktreeCount={2}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -307,6 +319,7 @@ describe('Header', () => {
           currentWorktree={longBranchWorktree}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -325,6 +338,7 @@ describe('Header', () => {
           filterQuery=""
           currentWorktree={mockWorktree}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
           // worktreeCount not passed (defaults to 0)
         />
       );
@@ -344,6 +358,7 @@ describe('Header', () => {
           currentWorktree={null}
           worktreeCount={3}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -358,6 +373,7 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
           // currentWorktree not passed (undefined)
           worktreeCount={3}
         />
@@ -384,6 +400,7 @@ describe('Header', () => {
           currentWorktree={detachedWithName}
           worktreeCount={1}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -403,6 +420,7 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={2}
           identity={mockIdentity}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -428,6 +446,8 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           identity={emojiIdentity}
+          config={DEFAULT_CONFIG}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -449,6 +469,8 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           identity={noEmojiIdentity}
+          config={DEFAULT_CONFIG}
+          config={DEFAULT_CONFIG}
         />
       );
 
@@ -456,6 +478,81 @@ describe('Header', () => {
       // Should just start with Canopy (ignoring border chars)
       expect(output).toContain('Canopy');
       expect(output).not.toContain('🚀');
+    });
+  });
+
+  describe('worktree config options', () => {
+    it('hides worktree indicator when showInHeader is false', () => {
+      const configWithHiddenWorktree = {
+        ...DEFAULT_CONFIG,
+        worktrees: {
+          enable: true,
+          showInHeader: false,
+          refreshIntervalMs: 10000,
+        },
+      };
+
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          currentWorktree={mockWorktree}
+          worktreeCount={3}
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          config={configWithHiddenWorktree}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('Canopy');
+      expect(output).not.toContain('wt');
+      expect(output).not.toContain('[main]');
+      expect(output).not.toContain('(3)');
+    });
+
+    it('shows worktree indicator when showInHeader is true (default)', () => {
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          currentWorktree={mockWorktree}
+          worktreeCount={3}
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          config={DEFAULT_CONFIG}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('wt');
+      expect(output).toContain('[main]');
+      expect(output).toContain('(3)');
+    });
+
+    it('defaults to showing worktree indicator when config.worktrees is undefined', () => {
+      const configWithoutWorktreesKey = {
+        ...DEFAULT_CONFIG,
+        worktrees: undefined,
+      };
+
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          currentWorktree={mockWorktree}
+          worktreeCount={2}
+          identity={mockIdentity}
+          config={configWithoutWorktreesKey}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('wt');
+      expect(output).toContain('[main]');
     });
   });
 });

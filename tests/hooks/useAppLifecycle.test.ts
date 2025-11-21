@@ -128,7 +128,7 @@ describe('useAppLifecycle', () => {
     });
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: true })
+      useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false })
     );
 
     await waitFor(() => {
@@ -157,7 +157,7 @@ describe('useAppLifecycle', () => {
     });
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/some/other/path', noWatch: true, noGit: true })
+      useAppLifecycle({ cwd: '/some/other/path', noWatch: true, noGit: false })
     );
 
     await waitFor(() => {
@@ -169,12 +169,12 @@ describe('useAppLifecycle', () => {
   });
 
   it('handles catastrophic initialization errors', async () => {
-    vi.mocked(config.loadConfig).mockRejectedValue(new Error('Disk failure'));
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
     // Mock loadInitialState to throw a catastrophic error
     vi.mocked(state.loadInitialState).mockRejectedValue(new Error('Catastrophic error'));
 
     const { result } = renderHook(() =>
-      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: false })
     );
 
     await waitFor(() => {
@@ -296,5 +296,59 @@ describe('useAppLifecycle', () => {
     });
 
     expect(typeof result.current.setNotification).toBe('function');
+  });
+
+  it('disables worktrees when noGit flag is set', async () => {
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+    ];
+
+    vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: true })
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+
+    // Worktrees should be empty when noGit is true
+    expect(result.current.worktrees).toEqual([]);
+    expect(result.current.activeWorktreeId).toBeNull();
+    // getWorktrees should not have been called
+    expect(worktree.getWorktrees).not.toHaveBeenCalled();
+  });
+
+  it('disables worktrees when config worktrees.enable is false', async () => {
+    const configWithWorktreesDisabled = {
+      ...DEFAULT_CONFIG,
+      worktrees: {
+        enable: false,
+        showInHeader: true,
+        refreshIntervalMs: 10000,
+      },
+    };
+    const mockWorktrees = [
+      { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isMain: true },
+    ];
+
+    vi.mocked(config.loadConfig).mockResolvedValue(configWithWorktreesDisabled);
+    vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
+
+    const { result } = renderHook(() =>
+      useAppLifecycle({ cwd: '/test', noWatch: true, noGit: false })
+    );
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
+
+    // Worktrees should be empty when config disables them
+    expect(result.current.worktrees).toEqual([]);
+    expect(result.current.activeWorktreeId).toBeNull();
+    // getWorktrees should not have been called
+    expect(worktree.getWorktrees).not.toHaveBeenCalled();
   });
 });

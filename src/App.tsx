@@ -530,6 +530,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           worktreeCount={worktrees.length}
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
+          config={effectiveConfig}
         />
       <Box flexGrow={1}>
         <TreeView
