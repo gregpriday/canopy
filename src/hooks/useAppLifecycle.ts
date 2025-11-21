@@ -16,6 +16,7 @@ export interface LifecycleState {
   activeRootPath: string;
   initialSelectedPath: string | null;
   initialExpandedFolders: Set<string>;
+  initialScrollOffset: number;
   error: Error | null;
 }
 
@@ -58,6 +59,7 @@ export function useAppLifecycle({
     activeRootPath: cwd,
     initialSelectedPath: null,
     initialExpandedFolders: new Set<string>(),
+    initialScrollOffset: 0,
     error: null,
   });
 
@@ -103,6 +105,7 @@ export function useAppLifecycle({
       let activeRootPath = cwd;
       let initialSelectedPath: string | null = null;
       let initialExpandedFolders = new Set<string>();
+      let initialScrollOffset = 0;
 
       try {
         // Load initial state which detects worktree and restores session
@@ -122,6 +125,7 @@ export function useAppLifecycle({
         // Store initial state for App to use
         initialSelectedPath = initialState.selectedPath;
         initialExpandedFolders = initialState.expandedFolders;
+        initialScrollOffset = initialState.scrollOffset;
       } catch (error) {
         // Check if this is a truly catastrophic error (not just "not a git repo")
         const errorMessage = (error as Error).message;
@@ -144,6 +148,7 @@ export function useAppLifecycle({
           activeRootPath,
           initialSelectedPath,
           initialExpandedFolders,
+          initialScrollOffset,
           error: null,
         });
       }

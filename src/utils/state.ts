@@ -11,6 +11,7 @@ export interface InitialState {
   worktree: Worktree | null;
   selectedPath: string;
   expandedFolders: Set<string>;
+  scrollOffset: number;
   cursorPosition: number;
 }
 
@@ -20,6 +21,7 @@ export interface InitialState {
 export interface SessionState {
   selectedPath: string | null;
   expandedFolders: string[];  // Array for JSON serialization
+  scrollOffset: number;
   timestamp: number;
 }
 
@@ -62,6 +64,7 @@ export async function loadInitialState(
   // Use session state if available and valid
   let selectedPath = rootPath;
   let expandedFolders = new Set<string>();
+  let scrollOffset = 0;
   let cursorPosition = 0;
 
   if (sessionState) {
@@ -75,12 +78,18 @@ export async function loadInitialState(
 
     // Restore expanded folders
     expandedFolders = new Set(sessionState.expandedFolders);
+
+    // Restore scroll offset
+    if (typeof sessionState.scrollOffset === 'number') {
+      scrollOffset = sessionState.scrollOffset;
+    }
   }
 
   return {
     worktree: currentWorktree,
     selectedPath,
     expandedFolders,
+    scrollOffset,
     cursorPosition,
   };
 }
@@ -126,7 +135,13 @@ export async function loadSessionState(
       return null;
     }
 
-    const data = raw as SessionState;
+    // Build session state with validated scrollOffset
+    const data: SessionState = {
+      selectedPath: raw.selectedPath,
+      expandedFolders: raw.expandedFolders,
+      scrollOffset: typeof raw.scrollOffset === 'number' ? raw.scrollOffset : 0,
+      timestamp: raw.timestamp,
+    };
 
     // Ignore stale sessions (> 30 days old)
     const ageMs = Date.now() - data.timestamp;

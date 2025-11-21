@@ -61,6 +61,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     activeRootPath: initialActiveRootPath,
     initialSelectedPath,
     initialExpandedFolders,
+    initialScrollOffset,
     error: lifecycleError,
     notification: lifecycleNotification,
     setNotification: setLifecycleNotification,
@@ -116,6 +117,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const selectedPathRef = useRef<string | null>(null);
 
+  // Track scroll offset in a ref to save it without triggering re-renders
+  const scrollOffsetRef = useRef(initialScrollOffset || 0);
+
   // Git visibility state
   const [showGitMarkers, setShowGitMarkers] = useState(config.showGitStatus && !noGit);
   const effectiveConfig = useMemo(
@@ -132,9 +136,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     if (lifecycleStatus === 'ready') {
       setActiveWorktreeId(initialActiveWorktreeId);
       setActiveRootPath(initialActiveRootPath);
+      scrollOffsetRef.current = initialScrollOffset || 0;
       events.emit('sys:ready', { cwd: initialActiveRootPath });
     }
-  }, [lifecycleStatus, initialActiveWorktreeId, initialActiveRootPath]);
+  }, [lifecycleStatus, initialActiveWorktreeId, initialActiveRootPath, initialScrollOffset]);
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
@@ -254,6 +259,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         void saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
+          scrollOffset: scrollOffsetRef.current,
           timestamp: Date.now(),
         }).catch((err) => {
           console.error('Error saving session state:', err);
@@ -333,6 +339,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         await saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
+          scrollOffset: scrollOffsetRef.current,
           timestamp: Date.now(),
         });
       }
@@ -483,7 +490,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           expandedPaths={expandedFolders}
           disableMouse={anyModalOpen}
           viewportHeight={viewportHeight}
-          // onCopyPath={handleCopySelectedPath} // Removed
+          initialScrollOffset={initialScrollOffset}
+          onScroll={(offset) => { scrollOffsetRef.current = offset; }}
         />
       </Box>
       <StatusBar
