@@ -2,6 +2,7 @@ import type { CommandDefinition } from './types.js';
 import { copyTreeCommand } from './definitions/copytree.js';
 import { openCommand } from './definitions/open.js';
 import { exitCommand } from './definitions/exit.js';
+import { worktreeCommand } from './definitions/worktree.js';
 
 const registry = new Map<string, CommandDefinition>();
 
@@ -24,4 +25,5 @@ export function loadCoreCommands() {
   registerCommand(copyTreeCommand);
   registerCommand(openCommand);
   registerCommand(exitCommand);
+  registerCommand(worktreeCommand);
 }
