@@ -3,6 +3,7 @@ import { loadConfig } from '../utils/config.js';
 import { getWorktrees, getCurrentWorktree } from '../utils/worktree.js';
 import { loadInitialState } from '../utils/state.js';
 import { logDebug, logWarn, logError } from '../utils/logger.js';
+import { events } from '../services/events.js';
 import type { CanopyConfig, Worktree, Notification } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
@@ -203,6 +204,145 @@ export function useAppLifecycle({
       isMountedRef.current = false;
     };
   }, [initialize]);
+
+  // Keep lifecycle-aware state in sync with explicit worktree switches
+  useEffect(() => {
+    if (noGit) {
+      return;
+    }
+
+    return events.on('sys:worktree:switch', ({ worktreeId }) => {
+      setState(prev => {
+        if (prev.status !== 'ready') {
+          return prev;
+        }
+
+        const matchingWorktree = prev.worktrees.find(wt => wt.id === worktreeId);
+        if (!matchingWorktree) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          activeWorktreeId: matchingWorktree.id,
+          activeRootPath: matchingWorktree.path,
+        };
+      });
+    });
+  }, [noGit]);
+
+  // Auto-refresh worktree list at the configured cadence
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.config.worktrees?.enable || noGit) {
+      return;
+    }
+
+    const intervalMs = state.config.worktrees.refreshIntervalMs ?? 0;
+    if (intervalMs <= 0) {
+      return;
+    }
+
+    let refreshInFlight = false;
+    const intervalId = setInterval(async () => {
+      if (refreshInFlight) {
+        return;
+      }
+      refreshInFlight = true;
+
+      try {
+        const updatedWorktrees = await getWorktrees(state.activeRootPath);
+
+        if (!isMountedRef.current || state.status !== 'ready') {
+          return;
+        }
+
+        const activeId = state.activeWorktreeId;
+        const activeStillExists = activeId ? updatedWorktrees.some(wt => wt.id === activeId) : true;
+
+        setState(prev => {
+          if (prev.status !== 'ready') {
+            return prev;
+          }
+
+          const nextState = {
+            ...prev,
+            worktrees: updatedWorktrees,
+          };
+
+          if (!activeStillExists && updatedWorktrees.length === 0) {
+            return {
+              ...nextState,
+              activeWorktreeId: null,
+            };
+          }
+
+          return nextState;
+        });
+
+        if (!activeStillExists) {
+          if (updatedWorktrees.length > 0) {
+            const fallback = updatedWorktrees[0];
+            events.emit('sys:worktree:switch', { worktreeId: fallback.id });
+            events.emit('ui:notify', {
+              type: 'warning',
+              message: `Active worktree was deleted. Switching to ${fallback.branch || fallback.name}`,
+            });
+          } else {
+            events.emit('ui:notify', {
+              type: 'warning',
+              message: 'Active worktree was deleted and no other worktrees remain',
+            });
+          }
+        }
+      } catch (error) {
+        logDebug('Worktree auto-refresh failed', { error });
+      } finally {
+        refreshInFlight = false;
+      }
+    }, intervalMs);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [
+    state.status,
+    state.config.worktrees?.enable,
+    state.config.worktrees?.refreshIntervalMs,
+    state.activeRootPath,
+    state.activeWorktreeId,
+    noGit,
+  ]);
+
+  // Manual refresh triggered via sys:worktree:refresh
+  useEffect(() => {
+    if (state.status !== 'ready' || !state.config.worktrees?.enable || noGit) {
+      return;
+    }
+
+    return events.on('sys:worktree:refresh', async () => {
+      try {
+        const updatedWorktrees = await getWorktrees(state.activeRootPath);
+
+        if (!isMountedRef.current || state.status !== 'ready') {
+          return;
+        }
+
+        setState(prev => ({
+          ...prev,
+          worktrees: updatedWorktrees,
+        }));
+        events.emit('ui:notify', {
+          type: 'success',
+          message: 'Worktree list refreshed',
+        });
+      } catch (error) {
+        events.emit('ui:notify', {
+          type: 'error',
+          message: 'Failed to refresh worktrees',
+        });
+      }
+    });
+  }, [state.status, state.config.worktrees?.enable, state.activeRootPath, noGit]);
 
   return {
     ...state,

@@ -92,6 +92,7 @@ export type CanopyEventMap = {
   'ui:modal:close': UIModalClosePayload;
 
   'sys:worktree:switch': { worktreeId: string };
+  'sys:worktree:refresh': void;
   'sys:worktree:cycle': WorktreeCyclePayload;
   'sys:worktree:selectByName': WorktreeSelectByNamePayload;
 
