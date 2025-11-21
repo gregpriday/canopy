@@ -91,6 +91,11 @@ export interface CanopyConfig {
     compactMode?: boolean;
     showStatusBar?: boolean;
   };
+  worktrees?: {
+    enable: boolean;           // Master toggle for worktree features
+    showInHeader: boolean;     // Show/hide worktree indicator in header
+    refreshIntervalMs?: number; // Optional: auto-refresh interval (0 = disabled)
+  };
 }
 
 export interface CanopyState {
@@ -154,5 +159,10 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     leftClickAction: 'open',
     compactMode: true,
     showStatusBar: true,
+  },
+  worktrees: {
+    enable: true,              // Enabled by default for backwards compatibility
+    showInHeader: true,        // Show indicator by default
+    refreshIntervalMs: 10000,  // 10 second refresh by default
   },
 };
