@@ -12,6 +12,7 @@ export interface InitialState {
   selectedPath: string | null;
   expandedFolders: Set<string>;
   cursorPosition: number;
+  gitOnlyMode: boolean;
 }
 
 /**
@@ -20,6 +21,7 @@ export interface InitialState {
 export interface SessionState {
   selectedPath: string | null;
   expandedFolders: string[];  // Array for JSON serialization
+  gitOnlyMode?: boolean;      // Git-only view mode preference
   timestamp: number;
 }
 
@@ -63,6 +65,7 @@ export async function loadInitialState(
   let selectedPath: string | null = rootPath;
   let expandedFolders = new Set<string>();
   let cursorPosition = 0;
+  let gitOnlyMode = false;
 
   if (sessionState) {
     // Restore null selection if explicitly saved
@@ -79,6 +82,9 @@ export async function loadInitialState(
 
     // Restore expanded folders
     expandedFolders = new Set(sessionState.expandedFolders);
+
+    // Restore git-only mode preference
+    gitOnlyMode = sessionState.gitOnlyMode ?? false;
   }
 
   return {
@@ -86,6 +92,7 @@ export async function loadInitialState(
     selectedPath,
     expandedFolders,
     cursorPosition,
+    gitOnlyMode,
   };
 }
 
@@ -125,7 +132,12 @@ export async function loadSessionState(
     const timestampValid =
       typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp);
 
-    if (!hasValidSelectedPath || !expandedFoldersValid || !timestampValid) {
+    // Optional gitOnlyMode field - only validate if present
+    const gitOnlyModeValid =
+      !Object.prototype.hasOwnProperty.call(raw, 'gitOnlyMode') ||
+      typeof raw.gitOnlyMode === 'boolean';
+
+    if (!hasValidSelectedPath || !expandedFoldersValid || !timestampValid || !gitOnlyModeValid) {
       console.warn('Invalid session state format, ignoring');
       return null;
     }
@@ -134,6 +146,7 @@ export async function loadSessionState(
     const data: SessionState = {
       selectedPath: raw.selectedPath,
       expandedFolders: raw.expandedFolders,
+      gitOnlyMode: raw.gitOnlyMode,
       timestamp: raw.timestamp,
     };
 

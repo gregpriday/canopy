@@ -70,6 +70,7 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
       <Box flexDirection="column" marginBottom={1}>
         <Text bold color={palette.accent.primary}>Git:</Text>
         <Text>  <Text color={palette.semantic.srcFolder}>g</Text>           Toggle git status markers</Text>
+        <Text>  <Text color={palette.semantic.srcFolder}>G</Text>           Toggle Git-only view (show only changed files)</Text>
       </Box>
 
       {/* Copy/CopyTree */}

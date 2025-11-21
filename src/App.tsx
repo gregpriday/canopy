@@ -7,7 +7,7 @@ import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { HelpModal } from './components/HelpModal.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification, Worktree } from './types/index.js';
+import type { CanopyConfig, Notification, Worktree, TreeNode, GitStatus } from './types/index.js';
 import { useCommandExecutor } from './hooks/useCommandExecutor.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
@@ -65,6 +65,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     activeRootPath: initialActiveRootPath,
     initialSelectedPath,
     initialExpandedFolders,
+    initialGitOnlyMode,
     error: lifecycleError,
     notification: lifecycleNotification,
     setNotification: setLifecycleNotification,
@@ -135,6 +136,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     selectedPath: initialSelectedPath,
     expandedFolders: initialExpandedFolders,
   });
+
+  // Git-only view mode state
+  const [gitOnlyMode, setGitOnlyMode] = useState<boolean>(initialGitOnlyMode);
+  // Cache the expansion state before entering git-only mode for restoration on exit
+  const previousExpandedFoldersRef = useRef<Set<string> | null>(null);
 
   // Track latest requested worktree to prevent race conditions during rapid switches
   const latestWorktreeSwitchRef = useRef<string | null>(null);
@@ -236,12 +242,17 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   useWatcher(activeRootPath, effectiveConfig, !!noWatch);
 
+  // Calculate git status filter based on git-only mode
+  const gitStatusFilter = gitOnlyMode
+    ? (['modified', 'added', 'deleted', 'untracked'] as GitStatus[])
+    : null;
+
   const { tree: fileTree, rawTree, expandedFolders, selectedPath } = useFileTree({
     rootPath: activeRootPath,
     config: effectiveConfig,
     filterQuery: filterActive ? filterQuery : null,
     gitStatusMap: gitStatus,
-    gitStatusFilter: null,
+    gitStatusFilter,
     initialSelectedPath: initialSelection.selectedPath,
     initialExpandedFolders: initialSelection.expandedFolders,
     viewportHeight,
@@ -322,13 +333,14 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         void saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
+          gitOnlyMode,
           timestamp: Date.now(),
         }).catch((err) => {
           console.error('Error saving session state:', err);
         });
       }
     };
-  }, [activeWorktreeId, selectedPath, expandedFolders]);
+  }, [activeWorktreeId, selectedPath, expandedFolders, gitOnlyMode]);
 
   useEffect(() => {
     const unsubscribeSubmit = events.on('ui:command:submit', async ({ input }) => {
@@ -371,6 +383,80 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [gitStatus]);
 
   const totalFileCount = useMemo(() => countTotalFiles(fileTree), [fileTree]);
+
+  // Helper function to collect all folder paths from a tree
+  const collectAllFolderPaths = useCallback((tree: TreeNode[]): string[] => {
+    const paths: string[] = [];
+    function traverse(nodes: TreeNode[]) {
+      for (const node of nodes) {
+        if (node.type === 'directory') {
+          paths.push(node.path);
+          if (node.children) {
+            traverse(node.children);
+          }
+        }
+      }
+    }
+    traverse(tree);
+    return paths;
+  }, []);
+
+  // Handle git-only mode toggle
+  const handleToggleGitOnlyMode = useCallback(() => {
+    if (!gitOnlyMode) {
+      // Entering git-only mode
+
+      // Safety check: if we have a large changeset (>100 files), don't auto-expand
+      const changedFilesCount = fileTree.length > 0 ? countTotalFiles(fileTree) : 0;
+
+      if (changedFilesCount > 100) {
+        // Large changeset - skip auto-expansion for performance
+        setGitOnlyMode(true);
+        events.emit('ui:notify', {
+          type: 'warning',
+          message: 'Large changeset detected. Folders collapsed for performance.',
+        });
+      } else {
+        // Cache current expansion state
+        previousExpandedFoldersRef.current = new Set(expandedFolders);
+
+        // Auto-expand all folders in the current tree
+        const allFolderPaths = collectAllFolderPaths(fileTree);
+
+        // Update expanded folders via event system
+        allFolderPaths.forEach(folderPath => {
+          events.emit('nav:expand', { path: folderPath });
+        });
+
+        setGitOnlyMode(true);
+        events.emit('ui:notify', {
+          type: 'info',
+          message: 'Git-only view enabled',
+        });
+      }
+    } else {
+      // Exiting git-only mode - restore previous expansion state
+      if (previousExpandedFoldersRef.current) {
+        // First collapse all folders
+        Array.from(expandedFolders).forEach(folderPath => {
+          events.emit('nav:collapse', { path: folderPath });
+        });
+
+        // Then restore the cached expansion state
+        Array.from(previousExpandedFoldersRef.current).forEach(folderPath => {
+          events.emit('nav:expand', { path: folderPath });
+        });
+
+        previousExpandedFoldersRef.current = null;
+      }
+
+      setGitOnlyMode(false);
+      events.emit('ui:notify', {
+        type: 'info',
+        message: 'All files view enabled',
+      });
+    }
+  }, [gitOnlyMode, fileTree, expandedFolders, collectAllFolderPaths]);
 
   const handleClearFilter = () => {
     if (activeModals.size > 0) {
@@ -434,6 +520,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         await saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
+          gitOnlyMode,
           timestamp: Date.now(),
         });
       }
@@ -448,6 +535,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
       const nextSelectedPath = session?.selectedPath ?? null;
       const nextExpandedFolders = new Set(session?.expandedFolders ?? []);
+      const nextGitOnlyMode = session?.gitOnlyMode ?? false;
 
       // 4. Update all state atomically
       setActiveWorktreeId(targetWorktree.id);
@@ -456,6 +544,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         selectedPath: nextSelectedPath,
         expandedFolders: nextExpandedFolders,
       });
+      setGitOnlyMode(nextGitOnlyMode);
 
       // 5. Reset transient UI state
       setFilterActive(false);
@@ -582,6 +671,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       await saveSessionState(activeWorktreeId, {
         selectedPath,
         expandedFolders: Array.from(expandedFolders),
+        gitOnlyMode,
         timestamp: Date.now(),
       }).catch((err) => {
         console.error('Error saving session state on quit:', err);
@@ -621,7 +711,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onOpenWorktreePanel: undefined,
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
-    
+    onToggleGitOnlyMode: anyModalOpen ? undefined : handleToggleGitOnlyMode,
+
     onOpenCopyTreeBuilder: anyModalOpen ? undefined : handleOpenCopyTreeBuilder,
 
     onRefresh: anyModalOpen ? undefined : () => {
@@ -681,16 +772,26 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           identity={projectIdentity}
           config={effectiveConfig}
           isSwitching={isSwitchingWorktree}
+          gitOnlyMode={gitOnlyMode}
+          onToggleGitOnlyMode={handleToggleGitOnlyMode}
+          gitEnabled={gitEnabled}
         />
       <Box flexGrow={1}>
-        <TreeView
-          fileTree={fileTree}
-          selectedPath={selectedPath || ''}
-          config={effectiveConfig}
-          expandedPaths={expandedFolders}
-          disableMouse={anyModalOpen}
-          viewportHeight={viewportHeight}
-        />
+        {gitOnlyMode && fileTree.length === 0 ? (
+          <Box flexDirection="column" justifyContent="center" alignItems="center" paddingY={2}>
+            <Text color="yellow">No changed files in this worktree.</Text>
+            <Text dimColor>Press <Text color="cyan">G</Text> to switch to All Files view</Text>
+          </Box>
+        ) : (
+          <TreeView
+            fileTree={fileTree}
+            selectedPath={selectedPath || ''}
+            config={effectiveConfig}
+            expandedPaths={expandedFolders}
+            disableMouse={anyModalOpen}
+            viewportHeight={viewportHeight}
+          />
+        )}
       </Box>
       <StatusBar
         notification={notification}

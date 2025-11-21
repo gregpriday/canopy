@@ -16,6 +16,9 @@ interface HeaderProps {
   identity: ProjectIdentity;
   config: CanopyConfig;
   isSwitching?: boolean;
+  gitOnlyMode?: boolean;
+  onToggleGitOnlyMode?: () => void;
+  gitEnabled?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -28,6 +31,9 @@ export const Header: React.FC<HeaderProps> = ({
   identity,
   config,
   isSwitching = false,
+  gitOnlyMode = false,
+  onToggleGitOnlyMode,
+  gitEnabled = true,
 }) => {
   const { palette } = useTheme();
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
@@ -62,8 +68,11 @@ export const Header: React.FC<HeaderProps> = ({
     ? worktreeName.slice(0, maxBranchLength - 1) + '…'
     : worktreeName;
 
+  // Show git-only mode button only when git is enabled
+  const showGitOnlyButton = gitEnabled && onToggleGitOnlyMode !== undefined;
+
   return (
-    <Box borderStyle="single" paddingX={1}>
+    <Box borderStyle="single" borderColor={gitOnlyMode ? palette.alert.warning : undefined} paddingX={1}>
       <Text>{identity.emoji} </Text>
 
       {/* Dynamic Gradient and Title */}
@@ -103,6 +112,20 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </React.Fragment>
           ))}
+        </>
+      )}
+
+      {/* Git-only mode toggle button */}
+      {showGitOnlyButton && (
+        <>
+          <Text dimColor> </Text>
+          <Text
+            color={gitOnlyMode ? palette.alert.warning : palette.accent.secondary}
+            bold
+            underline
+          >
+            [{gitOnlyMode ? 'Git' : 'All'}]
+          </Text>
         </>
       )}
 

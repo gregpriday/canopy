@@ -22,6 +22,7 @@ export interface KeyboardHandlers {
 
   // Git Actions
   onToggleGitStatus?: () => void; // g key
+  onToggleGitOnlyMode?: () => void; // Shift+G key
 
   // Copy Actions
   onOpenCopyTreeBuilder?: () => void;  // Shift+C key
@@ -192,8 +193,13 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
     }
 
     // Git Actions
-    if (input === 'g' && handlers.onToggleGitStatus) {
+    if (input === 'g' && !key.shift && handlers.onToggleGitStatus) {
       handlers.onToggleGitStatus();
+      return;
+    }
+
+    if (input === 'G' && handlers.onToggleGitOnlyMode) {
+      handlers.onToggleGitOnlyMode();
       return;
     }
 

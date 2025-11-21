@@ -17,6 +17,7 @@ export interface LifecycleState {
   activeRootPath: string;
   initialSelectedPath: string | null;
   initialExpandedFolders: Set<string>;
+  initialGitOnlyMode: boolean;
   error: Error | null;
 }
 
@@ -59,6 +60,7 @@ export function useAppLifecycle({
     activeRootPath: cwd,
     initialSelectedPath: null,
     initialExpandedFolders: new Set<string>(),
+    initialGitOnlyMode: false,
     error: null,
   });
 
@@ -123,6 +125,7 @@ export function useAppLifecycle({
       let activeRootPath = cwd;
       let initialSelectedPath: string | null = null;
       let initialExpandedFolders = new Set<string>();
+      let initialGitOnlyMode = false;
 
       if (noGit) {
         // Git completely disabled - skip all git operations
@@ -145,6 +148,7 @@ export function useAppLifecycle({
           // Always store initial state for session restoration
           initialSelectedPath = initialState.selectedPath;
           initialExpandedFolders = initialState.expandedFolders;
+          initialGitOnlyMode = initialState.gitOnlyMode;
         } catch (error) {
           // Check if this is a truly catastrophic error (not just "not a git repo")
           const errorMessage = (error as Error).message;
@@ -173,6 +177,7 @@ export function useAppLifecycle({
           activeRootPath,
           initialSelectedPath,
           initialExpandedFolders,
+          initialGitOnlyMode,
           error: null,
         });
       }
