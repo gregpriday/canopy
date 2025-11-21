@@ -487,6 +487,62 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, [worktrees, handleSwitchWorktree]);
 
+  // Listen for sys:worktree:cycle (from /wt next or /wt prev)
+  useEffect(() => {
+    return events.on('sys:worktree:cycle', async ({ direction }) => {
+      if (worktrees.length <= 1) {
+        events.emit('ui:notify', {
+          type: 'warning',
+          message: 'No other worktrees to switch to',
+        });
+        return;
+      }
+
+      const currentIndex = worktrees.findIndex(wt => wt.id === activeWorktreeId);
+      const nextIndex = (currentIndex + direction + worktrees.length) % worktrees.length;
+      const nextWorktree = worktrees[nextIndex];
+
+      await handleSwitchWorktree(nextWorktree);
+    });
+  }, [worktrees, activeWorktreeId, handleSwitchWorktree]);
+
+  // Listen for sys:worktree:selectByName (from /wt <pattern>)
+  useEffect(() => {
+    return events.on('sys:worktree:selectByName', async ({ query }) => {
+      if (worktrees.length === 0) {
+        events.emit('ui:notify', {
+          type: 'error',
+          message: 'No worktrees available',
+        });
+        return;
+      }
+
+      const q = query.toLowerCase();
+
+      // Try exact match on branch first
+      let match = worktrees.find(wt => wt.branch?.toLowerCase() === q);
+
+      // Then try exact match on name
+      if (!match) {
+        match = worktrees.find(wt => wt.name.toLowerCase() === q);
+      }
+
+      // Finally try substring match on path
+      if (!match) {
+        match = worktrees.find(wt => wt.path.toLowerCase().includes(q));
+      }
+
+      if (match) {
+        await handleSwitchWorktree(match);
+      } else {
+        events.emit('ui:notify', {
+          type: 'error',
+          message: `No worktree matching "${query}"`,
+        });
+      }
+    });
+  }, [worktrees, handleSwitchWorktree]);
+
   // handleOpenSelectedFile removed
 
   // handleCopySelectedPath removed

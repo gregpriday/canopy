@@ -30,6 +30,7 @@ import { copyFilePath } from '../src/utils/clipboard.js';
 import * as configUtils from '../src/utils/config.js';
 import { runCopyTree } from '../src/utils/copytree.js';
 import { events } from '../src/services/events.js';
+import { getWorktrees, getCurrentWorktree } from '../src/utils/worktree.js';
 
 // Helper to wait for condition
 async function waitForCondition(fn: () => boolean, timeout = 1000): Promise<void> {
@@ -329,5 +330,251 @@ describe('App integration - file:copy-path event', () => {
 
     // App should not crash
     expect(lastFrame()).toBeDefined();
+  });
+});
+
+describe('App integration - worktree event handlers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+  });
+
+  it('handles sys:worktree:cycle with multiple worktrees', async () => {
+    // Mock multiple worktrees
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/feature', path: '/project/feature', name: 'feature', branch: 'feature', isCurrent: false },
+      { id: '/project/develop', path: '/project/develop', name: 'develop', branch: 'develop', isCurrent: false },
+    ];
+
+    vi.mocked(configUtils.loadConfig).mockResolvedValue({
+      ...DEFAULT_CONFIG,
+      worktrees: { enabled: true, showHeader: true },
+    });
+
+    // Mock both getWorktrees and getCurrentWorktree
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for success notification (from handleSwitchWorktree)
+    let switchedTo = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'success' && payload.message.includes('Switched to')) {
+        switchedTo = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:cycle event with direction=1 (next)
+    events.emit('sys:worktree:cycle', { direction: 1 });
+
+    // Wait for notification
+    await waitForCondition(() => switchedTo !== '', 2000);
+
+    expect(switchedTo).toContain('feature');
+
+    unsubscribe();
+  });
+
+  it('warns when cycling with single worktree', async () => {
+    // Mock single worktree
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for warning notification
+    let warningReceived = false;
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'warning' && payload.message.includes('No other worktrees')) {
+        warningReceived = true;
+      }
+    });
+
+    // Emit sys:worktree:cycle event
+    events.emit('sys:worktree:cycle', { direction: 1 });
+
+    // Wait for notification
+    await waitForCondition(() => warningReceived);
+
+    unsubscribe();
+  });
+
+  it('handles sys:worktree:selectByName with exact branch match', async () => {
+    // Mock multiple worktrees
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/feature', path: '/project/feature', name: 'feature', branch: 'feature-branch', isCurrent: false },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for success notification
+    let switchedTo = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'success' && payload.message.includes('Switched to')) {
+        switchedTo = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:selectByName event
+    events.emit('sys:worktree:selectByName', { query: 'feature-branch' });
+
+    // Wait for notification
+    await waitForCondition(() => switchedTo !== '', 2000);
+
+    expect(switchedTo).toContain('feature');
+
+    unsubscribe();
+  });
+
+  it('handles sys:worktree:selectByName with name match', async () => {
+    // Mock multiple worktrees
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/my-feature', path: '/project/my-feature', name: 'my-feature', branch: 'feature', isCurrent: false },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for success notification
+    let switchedTo = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'success' && payload.message.includes('Switched to')) {
+        switchedTo = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:selectByName event
+    events.emit('sys:worktree:selectByName', { query: 'my-feature' });
+
+    // Wait for notification
+    await waitForCondition(() => switchedTo !== '', 2000);
+
+    // Notification shows branch, not name
+    expect(switchedTo).toContain('feature');
+
+    unsubscribe();
+  });
+
+  it('handles sys:worktree:selectByName with path substring match', async () => {
+    // Mock multiple worktrees
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/issue-123', path: '/project/issue-123', name: 'issue-123', branch: 'feature', isCurrent: false },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for success notification
+    let switchedTo = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'success' && payload.message.includes('Switched to')) {
+        switchedTo = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:selectByName event with path substring
+    events.emit('sys:worktree:selectByName', { query: 'issue-123' });
+
+    // Wait for notification
+    await waitForCondition(() => switchedTo !== '', 2000);
+
+    // Notification shows branch, not name
+    expect(switchedTo).toContain('feature');
+
+    unsubscribe();
+  });
+
+  it('errors when no worktree matches pattern', async () => {
+    // Mock multiple worktrees
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/feature', path: '/project/feature', name: 'feature', branch: 'feature', isCurrent: false },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for error notification
+    let errorMessage = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'error' && payload.message.includes('No worktree matching')) {
+        errorMessage = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:selectByName event with non-existent pattern
+    events.emit('sys:worktree:selectByName', { query: 'nonexistent' });
+
+    // Wait for notification
+    await waitForCondition(() => errorMessage !== '');
+
+    expect(errorMessage).toContain('No worktree matching "nonexistent"');
+
+    unsubscribe();
+  });
+
+  it('errors when no worktrees available', async () => {
+    // Mock no worktrees
+    const { getWorktrees } = await import('../src/utils/worktree.js');
+    vi.mocked(getWorktrees).mockResolvedValue([]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Listen for error notification
+    let errorMessage = '';
+    const unsubscribe = events.on('ui:notify', (payload) => {
+      if (payload.type === 'error' && payload.message.includes('No worktrees available')) {
+        errorMessage = payload.message;
+      }
+    });
+
+    // Emit sys:worktree:selectByName event
+    events.emit('sys:worktree:selectByName', { query: 'main' });
+
+    // Wait for notification
+    await waitForCondition(() => errorMessage !== '');
+
+    expect(errorMessage).toBe('No worktrees available');
+
+    unsubscribe();
   });
 });

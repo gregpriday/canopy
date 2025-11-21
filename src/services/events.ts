@@ -54,6 +54,15 @@ export interface WatcherChangePayload {
   path: string; // Absolute path
 }
 
+// Worktree Payloads
+export interface WorktreeCyclePayload {
+  direction: number; // +1 for next, -1 for prev
+}
+
+export interface WorktreeSelectByNamePayload {
+  query: string; // Pattern to match against branch/name/path
+}
+
 
 // 2. Define Event Map
 export type CanopyEventMap = {
@@ -83,7 +92,9 @@ export type CanopyEventMap = {
   'ui:modal:close': UIModalClosePayload;
 
   'sys:worktree:switch': { worktreeId: string };
-  
+  'sys:worktree:cycle': WorktreeCyclePayload;
+  'sys:worktree:selectByName': WorktreeSelectByNamePayload;
+
   'watcher:change': WatcherChangePayload;
 };
 
