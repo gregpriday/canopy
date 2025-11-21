@@ -67,6 +67,7 @@ export type CanopyEventMap = {
   'nav:collapse': NavCollapsePayload;
   'nav:move': NavMovePayload;
   'nav:toggle-expand': NavToggleExpandPayload; // Added
+  'nav:clear-selection': void;
   'nav:primary': void;
 
   'file:open': { path: string };

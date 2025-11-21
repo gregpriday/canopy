@@ -293,7 +293,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   useEffect(() => {
     return () => {
-      if (activeWorktreeId && selectedPath) {
+      if (activeWorktreeId) {
         void saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
@@ -357,6 +357,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         type: 'info',
         message: 'Filter cleared',
       });
+    } else {
+      // No modals open and no filter active - clear selection
+      events.emit('nav:clear-selection');
     }
   };
 
@@ -372,7 +375,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const handleSwitchWorktree = useCallback(async (targetWorktree: Worktree) => {
     try {
-      if (activeWorktreeId && selectedPath) {
+      if (activeWorktreeId) {
         await saveSessionState(activeWorktreeId, {
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
@@ -429,7 +432,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     events.emit('sys:quit');
 
     // Save session state before exiting
-    if (activeWorktreeId && selectedPath) {
+    if (activeWorktreeId) {
       await saveSessionState(activeWorktreeId, {
         selectedPath,
         expandedFolders: Array.from(expandedFolders),

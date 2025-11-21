@@ -371,6 +371,9 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
           events.emit('file:open', { path: currentNode.path });
         }
       }),
+      events.on('nav:clear-selection', () => {
+        selectPath(null);
+      }),
     ];
 
     return () => {

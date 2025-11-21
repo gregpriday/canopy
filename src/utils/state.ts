@@ -9,7 +9,7 @@ import type { CanopyConfig, Worktree } from '../types/index.js';
  */
 export interface InitialState {
   worktree: Worktree | null;
-  selectedPath: string;
+  selectedPath: string | null;
   expandedFolders: Set<string>;
   cursorPosition: number;
 }
@@ -60,13 +60,17 @@ export async function loadInitialState(
   const rootPath = currentWorktree?.path || cwd;
 
   // Use session state if available and valid
-  let selectedPath = rootPath;
+  let selectedPath: string | null = rootPath;
   let expandedFolders = new Set<string>();
   let cursorPosition = 0;
 
   if (sessionState) {
+    // Restore null selection if explicitly saved
+    if (sessionState.selectedPath === null) {
+      selectedPath = null;
+    }
     // Validate that selected path still exists
-    if (typeof sessionState.selectedPath === 'string' && sessionState.selectedPath) {
+    else if (typeof sessionState.selectedPath === 'string' && sessionState.selectedPath) {
       const pathExists = await fs.pathExists(sessionState.selectedPath);
       if (pathExists) {
         selectedPath = sessionState.selectedPath;
