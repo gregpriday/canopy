@@ -51,6 +51,7 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -72,14 +73,15 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    // depth=3, treeIndent=2 -> 6 spaces
-    expect(lastFrame()).toMatch(/\s{6} deep\.txt/);
+    // depth=3 should render the tree guide prefix from getTreeGuide
+    expect(lastFrame()).toMatch(/│ │ ├─ deep\.txt/);
   });
 
   it('displays git status marker for modified file', () => {
@@ -95,6 +97,7 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -117,6 +120,7 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -141,6 +145,7 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={configNoGit}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -166,14 +171,15 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={customConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    // depth=2, treeIndent=4 -> 8 spaces
-    expect(lastFrame()).toMatch(/\s{8} file\.txt/);
+    // depth=2 should render the tree guide prefix (independent of treeIndent)
+    expect(lastFrame()).toMatch(/│ ├─ file\.txt/);
   });
 
   it('renders all git status types correctly', () => {
@@ -198,6 +204,7 @@ describe('FileNode', () => {
         <FileNode
           node={node}
           selected={false}
+          selectedPath={null}
           config={mockConfig}
           mapGitStatusMarker={mockMapGitStatusMarker}
           getNodeColor={mockGetNodeColor}
@@ -229,6 +236,7 @@ describe('FileNode', () => {
       <FileNode
         node={deletedNode}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -239,6 +247,7 @@ describe('FileNode', () => {
       <FileNode
         node={selectedDeletedNode}
         selected={true}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -262,6 +271,7 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -285,14 +295,15 @@ describe('FileNode', () => {
       <FileNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
       />
     );
 
-    // depth=5, treeIndent=2 -> 10 spaces
+    // depth=5 renders the repeated tree guide characters before the icon
     // Expects TS icon 
-    expect(lastFrame()).toMatch(/\s{10} utils\.ts/);
+    expect(lastFrame()).toMatch(/│ │ │ │ ├─ utils\.ts/);
   });
 });

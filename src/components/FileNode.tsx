@@ -5,10 +5,13 @@ import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 import { getFileIcon } from '../utils/fileIcons.js';
 import { getFileColor } from '../utils/nodeStyling.js';
 import { useTheme } from '../theme/ThemeProvider.js';
+import { getStyledTreeGuide } from '../utils/treeGuides.js';
+import { isOnActivePath } from '../utils/pathAncestry.js';
 
 interface FileNodeProps {
   node: TreeNodeType & Partial<FlattenedNode>;
   selected: boolean;
+  selectedPath: string | null;
   config: CanopyConfig;
   mapGitStatusMarker: (status: GitStatus) => string;
   getNodeColor: (node: TreeNodeType, selected: boolean, showGitStatus: boolean) => string;
@@ -17,13 +20,23 @@ interface FileNodeProps {
 export function FileNode({
   node,
   selected,
+  selectedPath,
   config,
   mapGitStatusMarker,
   getNodeColor,
 }: FileNodeProps): React.JSX.Element {
   const { palette } = useTheme();
   // 1. Setup Guides & Icons
-  const treeGuide = ' '.repeat(node.depth * config.treeIndent);
+  const enableHighlight = config.ui?.activePathHighlight !== false;
+  const isActive = enableHighlight && isOnActivePath(node.path, selectedPath);
+  const activeColor = config.ui?.activePathColor || 'cyan';
+  const { guide, style } = getStyledTreeGuide(
+    node.depth,
+    node.isLastSiblingAtDepth || [],
+    isActive,
+    config.treeIndent,
+    activeColor
+  );
   const icon = getFileIcon(node.name);
 
   // 2. Git Status Logic
@@ -52,8 +65,8 @@ export function FileNode({
   if (selected) {
     return (
       <Box>
-        <Text color={palette.chrome.guide} dimColor>
-          {treeGuide}
+        <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
+          {guide}
         </Text>
         <Box paddingX={1}>
           <Text backgroundColor={palette.selection.background} color={palette.selection.text} bold>
@@ -74,7 +87,9 @@ export function FileNode({
   // Selected files are handled above. Here we dim extensions when not focused.
   return (
     <Box>
-      <Text color={palette.chrome.guide} dimColor>{treeGuide}</Text>
+      <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
+        {guide}
+      </Text>
       <Text color={baseColor} dimColor={node.gitStatus === 'deleted'}>
         {icon} {nameBase}
       </Text>

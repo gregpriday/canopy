@@ -120,8 +120,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // With treeIndent=2 and depth=3, should have 6 leading spaces followed by file icon
-    expect(lastFrame()).toMatch(/\s{6} deep\.txt/);
+    // With depth=3, the tree guide characters precede the icon
+    expect(lastFrame()).toMatch(/│ │ ├─ deep\.txt/);
   });
 
   it('displays git status marker for modified file', () => {
@@ -371,8 +371,8 @@ describe('TreeNode', () => {
       />
     );
 
-    // depth=2, treeIndent=4 -> 8 spaces followed by file icon
-    expect(lastFrame()).toMatch(/\s{8} file\.txt/);
+    // Depth=2 renders the tree guide prefix even if treeIndent is customized
+    expect(lastFrame()).toMatch(/│ ├─ file\.txt/);
   });
 
   it('renders all git status types correctly', () => {

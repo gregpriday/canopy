@@ -79,6 +79,7 @@ export function TreeNode({
       <FolderNode
         node={node}
         selected={selected}
+        selectedPath={selectedPath}
         config={config}
         mapGitStatusMarker={mapGitStatusMarker}
         getNodeColor={getNodeColorWithPalette}
@@ -90,6 +91,7 @@ export function TreeNode({
     <FileNode
       node={node}
       selected={selected}
+      selectedPath={selectedPath}
       config={config}
       mapGitStatusMarker={mapGitStatusMarker}
       getNodeColor={getNodeColorWithPalette}

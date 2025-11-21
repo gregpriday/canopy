@@ -5,10 +5,13 @@ import type { FlattenedNode } from '../utils/treeViewVirtualization.js';
 import { getFolderIcon } from '../utils/fileIcons.js';
 import { getFolderStyle } from '../utils/nodeStyling.js';
 import { useTheme } from '../theme/ThemeProvider.js';
+import { getStyledTreeGuide } from '../utils/treeGuides.js';
+import { isOnActivePath } from '../utils/pathAncestry.js';
 
 interface FolderNodeProps {
   node: TreeNodeType & Partial<FlattenedNode>;
   selected: boolean;
+  selectedPath: string | null;
   config: CanopyConfig;
   mapGitStatusMarker: (status: GitStatus) => string;
   getNodeColor: (node: TreeNodeType, selected: boolean, showGitStatus: boolean) => string;
@@ -17,12 +20,22 @@ interface FolderNodeProps {
 export function FolderNode({
   node,
   selected,
+  selectedPath,
   config,
   mapGitStatusMarker,
   getNodeColor,
 }: FolderNodeProps): React.JSX.Element {
   const { palette } = useTheme();
-  const treeGuide = ' '.repeat(node.depth * config.treeIndent);
+  const enableHighlight = config.ui?.activePathHighlight !== false;
+  const isActive = enableHighlight && isOnActivePath(node.path, selectedPath);
+  const activeColor = config.ui?.activePathColor || 'cyan';
+  const { guide, style } = getStyledTreeGuide(
+    node.depth,
+    node.isLastSiblingAtDepth || [],
+    isActive,
+    config.treeIndent,
+    activeColor
+  );
   const icon = getFolderIcon(node.name, node.expanded || false);
 
   const gitMarker = config.showGitStatus && node.gitStatus
@@ -52,7 +65,9 @@ export function FolderNode({
   if (selected) {
     return (
       <Box>
-        <Text color={palette.chrome.guide} dimColor>{treeGuide}</Text>
+        <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
+          {guide}
+        </Text>
         <Box paddingX={1}>
           <Text backgroundColor={palette.selection.background} color={palette.selection.text} bold>
             {icon} {node.name}
@@ -67,7 +82,9 @@ export function FolderNode({
   // 5. Render Standard State
   return (
     <Box>
-      <Text color={palette.chrome.guide} dimColor>{treeGuide}</Text>
+      <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
+        {guide}
+      </Text>
       <Text color={color} dimColor={isDimmed} bold={isBold}>
         {icon} {node.name}
       </Text>

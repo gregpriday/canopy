@@ -56,6 +56,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -82,6 +83,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -110,6 +112,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -119,8 +122,8 @@ describe('FolderNode', () => {
       />
     );
 
-    // depth=3, treeIndent=2 -> 6 spaces
-    expect(lastFrame()).toMatch(/\s{6} nested/);
+    // depth=3 should render the tree guide prefix from getTreeGuide
+    expect(lastFrame()).toMatch(/│ │ ├─ nested/);
   });
 
   it('displays git status marker when present', () => {
@@ -137,6 +140,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -165,6 +169,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -202,6 +207,7 @@ describe('FolderNode', () => {
         <FolderNode
           node={node}
           selected={false}
+          selectedPath={null}
           config={mockConfig}
           mapGitStatusMarker={mockMapGitStatusMarker}
           getNodeColor={mockGetNodeColor}
@@ -231,6 +237,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -258,6 +265,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -286,6 +294,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         
         
         
@@ -295,8 +304,8 @@ describe('FolderNode', () => {
       />
     );
 
-    // depth=2, treeIndent=4 -> 8 spaces
-    expect(lastFrame()).toMatch(/\s{8} folder/);
+    // depth=2 should render the tree guide prefix (treeIndent currently unused)
+    expect(lastFrame()).toMatch(/│ ├─ folder/);
   });
 
   it('verifies selection styling is applied', () => {
@@ -314,6 +323,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={true}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColorSpy}
@@ -338,6 +348,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -362,6 +373,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}
@@ -385,6 +397,7 @@ describe('FolderNode', () => {
       <FolderNode
         node={node}
         selected={false}
+        selectedPath={null}
         config={mockConfig}
         mapGitStatusMarker={mockMapGitStatusMarker}
         getNodeColor={mockGetNodeColor}

@@ -137,3 +137,58 @@ function getParentPath(path: string, levelsToRemove: number): string {
   const parts = path.split('/').filter(Boolean);
   return '/' + parts.slice(0, -levelsToRemove).join('/');
 }
+
+/**
+ * Tree guide style properties
+ */
+export interface TreeGuideStyle {
+  color?: string;
+  bold?: boolean;
+  dimColor?: boolean;
+}
+
+/**
+ * Get style for tree guide based on whether it's on the active path
+ *
+ * @param isActive - Whether the guide is on the active path
+ * @param activeColor - Color to use for active guides (default: 'cyan')
+ */
+export function getGuideStyle(
+  isActive: boolean,
+  activeColor: 'cyan' | 'blue' | 'green' = 'cyan'
+): TreeGuideStyle {
+  if (isActive) {
+    return {
+      color: activeColor,
+      bold: true,
+    };
+  }
+
+  return {
+    color: 'gray',
+    dimColor: true,
+  };
+}
+
+/**
+ * Generate styled tree guide prefix for a node
+ *
+ * @param depth - Depth of the node in the tree (0 = root)
+ * @param isLastSiblingAtDepth - Array indicating if node is last sibling at each depth level
+ * @param isActive - Whether this node is on the active path to selection
+ * @param treeIndent - Indentation width (characters per level)
+ * @param activeColor - Color to use for active guides (default: 'cyan')
+ * @returns Object with guide string and style properties
+ */
+export function getStyledTreeGuide(
+  depth: number,
+  isLastSiblingAtDepth: boolean[],
+  isActive: boolean,
+  treeIndent: number = 2,
+  activeColor: 'cyan' | 'blue' | 'green' = 'cyan'
+): { guide: string; style: TreeGuideStyle } {
+  const guide = getTreeGuide(depth, isLastSiblingAtDepth, treeIndent);
+  const style = getGuideStyle(isActive, activeColor);
+
+  return { guide, style };
+}
