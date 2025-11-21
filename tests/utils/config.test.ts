@@ -645,3 +645,185 @@ describe('loadConfig - global config', () => {
     await expect(loadConfig(tempDir)).rejects.toThrow('args[1] must be a string');
   });
 });
+
+// Worktree-aware config tests
+describe('loadConfig - worktree-aware loading', () => {
+  let tempDir: string;
+  let mainRepoPath: string;
+  let worktreePath: string;
+
+  beforeEach(async () => {
+    tempDir = path.join(os.tmpdir(), `canopy-worktree-config-test-${Date.now()}`);
+    await fs.ensureDir(tempDir);
+
+    // Create main repository path
+    mainRepoPath = path.join(tempDir, 'main');
+    await fs.ensureDir(mainRepoPath);
+
+    // Create worktree path
+    worktreePath = path.join(tempDir, 'feature');
+    await fs.ensureDir(worktreePath);
+  });
+
+  afterEach(async () => {
+    await fs.remove(tempDir);
+  });
+
+  it('loads config from main repository when in a worktree', async () => {
+    // Place config in main repository
+    const mainConfig = { editor: 'main-repo-editor', treeIndent: 4 };
+    await fs.writeJSON(path.join(mainRepoPath, '.canopy.json'), mainConfig);
+
+    // Create mock worktrees
+    const mainWorktree = {
+      id: mainRepoPath,
+      path: mainRepoPath,
+      name: 'main',
+      branch: 'main',
+      isCurrent: false,
+    };
+
+    const featureWorktree = {
+      id: worktreePath,
+      path: worktreePath,
+      name: 'feature',
+      branch: 'feature/test',
+      isCurrent: true,
+    };
+
+    // Load config from worktree context
+    const config = await loadConfig(worktreePath, featureWorktree, [mainWorktree, featureWorktree]);
+
+    // Should use config from main repository
+    expect(config.editor).toBe('main-repo-editor');
+    expect(config.treeIndent).toBe(4);
+  });
+
+  it('uses worktree-local config when in main repository', async () => {
+    const mainConfig = { editor: 'main-editor', treeIndent: 2 };
+    await fs.writeJSON(path.join(mainRepoPath, '.canopy.json'), mainConfig);
+
+    const mainWorktree = {
+      id: mainRepoPath,
+      path: mainRepoPath,
+      name: 'main',
+      branch: 'main',
+      isCurrent: true,
+    };
+
+    // When current worktree IS the main worktree, use local config
+    const config = await loadConfig(mainRepoPath, mainWorktree, [mainWorktree]);
+
+    expect(config.editor).toBe('main-editor');
+    expect(config.treeIndent).toBe(2);
+  });
+
+  it('falls back to defaults when main repository has no config', async () => {
+    // No config in main repository
+    const mainWorktree = {
+      id: mainRepoPath,
+      path: mainRepoPath,
+      name: 'main',
+      branch: 'main',
+      isCurrent: false,
+    };
+
+    const featureWorktree = {
+      id: worktreePath,
+      path: worktreePath,
+      name: 'feature',
+      branch: 'feature/test',
+      isCurrent: true,
+    };
+
+    const config = await loadConfig(worktreePath, featureWorktree, [mainWorktree, featureWorktree]);
+
+    // Should use defaults
+    expect(config).toEqual(DEFAULT_CONFIG);
+  });
+
+  it('handles case when main repository path does not exist', async () => {
+    const nonExistentMain = path.join(tempDir, 'non-existent-main');
+
+    const mainWorktree = {
+      id: nonExistentMain,
+      path: nonExistentMain,
+      name: 'main',
+      branch: 'main',
+      isCurrent: false,
+    };
+
+    const featureWorktree = {
+      id: worktreePath,
+      path: worktreePath,
+      name: 'feature',
+      branch: 'feature/test',
+      isCurrent: true,
+    };
+
+    // Should fall back to searching from current worktree
+    const config = await loadConfig(worktreePath, featureWorktree, [mainWorktree, featureWorktree]);
+
+    // Should use defaults (no config found)
+    expect(config).toEqual(DEFAULT_CONFIG);
+  });
+
+  it('ignores worktree-local config in favor of main repo config', async () => {
+    // Place different configs in both locations
+    const mainConfig = { editor: 'main-editor', treeIndent: 4 };
+    await fs.writeJSON(path.join(mainRepoPath, '.canopy.json'), mainConfig);
+
+    const worktreeConfig = { editor: 'worktree-editor', treeIndent: 8 };
+    await fs.writeJSON(path.join(worktreePath, '.canopy.json'), worktreeConfig);
+
+    const mainWorktree = {
+      id: mainRepoPath,
+      path: mainRepoPath,
+      name: 'main',
+      branch: 'main',
+      isCurrent: false,
+    };
+
+    const featureWorktree = {
+      id: worktreePath,
+      path: worktreePath,
+      name: 'feature',
+      branch: 'feature/test',
+      isCurrent: true,
+    };
+
+    const config = await loadConfig(worktreePath, featureWorktree, [mainWorktree, featureWorktree]);
+
+    // Should prefer main repository config
+    expect(config.editor).toBe('main-editor');
+    expect(config.treeIndent).toBe(4);
+  });
+
+  it('works when currentWorktree is null (not a git repo)', async () => {
+    const localConfig = { editor: 'local-editor' };
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), localConfig);
+
+    // Not in a git repo - currentWorktree and worktrees are null/empty
+    const config = await loadConfig(tempDir, null, []);
+
+    expect(config.editor).toBe('local-editor');
+  });
+
+  it('works when worktrees array is empty', async () => {
+    const localConfig = { editor: 'local-editor' };
+    await fs.writeJSON(path.join(mainRepoPath, '.canopy.json'), localConfig);
+
+    const mainWorktree = {
+      id: mainRepoPath,
+      path: mainRepoPath,
+      name: 'main',
+      branch: 'main',
+      isCurrent: true,
+    };
+
+    // Empty worktrees array
+    const config = await loadConfig(mainRepoPath, mainWorktree, []);
+
+    expect(config.editor).toBe('local-editor');
+  });
+});
