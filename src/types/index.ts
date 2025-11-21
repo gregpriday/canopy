@@ -72,6 +72,31 @@ export interface OpenersConfig {
   byGlob: Record<string, OpenerConfig>;
 }
 
+/**
+ * Represents a single file system activity event captured from the watcher.
+ * Paths are relative to the workspace root for consistency.
+ */
+export interface ActivityEvent {
+  /** Workspace-relative path to the file/directory */
+  path: string;
+  /** Type of file system change */
+  type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+  /** Unix timestamp (milliseconds) when the event occurred */
+  timestamp: number;
+}
+
+/**
+ * Configuration options for the Recent Activity feature.
+ */
+export interface RecentActivityConfig {
+  /** Whether the feature is enabled */
+  enabled: boolean;
+  /** Time window in minutes to keep events (older events are pruned) */
+  windowMinutes: number;
+  /** Maximum number of events to retain (oldest are pruned) */
+  maxEntries: number;
+}
+
 export interface CanopyConfig {
   editor: string;
   editorArgs: string[];
@@ -105,6 +130,7 @@ export interface CanopyConfig {
     showInHeader: boolean;     // Show/hide worktree indicator in header
     refreshIntervalMs?: number; // Optional: auto-refresh interval (0 = disabled)
   };
+  recentActivity?: RecentActivityConfig;
 }
 
 export interface CanopyState {
@@ -173,5 +199,10 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     enable: true,              // Enabled by default for backwards compatibility
     showInHeader: true,        // Show indicator by default
     refreshIntervalMs: 10000,  // 10 second refresh by default
+  },
+  recentActivity: {
+    enabled: true,             // Enabled by default
+    windowMinutes: 10,         // Keep events from last 10 minutes
+    maxEntries: 50,            // Maximum 50 events in buffer
   },
 };
