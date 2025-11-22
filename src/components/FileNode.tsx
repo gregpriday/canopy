@@ -8,6 +8,7 @@ import { useTheme } from '../theme/ThemeProvider.js';
 import { getStyledTreeGuide } from '../utils/treeGuides.js';
 import { isOnActivePath } from '../utils/pathAncestry.js';
 import { GitIndicator } from '../utils/gitIndicators.js';
+import { getTemporalState } from '../hooks/useActivity.js';
 
 interface FileNodeProps {
   node: TreeNodeType & Partial<FlattenedNode>;
@@ -16,6 +17,7 @@ interface FileNodeProps {
   config: CanopyConfig;
   mapGitStatusMarker: (status: GitStatus) => string;
   getNodeColor: (node: TreeNodeType, selected: boolean, showGitStatus: boolean) => string;
+  activeFiles?: Map<string, number>;
 }
 
 export function FileNode({
@@ -25,6 +27,7 @@ export function FileNode({
   config,
   mapGitStatusMarker,
   getNodeColor,
+  activeFiles,
 }: FileNodeProps): React.JSX.Element {
   const { palette } = useTheme();
   // 1. Setup Guides & Icons
@@ -39,6 +42,13 @@ export function FileNode({
     activeColor
   );
   const icon = getFileIcon(node.name);
+
+  // 1.5. Temporal State Logic (NEW)
+  const temporalState = activeFiles
+    ? getTemporalState(node.path, activeFiles)
+    : 'normal';
+  const isFlashing = temporalState === 'flash';
+  const isCooldown = temporalState === 'cooldown';
 
   // 2. Git Status Logic
   const useGlyphStyle = config.git?.statusStyle !== 'letter';
@@ -58,7 +68,11 @@ export function FileNode({
   // If selected, force cyan. If git modified, force git color.
   // Otherwise, check our custom styling.
   let baseColor = getNodeColor(node, selected, config.showGitStatus);
-  if (!selected && !isGitModified) {
+
+  // Override with temporal styling (flash state takes precedence)
+  if (isFlashing) {
+    baseColor = 'green'; // Bold green for flash state
+  } else if (!selected && !isGitModified) {
     const customColor = getFileColor(node.name, palette);
     if (customColor) baseColor = customColor;
   }
@@ -77,11 +91,16 @@ export function FileNode({
         <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
           {guide}
         </Text>
+        {isFlashing && <Text color="green" bold>⚡ </Text>}
         <Box paddingX={1}>
-          <Text backgroundColor={palette.selection.background} color={palette.selection.text} bold>
+          <Text
+            backgroundColor={palette.selection.background}
+            color={isFlashing ? 'green' : palette.selection.text}
+            bold
+          >
             {icon} {nameBase}
             {nameExt && (
-              <Text color={palette.selection.text}>
+              <Text color={isFlashing ? 'green' : palette.selection.text}>
                 {nameExt}
               </Text>
             )}
@@ -99,7 +118,12 @@ export function FileNode({
       <Text color={style.color} dimColor={style.dimColor} bold={style.bold}>
         {guide}
       </Text>
-      <Text color={baseColor} dimColor={node.gitStatus === 'deleted'}>
+      {isFlashing && <Text color="green" bold>⚡ </Text>}
+      <Text
+        color={baseColor}
+        dimColor={node.gitStatus === 'deleted'}
+        bold={isFlashing || isCooldown}
+      >
         {icon} {nameBase}
       </Text>
       {nameExt && (

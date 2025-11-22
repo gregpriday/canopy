@@ -18,11 +18,12 @@ interface StatusBarProps {
   filterGitStatus?: GitStatus | null;
   showPerformance?: boolean;
   activeRootPath?: string;
-  
+
   commandMode: boolean;
 
   aiStatus?: AIStatus | null;
   isAnalyzing?: boolean;
+  isIdle?: boolean;
 }
 
 const IDLE_MESSAGES = [
@@ -54,6 +55,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   commandMode,
   aiStatus,
   isAnalyzing,
+  isIdle,
 }) => {
   const { palette } = useTheme();
   const [input, setInput] = useState('');
@@ -180,6 +182,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                  <Text dimColor>🧠 Analyzing changes...</Text>
                ) : aiStatus ? (
                  <Text color={palette.ai.primary}>{aiStatus.emoji} {aiStatus.description}</Text>
+               ) : isIdle ? (
+                 <Text dimColor>💤 Canopy • Waiting for changes...</Text>
                ) : (
                  <Box>
                    <Text dimColor>{idleMessage}</Text>

@@ -9,6 +9,7 @@ interface TreeNodeProps {
   selected: boolean;
   selectedPath: string | null;
   config: CanopyConfig;
+  activeFiles?: Map<string, number>;
 }
 
 /**
@@ -37,6 +38,7 @@ export function TreeNode({
   selected,
   selectedPath,
   config,
+  activeFiles,
 }: TreeNodeProps): React.JSX.Element {
   const { palette } = useTheme();
 
@@ -95,6 +97,7 @@ export function TreeNode({
       config={config}
       mapGitStatusMarker={mapGitStatusMarker}
       getNodeColor={getNodeColorWithPalette}
+      activeFiles={activeFiles}
     />
   );
 }

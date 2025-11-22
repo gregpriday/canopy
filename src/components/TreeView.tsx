@@ -21,6 +21,7 @@ interface TreeViewProps {
   expandedPaths?: Set<string>; // Optional controlled expansion
   disableMouse?: boolean; // Disable mouse interactions
   viewportHeight?: number; // Optionally provided by parent to keep calculations in sync
+  activeFiles?: Map<string, number>; // File activity timestamps for temporal styling
 }
 
 export const TreeView: React.FC<TreeViewProps> = ({
@@ -30,6 +31,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
   expandedPaths: controlledExpandedPaths,
   disableMouse = false,
   viewportHeight: providedViewportHeight,
+  activeFiles,
 }) => {
   // Fallback viewport height if parent does not provide one
   const viewportHeight = providedViewportHeight ?? useViewportHeight(8);
@@ -401,6 +403,7 @@ export const TreeView: React.FC<TreeViewProps> = ({
           selected={node.path === selectedPath}
           selectedPath={selectedPath}
           config={config}
+          activeFiles={activeFiles}
         />
       ))}
 

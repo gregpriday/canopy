@@ -26,6 +26,7 @@ import { useWorktreeSummaries } from './hooks/useWorktreeSummaries.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { useRecentActivity } from './hooks/useRecentActivity.js';
 import { RecentActivityPanel } from './components/RecentActivityPanel.js';
+import { useActivity } from './hooks/useActivity.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
@@ -232,6 +233,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // NEW: Initialize AI Status Hook
   // We pass the gitStatus map; the hook monitors it for activity/silence
   const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, gitStatus, isGitLoading);
+
+  // Initialize Activity Hook for temporal styling
+  const { activeFiles, isIdle } = useActivity();
 
   const projectIdentity = useProjectIdentity(activeRootPath);
 
@@ -838,6 +842,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             expandedPaths={expandedFolders}
             disableMouse={anyModalOpen}
             viewportHeight={viewportHeight}
+            activeFiles={activeFiles}
           />
         )}
       </Box>
@@ -850,6 +855,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         filterQuery={filterActive ? filterQuery : null}
         activeRootPath={activeRootPath}
         commandMode={commandMode}
+        isIdle={isIdle}
       />
       {contextMenuOpen && (() => {
         // Create CommandServices object for context menu
