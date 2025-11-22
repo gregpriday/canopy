@@ -4,7 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Canopy is a terminal-based file browser built with Ink (React for CLIs). It's designed for developers working with AI agents, providing features like live file watching, git integration, git worktree support, and CopyTree integration for easy AI context sharing. Named after South Africa's tallest indigenous tree, symbolizing oversight and observation.
+Canopy is a **Worktree Context Dashboard** built with Ink (React for CLIs). It's designed for developers working with AI agents across multiple git worktrees, providing real-time visibility into what's changing, AI-powered activity summaries, and one-keystroke context extraction via CopyTree profiles. Named after South Africa's tallest indigenous tree, symbolizing oversight and observation.
+
+### Core Concept: Dashboard First, Not File Browser
+
+**Canopy displays worktrees, not deep file trees.** The primary interface is a vertical stack of **Worktree Cards**, each showing:
+- Branch name and path
+- AI-generated summary of current activity
+- Changed files (not all files—only what's modified/added/deleted)
+- Activity mood indicator (active/stable/stale/error)
+- One-keystroke actions: CopyTree, profile selector, editor launch
+
+**Traditional file browsing is available via fuzzy search** (press `/` to search for files across all worktrees).
 
 ## AI Model Conventions
 This project utilizes the **GPT-5** model family for AI-driven features. The following model identifiers are valid and actively used in this codebase:
@@ -137,35 +148,51 @@ All types centralized in `src/types/index.ts`:
 
 Components in `src/components/` follow Ink's React-based model:
 
-**Core UI**:
+**Core UI (Dashboard Mode - Default)**:
 - `App.tsx` - Root component orchestrating all state and hooks
 - `AppErrorBoundary.tsx` - Top-level error boundary for graceful failure
-- `Header.tsx` - Shows current directory, filter status, and worktree badge
-- `StatusBar.tsx` - Bottom bar with file count, git modified count, notifications
-- `TreeView.tsx` - Main tree renderer with virtualization support
+- `Header.tsx` - Shows worktree count and current active worktree
+- `WorktreeOverview.tsx` - Main dashboard renderer, stacks WorktreeCard components
+- `WorktreeCard.tsx` - Individual worktree card with summary, changes, mood border, keyboard hints
+- `StatusBar.tsx` - Bottom bar with worktree stats, notifications, help hints
+
+**Legacy Tree Mode (via `/tree` command)**:
+- `TreeView.tsx` - Traditional tree renderer with virtualization support
 - `TreeNode.tsx` / `FileNode.tsx` / `FolderNode.tsx` - Node rendering with git status icons
 
 **Interactive Elements**:
+- `FuzzySearchModal.tsx` - Fuzzy search across all worktrees (press `/` key)
+- `ProfileSelectorModal.tsx` - CopyTree profile picker (press `p` key)
 - `CommandBar.tsx` - Command input with history navigation
 - `ContextMenu.tsx` - Right-click/keyboard-triggered context menu for file actions
 - `WorktreePanel.tsx` - Worktree switcher modal (press `W` key)
 - `HelpModal.tsx` - Keyboard shortcuts help overlay (press `?` key)
 
 **Design Principles**:
+- **Dashboard-first**: WorktreeOverview is the primary view, TreeView is fallback
 - Components receive minimal props (prefer passing config/state from App)
 - UI state managed in `App.tsx`, domain logic in hooks/utils
-- Keyboard handling centralized in `useKeyboard` hook
+- Keyboard handling centralized in `useDashboardNav` hook for dashboard, `useKeyboard` for tree mode
 - Modal state controls keyboard handler disabling (`anyModalOpen` flag)
 
 ### Custom Hooks
 
 Located in `src/hooks/`:
+
+**Dashboard Hooks** (primary):
+- `useDashboardNav.ts` - Dashboard navigation (arrow keys, Home/End, page up/down), expansion toggles, CopyTree shortcuts, profile selector, and editor launch
+- `useWorktreeSummaries.ts` - AI summary generation and mood categorization for worktrees
+- `useCopyTree.ts` - CopyTree profile execution, event bus integration, success/error feedback
+
+**Core Infrastructure Hooks**:
 - `useAppLifecycle.ts` - Application initialization and lifecycle management
-- `useFileTree.ts` - File tree state, expansion, filtering, and refresh
 - `useGitStatus.ts` - Git status fetching with caching and debouncing
-- `useKeyboard.ts` - Centralized keyboard shortcut handling (Ink's `useInput` wrapper)
-- `useMouse.ts` - Mouse click handling for tree interaction
 - `useViewportHeight.ts` - Terminal viewport height calculation for pagination
+
+**Legacy Tree Mode Hooks**:
+- `useFileTree.ts` - File tree state, expansion, filtering, and refresh
+- `useKeyboard.ts` - Centralized keyboard shortcut handling (Ink's `useInput` wrapper) for tree mode
+- `useMouse.ts` - Mouse click handling for tree interaction
 
 ### Utilities
 
@@ -275,28 +302,31 @@ npm run test:watch
 
 ### Keyboard Shortcuts
 
-**Navigation**:
-- `↑/↓` - Navigate tree
-- `←/→` - Collapse folder / expand folder or open file
-- `PageUp/PageDown` - Page navigation
-- `Home/End` - Jump to start/end
-- `Space` - Toggle folder expansion
-- `Enter` - Open file or toggle folder
+**Dashboard Navigation** (default mode):
+- `↑/↓` - Navigate between worktree cards
+- `Space` - Expand/collapse worktree card to show changed files
+- `PageUp/PageDown` - Page navigation through worktree stack
+- `Home/End` - Jump to first/last worktree
+- `Enter` - Open worktree in VS Code/configured editor
 
-**File Actions**:
-- `c` - Copy file path to clipboard
-- `m` - Open context menu
+**Worktree Actions**:
+- `c` - Copy changed files via CopyTree (default profile)
+- `p` - Open CopyTree profile selector modal
+- `w` - Cycle to next worktree
+- `W` - Open worktree panel (full list)
+- `g` - Toggle git status visibility
 
-**Commands & UI**:
-- `/` - Open command bar
-- `Ctrl+F` - Open filter command (prefilled)
-- `Esc` - Close modals/filter (priority: help → context menu → worktree panel → command bar → filter)
+**Search & Commands**:
+- `/` - Open fuzzy search (find files across all worktrees)
+- `Ctrl+F` - Open filter command
+- `Esc` - Close modals/search (priority: help → profile selector → fuzzy search → worktree panel → command bar)
 - `?` - Toggle help modal
 
-**Git & Worktrees**:
-- `g` - Toggle git status visibility
-- `w` - Cycle to next worktree
-- `W` - Open worktree panel
+**Legacy Tree Mode** (via `/tree` command):
+- `←/→` - Collapse folder / expand folder or open file
+- `Space` - Toggle folder expansion
+- `Enter` - Open file or toggle folder
+- `m` - Open context menu
 
 **Other**:
 - `r` - Manual refresh

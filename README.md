@@ -1,87 +1,109 @@
 # Canopy
 
-> Rise above the forest floor. Watch your AI agents work from the canopy.
+> Your AI Agent Dashboard. Watch your AI agents work from the canopy—the highest vantage point in the forest.
 
-A terminal-based file browser built with Ink (React for CLIs) that transforms your terminal into a lightweight IDE. The canopy is where you get perspective—the highest vantage point in the forest, where you can see everything below.
+**Canopy is a Worktree Context Dashboard for AI-driven development.** Monitor multiple AI agents working across git worktrees simultaneously, with one-keystroke context extraction and always-visible activity summaries.
 
-## The Philosophy
+## The Problem: Agent Blindness
 
-### The Problem: Lost Visual Context
+When working with CLI-based AI coding agents (Claude Code, Gemini CLI, Codex, etc.), you face critical visibility gaps:
 
-When working with CLI-based AI coding agents (Claude Code, Gemini CLI, Codex, etc.), you lose the visual context that traditional IDEs provide. You can't easily see:
-- What files the AI just created
-- Which files are being modified in real-time
-- What's been deleted or moved
-- The overall structure of your project as it evolves
+- **Which worktree is the agent touching?** When running multiple feature branches, you can't tell where changes are happening
+- **What files are being modified?** Real-time file changes happen invisibly in background worktrees
+- **What's the current state?** No way to glance and see all active development contexts at once
+- **How do I give the agent context?** Manually building file lists or running `copytree` commands breaks flow
 
-Running `ls -R` or `git status` constantly breaks your flow and pulls focus from the agent's work.
+Running `git status` across multiple worktrees or constantly checking different directories pulls you out of the agent conversation.
 
-### The Solution: The Ghostty Stack
+## The Solution: Worktree Context Dashboard
 
-**Canopy sits in a narrow, balanced split in your terminal multiplexer** (Ghostty, tmux, or any terminal with split support). Think of it as the missing file tree sidebar for your terminal-based workflow:
+**Canopy is your always-on context dashboard.** It sits in a narrow terminal split showing you a real-time view of all your git worktrees, their changes, and their activity state—with AI-powered summaries of what's happening in each one.
 
 ```
-┌─────────────────┐  ┌──────────────────────────────────────┐
-│ Canopy          │  │ AI Agent (Claude Code)               │
-│ (passive view)  │  │ (active work)                        │
-├─────────────────┤  ├──────────────────────────────────────┤
-│                 │  │                                      │
-│ src/            │  │ > Implementing authentication...     │
-│   App.ts        │  │                                      │
-│ M auth.ts       │  │ Progress: [===========   ] 60%       │
-│ A login.ts      │  │                                      │
-│ tests/          │  │ $ npm test                           │
-│ M auth.test.ts  │  │ ✓ All tests passing                  │
-│                 │  │                                      │
-└─────────────────┘  └──────────────────────────────────────┘
-  60-70 cols           Remaining terminal width
+┌──────────────────────────────────────────────────────┐
+│ Canopy • 3 worktrees                                 │
+├──────────────────────────────────────────────────────┤
+│ ╔══════════════════════════════════════════════════╗ │
+│ ║ main • ~/canopy                         [ACTIVE] ║ │
+│ ╠══════════════════════════════════════════════════╣ │
+│ ║ Summary: Implementing new dashboard UI           ║ │
+│ ║ 12 files • 5 modified, 3 added, 1 deleted        ║ │
+│ ║                                                   ║ │
+│ ║ M src/App.tsx                                    ║ │
+│ ║ M src/components/WorktreeCard.tsx                ║ │
+│ ║ A src/hooks/useDashboardNav.ts                   ║ │
+│ ║ ... and 9 more                                   ║ │
+│ ║                                                   ║ │
+│ ║ [space] toggle • [c] copy • [p] profile • [↵] open │
+│ ╚══════════════════════════════════════════════════╝ │
+│                                                      │
+│ ┌────────────────────────────────────────────────┐   │
+│ │ feature/auth • ~/canopy-auth          [STABLE] │   │
+│ ├────────────────────────────────────────────────┤   │
+│ │ Summary: Authentication system implementation  │   │
+│ │ 3 files • 2 modified, 1 added                  │   │
+│ └────────────────────────────────────────────────┘   │
+│                                                      │
+│ ┌────────────────────────────────────────────────┐   │
+│ │ bugfix/leak • ~/canopy-bugfix           [STALE] │   │
+│ ├────────────────────────────────────────────────┤   │
+│ │ Summary: Memory leak investigation             │   │
+│ │ No changes (last activity: 3 days ago)         │   │
+│ └────────────────────────────────────────────────┘   │
+├──────────────────────────────────────────────────────┤
+│ Press ? for help • / for search                      │
+└──────────────────────────────────────────────────────┘
 ```
 
-**Left pane:** Canopy provides passive observability—a real-time view of your file system
-**Right pane(s):** Your AI agent does the active work
+### Worktree-First Philosophy
 
-You simply **glance left** to see what's happening. No commands needed.
+**Changed Files, Not File Systems.** Canopy doesn't show you a deep file tree—it shows you what's changing across all your worktrees. Each card displays:
 
-### Why This Matters
+- **Worktree name and branch** with activity mood indicator
+- **AI-generated summary** of what's happening (e.g., "Implementing authentication")
+- **Changed files only** with git status markers (M/A/D)
+- **One-keystroke actions**: CopyTree context, profile selector, editor launch
 
-- **Instant Awareness:** See modifications (`M`), additions (`A`), deletions (`D`) as they happen
-- **Context Preservation:** Keep your mental model of the project structure intact
-- **Workflow Integration:** Works seamlessly with git worktrees for multi-task AI workflows
-- **Zero Friction:** No switching between windows, tabs, or running status commands
+**Traditional file browsing available when needed via fuzzy search** (press `/` to search for any file across all worktrees).
 
-## Features
+## Key Features
 
-### Real-time Agent Monitoring
-Git status markers show exactly what your AI agent is touching. Modified files appear with `M`, new files with `A`, deleted with `D`. No manual `git status` needed—just look left.
+### Multi-Worktree Awareness
+See all your git worktrees at once, sorted by activity. Active worktrees appear first, followed by stable ones, then stale. Each card shows the branch, path, and current state.
 
-### Instant Updates
-Live file watching means the tree updates immediately as the AI writes to disk. See new test files appear, watch refactors move code, observe deletions—all in real-time without manual refresh.
+### AI-Powered Summaries
+Each worktree card displays an AI-generated summary of what's happening based on file changes and commit messages. Powered by GPT-5 Nano for fast, context-aware descriptions.
 
-### Split-Pane Optimized UI
-Designed specifically for narrow widths (60-70 columns). Compact mode hides unnecessary metadata, maximizing screen real estate for your code panes while still providing complete context.
+### Mood Indicators
+Worktrees are automatically categorized by activity level:
+- **ACTIVE** (orange border): Recent changes (< 1 hour ago)
+- **STABLE** (blue border): Some changes but not recent
+- **STALE** (gray border): No recent activity (> 24 hours)
+- **ERROR** (red border): Git status fetch failed
 
-### Intelligent Context Switching
-Full git worktree support detects and switches between branches instantly. Jump between different agent tasks or experiments without losing your place. Each worktree remembers its own expanded folders and selected files.
+### One-Keystroke Context Extraction
+Press `c` on any worktree to copy its changed files to your clipboard via CopyTree integration. Press `p` to open the profile selector and choose from configured CopyTree profiles for different AI context formats.
 
-### Mouse & Keyboard Navigation
-Click to select files and expand folders, or use keyboard shortcuts. Built for efficiency whether you're mouse-first or keyboard-driven.
+**CopyTree profiles** let you define preset CLI argument combinations in `.canopy.json`:
 
-### Smart Filtering
-Quickly filter the tree by name or git status (`/filter modified` shows only changed files). Perfect for focusing on what the AI just touched.
+```json
+{
+  "copytreeProfiles": {
+    "default": { "args": ["-r"], "description": "Standard recursive scan" },
+    "tests": { "args": ["--filter", "tests/**", "-r"], "description": "Tests only" },
+    "minimal": { "args": ["--tree-only"], "description": "Structure only" }
+  }
+}
+```
 
-### Hierarchical Tree View
-Collapsible folders with infinite depth. Respects `.gitignore` by default, with options to show hidden files or apply custom ignore patterns.
+### VS Code Integration
+Press `Enter` on any worktree card to open it in VS Code (or your configured editor). The editor opens in the worktree's root directory, preserving your context.
 
-## CopyTree Integration
+### Fuzzy Search
+Press `/` to open fuzzy search and find any file across all worktrees. Search replaces the traditional file browser—use it when you need to dive deep into specific files.
 
-Canopy isn't just for observing—it's for **giving context** to your AI.
-
-Press `c` on any file to copy its path to your clipboard. Use it to:
-- Quickly reference files in your next prompt to the AI
-- Share context between different AI sessions
-- Build up file lists for batch operations
-
-Integration with [CopyTree](https://github.com/gregpriday/copytree) allows one-keystroke context extraction directly into your LLM prompts.
+### Live Updates
+File watching keeps the dashboard current. As AI agents modify files, you see changes appear in real-time on the relevant worktree card—no manual refresh needed.
 
 ## Installation
 
@@ -95,7 +117,7 @@ npm install -g @gpriday/canopy
 1. Launch Ghostty
 2. Split vertically (Cmd+D or Ctrl+Shift+\)
 3. In the left pane: `canopy`
-4. Resize to ~60-70 columns wide
+4. Resize to ~60-80 columns wide
 5. Save the layout for future sessions
 
 **tmux Users:** Add to your `.tmux.conf`:
@@ -114,43 +136,42 @@ canopy
 # Run in specific directory
 canopy /path/to/project
 
-# Start with a filter applied
-canopy --filter "*.ts"
-
 # Disable file watching (for very large projects)
 canopy --no-watch
 
-# Show hidden files
-canopy --hidden
+# Disable git integration
+canopy --no-git
 ```
 
 ### Keyboard Shortcuts
 
-**Navigation:**
-- `↑/↓` - Navigate tree
-- `←/→` - Collapse folder / expand folder or open file
+**Dashboard Navigation:**
+- `↑/↓` - Navigate worktree cards
+- `Space` - Expand/collapse card to see changed files
 - `PageUp/PageDown` - Page navigation
-- `Space` - Toggle folder expansion
-- `Enter` - Open file or toggle folder
+- `Home/End` - Jump to first/last worktree
 
-**File Actions:**
-- `c` - Copy file path to clipboard
-- `m` - Open context menu
+**Worktree Actions:**
+- `c` - Copy changed files via CopyTree (default profile)
+- `p` - Open CopyTree profile selector
+- `Enter` - Open worktree in VS Code/editor
+- `w` - Cycle to next worktree
+- `W` - Open worktree panel (full list)
 
-**Commands & UI:**
-- `/` - Open command bar
+**Search & Commands:**
+- `/` - Fuzzy search across all worktrees
 - `Ctrl+F` - Quick filter
-- `Esc` - Close modals/filter
+- `Esc` - Close modals/search
 - `?` - Toggle help
 
-**Git & Worktrees:**
-- `g` - Toggle git status visibility
-- `w` - Cycle to next worktree
-- `W` - Open worktree panel
-
 **Other:**
+- `g` - Toggle git status visibility
 - `r` - Manual refresh
 - `q` - Quit
+
+### Traditional File Tree Mode
+
+Need to browse the full file hierarchy? The original tree view is available via the `/tree` command. This provides the traditional collapsible folder view when you need deep file exploration.
 
 ## Configuration
 
@@ -161,14 +182,24 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
   "editor": "code",
   "editorArgs": ["-r"],
   "showGitStatus": true,
-  "showHidden": false,
-  "respectGitignore": true,
+  "copytreeProfiles": {
+    "default": {
+      "args": ["-r"],
+      "description": "Standard recursive scan"
+    },
+    "tests": {
+      "args": ["--filter", "tests/**/*.ts", "-r"],
+      "description": "Tests only"
+    },
+    "minimal": {
+      "args": ["--tree-only"],
+      "description": "Structure only"
+    }
+  },
   "ui": {
     "compactMode": true,
-    "leftClickAction": "select"
+    "moodGradients": true
   },
-  "sortBy": "name",
-  "sortDirection": "asc",
   "refreshDebounce": 100
 }
 ```
@@ -177,31 +208,27 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
 
 - **`editor`** - Command to open files (default: `code`)
 - **`editorArgs`** - Arguments for the editor (default: `["-r"]`)
-- **`openers`** - Custom openers by file extension/glob pattern
+- **`copytreeProfiles`** - CopyTree profile presets (each profile has `args` array and optional `description`)
 - **`showGitStatus`** - Display git status indicators (default: `true`)
-- **`showHidden`** - Show hidden files (default: `false`)
-- **`respectGitignore`** - Respect .gitignore patterns (default: `true`)
-- **`customIgnores`** - Additional glob patterns to ignore
-- **`sortBy`** - Sort files by: `name`, `size`, `modified`, `type` (default: `name`)
-- **`sortDirection`** - Sort direction: `asc` or `desc` (default: `asc`)
-- **`maxDepth`** - Maximum tree depth (default: unlimited)
 - **`refreshDebounce`** - File watcher debounce in ms (default: `100`)
 - **`ui.compactMode`** - Compact display mode (default: `true`)
-- **`ui.leftClickAction`** - Mouse left click behavior: `open` or `select` (default: `select`)
+- **`ui.moodGradients`** - Show mood-based header gradients (default: `true`)
 
-## The Future: Autonomous Observer
+See [docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md) for detailed CopyTree profile documentation.
 
-Canopy is evolving from a passive viewer to an active participant in AI-driven development:
+## Why This Matters
 
-### Planned Features
+### Solves Agent Blindness
+No more wondering "what's the agent doing?" Just glance left and see exactly which worktree is active and what files are changing.
 
-- **AI-Driven Insights:** "What happened while I was gone?" summaries powered by worktree analysis
-- **Intelligent Change Detection:** Automatic categorization of changes (refactoring, new features, bug fixes)
-- **Multi-Agent Coordination:** Visual indicators for which agent touched which files in collaborative sessions
-- **Context Recommendations:** Smart suggestions for what files to include in your next AI prompt
-- **Session Replay:** Visual timeline of how your project evolved during an AI session
+### Context Switching Made Effortless
+Jump between agent tasks instantly. See all your feature branches, experiments, and bug fixes in one view with their current activity state.
 
-The goal: Transform Canopy from an observation tool into an intelligent partner that helps you understand and guide your AI agents.
+### One-Keystroke AI Context
+Stop manually building file lists for your AI prompts. Press `c` to copy a pre-configured context packet with exactly the files you need.
+
+### Multi-Agent Coordination
+When multiple AI agents work across different worktrees, Canopy shows you the full picture—who's touching what, where changes are happening, and what's the current state.
 
 ## Development
 
@@ -226,6 +253,13 @@ npm run typecheck
 ```
 
 **Important:** You must run `npm run build` after making code changes to verify them with `npm start` or `canopy`.
+
+## Documentation
+
+- **[SPEC.md](SPEC.md)** - Complete technical specification and architecture
+- **[CLAUDE.md](CLAUDE.md)** - AI agent development instructions
+- **[docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md)** - Full keyboard reference
+- **[docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md)** - CopyTree profiles and context extraction
 
 ## License
 

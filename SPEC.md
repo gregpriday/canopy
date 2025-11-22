@@ -21,22 +21,24 @@
 
 ## Project Overview
 
-**Canopy** is a terminal-based file browser built with **Ink** (React for CLIs). It's designed for developers who:
+**Canopy** is a **Worktree Context Dashboard** built with **Ink** (React for CLIs). It's designed for developers who:
 
 - Work in **narrow vertical terminal splits** (e.g., Ghostty vertical panes)
 - Use **AI coding tools** (Claude Code, Codex CLI, Gemini CLI)
-- Want an **always-visible, live file tree** with minimal friction
-- Work across **git worktrees**
+- Need **multi-worktree visibility** to monitor parallel AI agent tasks
+- Want **one-keystroke context extraction** via CopyTree profiles
+- Require **AI-powered summaries** of what's changing in each worktree
 
 **Name Origin:** Named after South Africa's tallest indigenous tree, the Outeniqua Canopy, symbolizing oversight from a commanding vantage point.
 
 **Key Features:**
-- Live file watching with real-time updates
-- Git status integration (M/A/D/U markers)
-- Git worktree awareness and switching
-- Slash command system for filtering and navigation
-- Configurable file openers
-- Narrow-width optimized UI (60-70 columns)
+- **Worktree Dashboard**: Vertical stack of cards showing all git worktrees simultaneously
+- **AI Summaries**: GPT-5-powered descriptions of activity in each worktree
+- **Mood Indicators**: Visual categorization of worktrees (active/stable/stale/error)
+- **CopyTree Profiles**: One-keystroke context packet generation for AI prompts
+- **Fuzzy Search**: Fast file lookup across all worktrees
+- **Live Updates**: Real-time file watching with instant dashboard refresh
+- **VS Code Integration**: Direct editor launch from worktree cards
 
 ---
 
@@ -135,18 +137,28 @@
 ```
 App (src/App.tsx)
 ├── Header (src/components/Header.tsx)
-│   └── WorktreeIndicator (future)
-├── TreeView (src/components/TreeView.tsx)
+│   └── Worktree count and active indicator
+├── WorktreeOverview (src/components/WorktreeOverview.tsx) [DASHBOARD MODE]
+│   └── WorktreeCard (recursive stack)
+│       ├── Worktree summary (AI-generated)
+│       ├── Changed files list (when expanded)
+│       ├── Mood border (active/stable/stale/error)
+│       └── Keyboard hints (space/c/p/Enter)
+├── TreeView (src/components/TreeView.tsx) [LEGACY TREE MODE - /tree command]
 │   └── TreeNode (recursive)
 │       ├── FolderNode (directories)
 │       └── FileNode (files)
-├── CommandBar (future)
-├── ContextMenu (future)
-├── HelpModal (future)
-├── WorktreePanel (future)
-├── Notification (future)
+├── FuzzySearchModal (fuzzy search overlay)
+├── ProfileSelectorModal (CopyTree profile picker)
+├── CommandBar (slash command input)
+├── ContextMenu (right-click actions)
+├── HelpModal (keyboard shortcuts)
+├── WorktreePanel (worktree switcher)
 └── StatusBar (src/components/StatusBar.tsx)
 ```
+
+**Default Mode:** Dashboard (WorktreeOverview)
+**Fallback Mode:** Tree (TreeView via `/tree` command)
 
 ### State Management
 
@@ -267,16 +279,50 @@ export const DEFAULT_CONFIG: CanopyConfig = {
 };
 ```
 
-### Additional Types (from spec, not yet in types/index.ts)
+### Worktree Dashboard Types
 
 ```typescript
-// Worktree Support
+// Worktree with mood and summary
 export interface Worktree {
   id: string;       // stable identifier (normalized path)
   path: string;     // absolute path to worktree root
   name: string;     // e.g., last segment or branch name
   branch?: string;  // branch name if available
   isCurrent: boolean;
+  mood?: WorktreeMood;  // activity categorization
+  summary?: string;     // AI-generated summary
+}
+
+// Activity mood categories
+export type WorktreeMood = 'active' | 'stable' | 'stale' | 'error';
+
+// Changed files per worktree
+export interface WorktreeChanges {
+  worktreeId: string;
+  rootPath: string;
+  changes: FileChange[];
+  changedFileCount: number;
+  lastUpdated: number;
+}
+
+export interface FileChange {
+  path: string;
+  relativePath: string;
+  status: GitStatus;
+  isStaged: boolean;
+}
+
+// CopyTree Profile Configuration
+export interface CopyTreeProfile {
+  format?: 'xml' | 'markdown' | 'json';
+  asReference?: boolean;
+  filter?: string;
+  extraArgs?: string[];
+}
+
+export interface CopyTreeProfiles {
+  default: CopyTreeProfile;
+  [profileName: string]: CopyTreeProfile;
 }
 
 // File Opener Configuration
