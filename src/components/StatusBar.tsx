@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import type { Notification, GitStatus } from '../types/index.js';
+import type { Notification, GitStatus, WorktreeChanges, Worktree } from '../types/index.js';
 import { perfMonitor } from '../utils/perfMetrics.js';
 import { ActionButton } from './StatusBar/ActionButton.js';
 import { ActionGroup } from './StatusBar/ActionGroup.js';
@@ -24,6 +24,11 @@ interface StatusBarProps {
   aiStatus?: AIStatus | null;
   isAnalyzing?: boolean;
   isIdle?: boolean;
+
+  // Dashboard context
+  worktreeChanges?: Map<string, WorktreeChanges>;
+  focusedWorktreeId?: string | null;
+  worktrees?: Worktree[];
 }
 
 const IDLE_MESSAGES = [
@@ -56,6 +61,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   aiStatus,
   isAnalyzing,
   isIdle,
+  worktreeChanges,
+  focusedWorktreeId,
+  worktrees,
 }) => {
   const { palette } = useTheme();
   const [input, setInput] = useState('');
@@ -65,6 +73,20 @@ export const StatusBar: React.FC<StatusBarProps> = ({
   const [lastIdleState, setLastIdleState] = useState(false);
   const { stdout } = useStdout();
   const hasOpenAIKey = Boolean(process.env.OPENAI_API_KEY?.trim());
+
+  // Calculate dashboard metrics when worktreeChanges is provided
+  const totalChangedFiles = worktreeChanges
+    ? Array.from(worktreeChanges.values()).reduce((sum, wt) => sum + wt.changedFileCount, 0)
+    : modifiedCount;
+
+  const focusedChanges = worktreeChanges
+    ? focusedWorktreeId
+      ? worktreeChanges.get(focusedWorktreeId)?.changedFileCount ?? 0
+      : 0
+    : modifiedCount;
+
+  const focusedWorktree = worktrees?.find(wt => wt.id === focusedWorktreeId);
+  const focusedRootPath = focusedWorktree?.path ?? activeRootPath;
 
   // Pick a new random idle message when transitioning to idle state
   useEffect(() => {
@@ -88,8 +110,8 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         const isBottom = event.y >= stdout.rows - statusBarHeight;
         const isRight = event.x >= stdout.columns - buttonWidth;
         if (isBottom && isRight) {
-          // Emit event instead of calling handler directly
-          events.emit('file:copy-tree', { rootPath: activeRootPath });
+          // Emit event instead of calling handler directly - use focused worktree path in dashboard context
+          events.emit('file:copy-tree', { rootPath: focusedRootPath });
         }
       }
     }
@@ -163,16 +185,36 @@ export const StatusBar: React.FC<StatusBarProps> = ({
       <>
         <Box flexDirection="column">
           <Box>
-            <Text>{fileCount} files</Text>
+            {worktreeChanges ? (
+              <>
+                <Text>{totalChangedFiles} files changed</Text>
+                {focusedChanges > 0 && (
+                  <>
+                    <Text dimColor> • </Text>
+                    <Text color={palette.git.modified}>{focusedChanges} in focus</Text>
+                  </>
+                )}
+              </>
+            ) : (
+              <Text>{fileCount} files</Text>
+            )}
             {filterElements}
             {perfElements}
           </Box>
 
           <Box>
-            {modifiedCount > 0 ? (
-              <Text color={palette.git.modified}>{modifiedCount} modified</Text>
+            {worktreeChanges ? (
+              focusedChanges > 0 ? (
+                <Text color={palette.git.modified}>{focusedChanges} modified in focused worktree</Text>
+              ) : (
+                <Text dimColor>No changes in focused worktree</Text>
+              )
             ) : (
-              <Text dimColor>No changes</Text>
+              modifiedCount > 0 ? (
+                <Text color={palette.git.modified}>{modifiedCount} modified</Text>
+              ) : (
+                <Text dimColor>No changes</Text>
+              )
             )}
           </Box>
 
@@ -181,7 +223,11 @@ export const StatusBar: React.FC<StatusBarProps> = ({
                {isAnalyzing ? (
                  <Text dimColor>🧠 Analyzing changes...</Text>
                ) : aiStatus ? (
-                 <Text color={palette.ai.primary}>{aiStatus.emoji} {aiStatus.description}</Text>
+                 worktreeChanges && focusedWorktree ? (
+                   <Text color={palette.ai.primary}>🌿 {focusedWorktree.branch || focusedWorktree.name}: {aiStatus.description}</Text>
+                 ) : (
+                   <Text color={palette.ai.primary}>{aiStatus.emoji} {aiStatus.description}</Text>
+                 )
                ) : isIdle ? (
                  <Text dimColor>💤 Canopy • Waiting for changes...</Text>
                ) : (
@@ -198,7 +244,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
         <ActionGroup>
           <ActionButton
             label="CopyTree"
-            onAction={() => events.emit('file:copy-tree', { rootPath: activeRootPath })}
+            onAction={() => events.emit('file:copy-tree', { rootPath: focusedRootPath })}
           />
         </ActionGroup>
       </>

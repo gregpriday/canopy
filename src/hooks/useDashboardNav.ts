@@ -180,15 +180,8 @@ export function useDashboardNav({
         return;
       }
 
-      if (key.home) {
-        focusExact(0);
-        return;
-      }
-
-      if (key.end) {
-        focusExact(worktrees.length - 1);
-        return;
-      }
+      // Note: Home/End keys are not exposed in Ink's Key type as of v6.5
+      // These would need to be detected via raw terminal input if needed
 
       handlePrimaryActions(input, key);
     },
