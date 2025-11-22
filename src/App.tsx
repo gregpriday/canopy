@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'; // Added useCallback
-import { Box, Text, useApp, useStdout } from 'ink';
+import { Box, Text, useApp, useStdout, useInput } from 'ink';
 import { Header } from './components/Header.js';
-import { TreeView } from './components/TreeView.js';
+import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { StatusBar } from './components/StatusBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
@@ -136,6 +136,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Active worktree state (can change via user actions)
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
+  const [focusedWorktreeId, setFocusedWorktreeId] = useState<string | null>(initialActiveWorktreeId);
+  const [expandedWorktreeIds, setExpandedWorktreeIds] = useState<Set<string>>(new Set());
   const selectedPathRef = useRef<string | null>(null);
 
   const {
@@ -230,6 +232,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, [enrichedWorktrees, worktreeChanges]);
 
+  const sortedWorktrees = useMemo(() => sortWorktrees(worktreesWithStatus), [worktreesWithStatus]);
+
   const currentWorktree = worktreesWithStatus.find(wt => wt.id === activeWorktreeId) || null;
 
   const activeWorktreeChanges = useMemo(
@@ -268,6 +272,22 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       events.emit('sys:ready', { cwd: nextRootPath });
     }
   }, [initialActiveRootPath, initialActiveWorktreeId, lifecycleStatus, worktreesWithStatus]);
+
+  useEffect(() => {
+    if (sortedWorktrees.length === 0) {
+      setFocusedWorktreeId(null);
+      return;
+    }
+
+    const hasFocused = sortedWorktrees.some(wt => wt.id === focusedWorktreeId);
+    if (!hasFocused) {
+      const fallback =
+        sortedWorktrees.find(wt => wt.id === activeWorktreeId) ||
+        sortedWorktrees.find(wt => wt.isCurrent) ||
+        sortedWorktrees[0];
+      setFocusedWorktreeId(fallback?.id ?? null);
+    }
+  }, [activeWorktreeId, focusedWorktreeId, sortedWorktrees]);
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
@@ -336,11 +356,71 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     initialSelectedPath: initialSelection.selectedPath,
     initialExpandedFolders: initialSelection.expandedFolders,
     viewportHeight,
+    navigationEnabled: false,
   });
 
   useEffect(() => {
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
+
+  const handleToggleExpandWorktree = useCallback((id: string) => {
+    setExpandedWorktreeIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleFocusMove = useCallback((direction: 'up' | 'down' | 'pageUp' | 'pageDown' | 'home' | 'end') => {
+    if (sortedWorktrees.length === 0) {
+      return;
+    }
+
+    const currentIndex = sortedWorktrees.findIndex(wt => wt.id === focusedWorktreeId);
+    const resolvedIndex = currentIndex >= 0 ? currentIndex : 0;
+    const step = direction === 'pageUp' || direction === 'pageDown' ? 3 : 1;
+
+    let nextIndex = resolvedIndex;
+
+    switch (direction) {
+      case 'up':
+      case 'pageUp':
+        nextIndex = Math.max(0, resolvedIndex - step);
+        break;
+      case 'down':
+      case 'pageDown':
+        nextIndex = Math.min(sortedWorktrees.length - 1, resolvedIndex + step);
+        break;
+      case 'home':
+        nextIndex = 0;
+        break;
+      case 'end':
+        nextIndex = sortedWorktrees.length - 1;
+        break;
+    }
+
+    setFocusedWorktreeId(sortedWorktrees[nextIndex]?.id ?? null);
+  }, [focusedWorktreeId, sortedWorktrees]);
+
+  const handleOpenWorktreeEditor = useCallback((id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
+      return;
+    }
+    events.emit('file:open', { path: target.path });
+  }, [sortedWorktrees]);
+
+  const handleCopyTreeForWorktree = useCallback((id: string, profile?: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
+      return;
+    }
+    events.emit('file:copy-tree', { rootPath: target.path, profile });
+  }, [sortedWorktrees]);
 
   useEffect(() => {
     const handleOpen = events.on('ui:modal:open', ({ id, context }) => {
@@ -867,12 +947,44 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
   };
 
+  useEffect(() => {
+    const unsubscribeMove = events.on('nav:move', ({ direction }) => {
+      if (direction === 'up' || direction === 'down' || direction === 'pageUp' || direction === 'pageDown' || direction === 'home' || direction === 'end') {
+        handleFocusMove(direction);
+      }
+    });
+
+    return () => {
+      unsubscribeMove();
+    };
+  }, [handleFocusMove]);
+
   const anyModalOpen = activeModals.size > 0;
+
+  useInput((input, key) => {
+    if (anyModalOpen) {
+      return;
+    }
+
+    if (input === 'c' && focusedWorktreeId) {
+      handleCopyTreeForWorktree(focusedWorktreeId);
+      return;
+    }
+
+    if (input === 'p' && focusedWorktreeId) {
+      handleCopyTreeForWorktree(focusedWorktreeId, 'default');
+      return;
+    }
+
+    if (key.return && focusedWorktreeId) {
+      handleOpenWorktreeEditor(focusedWorktreeId);
+    }
+  });
 
   useKeyboard({
     onToggleExpand: anyModalOpen ? undefined : () => {
-      if (selectedPath) {
-        events.emit('nav:toggle-expand', { path: selectedPath });
+      if (focusedWorktreeId) {
+        handleToggleExpandWorktree(focusedWorktreeId);
       }
     },
 
@@ -895,10 +1007,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onOpenContextMenu: anyModalOpen
       ? undefined
       : () => {
-          const path = selectedPathRef.current;
-          if (path) {
-            events.emit('ui:modal:open', { id: 'context-menu', context: { path } });
-          }
+          const focusedWorktree = sortedWorktrees.find(wt => wt.id === focusedWorktreeId);
+          const path = selectedPathRef.current || focusedWorktree?.path;
+          if (!path) return;
+
+          events.emit('ui:modal:open', { id: 'context-menu', context: { path } });
         },
     onQuit: handleQuit,
     onForceExit: handleQuit,
@@ -935,12 +1048,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   return (
     <ThemeProvider mode={themeMode} projectAccent={projectAccent}>
       <Box flexDirection="column" height={height}>
-        <Header
-          cwd={cwd}
-          filterActive={filterActive}
-          filterQuery={filterQuery}
-          currentWorktree={currentWorktree}
-          worktreeCount={worktreesWithStatus.length}
+      <Header
+        cwd={cwd}
+        filterActive={filterActive}
+        filterQuery={filterQuery}
+        currentWorktree={currentWorktree}
+        worktreeCount={worktreesWithStatus.length}
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
           config={effectiveConfig}
@@ -951,22 +1064,16 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitStatus={effectiveGitStatus}
         />
       <Box flexGrow={1}>
-        {gitOnlyMode && fileTree.length === 0 ? (
-          <Box flexDirection="column" justifyContent="center" alignItems="center" paddingY={2}>
-            <Text color="yellow">No changed files in this worktree.</Text>
-            <Text dimColor>Press <Text color="cyan">G</Text> to switch to All Files view</Text>
-          </Box>
-        ) : (
-          <TreeView
-            fileTree={fileTree}
-            selectedPath={selectedPath || ''}
-            config={effectiveConfig}
-            expandedPaths={expandedFolders}
-            disableMouse={anyModalOpen}
-            viewportHeight={viewportHeight}
-            activeFiles={activeFiles}
-          />
-        )}
+        <WorktreeOverview
+          worktrees={sortedWorktrees}
+          worktreeChanges={worktreeChanges}
+          activeWorktreeId={activeWorktreeId}
+          focusedWorktreeId={focusedWorktreeId}
+          expandedWorktreeIds={expandedWorktreeIds}
+          onToggleExpand={handleToggleExpandWorktree}
+          onCopyTree={handleCopyTreeForWorktree}
+          onOpenEditor={handleOpenWorktreeEditor}
+        />
       </Box>
       <StatusBar
         notification={notification}

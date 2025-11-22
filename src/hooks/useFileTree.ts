@@ -24,6 +24,7 @@ export interface UseFileTreeOptions {
   initialSelectedPath?: string | null;
   initialExpandedFolders?: Set<string>;
   viewportHeight: number; // Added
+  navigationEnabled?: boolean;
 }
 
 export interface UseFileTreeResult {
@@ -49,7 +50,17 @@ export interface UseFileTreeResult {
  * @returns Tree state and actions
  */
 export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
-  const { rootPath, config, filterQuery, gitStatusMap, gitStatusFilter, initialSelectedPath, initialExpandedFolders, viewportHeight } = options;
+  const {
+    rootPath,
+    config,
+    filterQuery,
+    gitStatusMap,
+    gitStatusFilter,
+    initialSelectedPath,
+    initialExpandedFolders,
+    viewportHeight,
+    navigationEnabled = true,
+  } = options;
 
   // Internal State
   const [tree, setTree] = useState<TreeNode[]>([]);
@@ -291,6 +302,10 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
 
   // --- Event Listeners for Navigation, Selection, Expansion ---
   useEffect(() => {
+    if (!navigationEnabled) {
+      return undefined;
+    }
+
     const unsubscribes = [
       events.on('nav:select', (payload) => {
         selectPath(payload.path);
@@ -383,7 +398,7 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
     return () => {
       unsubscribes.forEach(unsub => unsub());
     };
-  }, [flattenedTree, selectedPath, expandedFolders, viewportHeight]);
+  }, [flattenedTree, selectedPath, expandedFolders, viewportHeight, navigationEnabled]);
 
   // --- Event Listener for Refresh ---
   useEffect(() => {

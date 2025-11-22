@@ -45,6 +45,8 @@ describe('WorktreeCard', () => {
         isFocused={false}
         isExpanded={false}
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 
@@ -62,6 +64,8 @@ describe('WorktreeCard', () => {
         isFocused={false}
         isExpanded
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 
@@ -79,6 +83,8 @@ describe('WorktreeCard', () => {
         isFocused={false}
         isExpanded={false}
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 
@@ -94,6 +100,8 @@ describe('WorktreeCard', () => {
         isFocused={true}
         isExpanded={false}
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 
@@ -108,6 +116,8 @@ describe('WorktreeCard', () => {
           isFocused={false}
           isExpanded={false}
           onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
         />
       </ThemeProvider>,
     );
@@ -133,6 +143,8 @@ describe('WorktreeCard', () => {
         isFocused={false}
         isExpanded
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 
@@ -152,6 +164,8 @@ describe('WorktreeCard', () => {
         isFocused={false}
         isExpanded={false}
         onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
       />,
     );
 

@@ -12,6 +12,8 @@ export interface WorktreeCardProps {
   isFocused: boolean;
   isExpanded: boolean;
   onToggleExpand: () => void;
+  onCopyTree?: () => void;
+  onOpenEditor?: () => void;
 }
 
 const MAX_VISIBLE_CHANGES = 10;
@@ -23,8 +25,13 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   isFocused,
   isExpanded,
   onToggleExpand,
+  onCopyTree,
+  onOpenEditor,
 }) => {
   const { palette } = useTheme();
+  const showCopyTreeHint = Boolean(onCopyTree);
+  const showOpenEditorHint = Boolean(onOpenEditor);
+  const hasToggleHandler = typeof onToggleExpand === 'function';
 
   const borderColor = getBorderColorForMood(mood);
   const borderStyle = isFocused ? 'double' : 'round';
@@ -85,9 +92,22 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       {isFocused && (
         <Box marginTop={1}>
           <Text dimColor>
-            <Text color={palette.accent.primary}>[c]</Text> CopyTree{'  '}
+            {hasToggleHandler && (
+              <>
+                <Text color={palette.accent.primary}>[space]</Text> Expand{'  '}
+              </>
+            )}
+            {showCopyTreeHint && (
+              <>
+                <Text color={palette.accent.primary}>[c]</Text> CopyTree{'  '}
+              </>
+            )}
             <Text color={palette.accent.primary}>[p]</Text> Profile{'  '}
-            <Text color={palette.accent.primary}>[Enter]</Text> VS Code
+            {showOpenEditorHint && (
+              <>
+                <Text color={palette.accent.primary}>[Enter]</Text> VS Code
+              </>
+            )}
           </Text>
         </Box>
       )}
