@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'; // Added useCallback
-import { Box, Text, useApp, useStdout, useInput } from 'ink';
+import { Box, Text, useApp, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { StatusBar } from './components/StatusBar.js';
@@ -12,6 +12,7 @@ import type { CommandServices } from './commands/types.js';
 import { useCommandExecutor } from './hooks/useCommandExecutor.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
+import { useDashboardNav } from './hooks/useDashboardNav.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile } from './utils/fileOpener.js';
@@ -295,6 +296,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const statusRows = 5;
   const reservedRows = headerRows + statusRows;
   const viewportHeight = useViewportHeight(reservedRows);
+  const dashboardViewportSize = useMemo(() => {
+    const available = Math.max(1, height - reservedRows);
+    return Math.max(3, Math.floor(available / 5));
+  }, [height, reservedRows]);
 
   // Listen for sys:refresh events
   useEffect(() => {
@@ -375,37 +380,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, []);
 
-  const handleFocusMove = useCallback((direction: 'up' | 'down' | 'pageUp' | 'pageDown' | 'home' | 'end') => {
-    if (sortedWorktrees.length === 0) {
-      return;
-    }
-
-    const currentIndex = sortedWorktrees.findIndex(wt => wt.id === focusedWorktreeId);
-    const resolvedIndex = currentIndex >= 0 ? currentIndex : 0;
-    const step = direction === 'pageUp' || direction === 'pageDown' ? 3 : 1;
-
-    let nextIndex = resolvedIndex;
-
-    switch (direction) {
-      case 'up':
-      case 'pageUp':
-        nextIndex = Math.max(0, resolvedIndex - step);
-        break;
-      case 'down':
-      case 'pageDown':
-        nextIndex = Math.min(sortedWorktrees.length - 1, resolvedIndex + step);
-        break;
-      case 'home':
-        nextIndex = 0;
-        break;
-      case 'end':
-        nextIndex = sortedWorktrees.length - 1;
-        break;
-    }
-
-    setFocusedWorktreeId(sortedWorktrees[nextIndex]?.id ?? null);
-  }, [focusedWorktreeId, sortedWorktrees]);
-
   const handleOpenWorktreeEditor = useCallback((id: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
     if (!target) {
@@ -420,6 +394,14 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       return;
     }
     events.emit('file:copy-tree', { rootPath: target.path, profile });
+  }, [sortedWorktrees]);
+
+  const handleOpenProfileSelector = useCallback((id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
+      return;
+    }
+    events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: `/copytree ${target.branch ?? target.name} ` } });
   }, [sortedWorktrees]);
 
   useEffect(() => {
@@ -947,46 +929,23 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
   };
 
-  useEffect(() => {
-    const unsubscribeMove = events.on('nav:move', ({ direction }) => {
-      if (direction === 'up' || direction === 'down' || direction === 'pageUp' || direction === 'pageDown' || direction === 'home' || direction === 'end') {
-        handleFocusMove(direction);
-      }
-    });
-
-    return () => {
-      unsubscribeMove();
-    };
-  }, [handleFocusMove]);
-
   const anyModalOpen = activeModals.size > 0;
 
-  useInput((input, key) => {
-    if (anyModalOpen) {
-      return;
-    }
-
-    if (input === 'c' && focusedWorktreeId) {
-      handleCopyTreeForWorktree(focusedWorktreeId);
-      return;
-    }
-
-    if (input === 'p' && focusedWorktreeId) {
-      handleCopyTreeForWorktree(focusedWorktreeId, 'default');
-      return;
-    }
-
-    if (key.return && focusedWorktreeId) {
-      handleOpenWorktreeEditor(focusedWorktreeId);
-    }
+  const { visibleStart, visibleEnd } = useDashboardNav({
+    worktrees: sortedWorktrees,
+    focusedWorktreeId,
+    expandedWorktreeIds,
+    isModalOpen: anyModalOpen,
+    viewportSize: dashboardViewportSize,
+    onFocusChange: setFocusedWorktreeId,
+    onToggleExpand: handleToggleExpandWorktree,
+    onCopyTree: handleCopyTreeForWorktree,
+    onOpenEditor: handleOpenWorktreeEditor,
+    onOpenProfileSelector: handleOpenProfileSelector,
   });
 
   useKeyboard({
-    onToggleExpand: anyModalOpen ? undefined : () => {
-      if (focusedWorktreeId) {
-        handleToggleExpandWorktree(focusedWorktreeId);
-      }
-    },
+    navigationEnabled: false,
 
     onOpenCommandBar: undefined,
     onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
@@ -1070,6 +1029,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           activeWorktreeId={activeWorktreeId}
           focusedWorktreeId={focusedWorktreeId}
           expandedWorktreeIds={expandedWorktreeIds}
+          visibleStart={visibleStart}
+          visibleEnd={visibleEnd}
           onToggleExpand={handleToggleExpandWorktree}
           onCopyTree={handleCopyTreeForWorktree}
           onOpenEditor={handleOpenWorktreeEditor}

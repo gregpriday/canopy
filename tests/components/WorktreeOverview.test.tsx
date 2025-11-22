@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import { render } from 'ink-testing-library';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Worktree, WorktreeChanges } from '../../src/types/index.js';
@@ -8,8 +8,16 @@ const capturedProps: any[] = [];
 
 vi.mock('../../src/components/WorktreeCard.js', () => ({
   WorktreeCard: (props: any) => {
-    capturedProps.push(props);
-    return <Box>{props.worktree.branch || props.worktree.name}</Box>;
+    capturedProps.push({
+      ...props,
+      worktree: { ...props.worktree },
+      worktreeId: props.worktree.id,
+    });
+    return (
+      <Box>
+        <Text>{props.worktree.branch || props.worktree.name}</Text>
+      </Box>
+    );
   },
 }));
 
@@ -64,5 +72,36 @@ describe('WorktreeOverview', () => {
     expect(capturedProps[0]).toBeDefined();
     capturedProps[0].onToggleExpand();
     expect(toggleSpy).toHaveBeenCalledWith('alpha');
+  });
+
+  it('applies visible window bounds', () => {
+    const worktrees: Worktree[] = [
+      { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: true, mood: 'stable' },
+      { id: 'beta', path: '/repo/beta', name: 'beta', branch: 'beta', isCurrent: false, mood: 'stable' },
+      { id: 'charlie', path: '/repo/charlie', name: 'charlie', branch: 'charlie', isCurrent: false, mood: 'stable' },
+    ];
+    const sorted = sortWorktrees(worktrees);
+    expect(sorted.map(wt => wt.id)).toEqual(['alpha', 'beta', 'charlie']);
+    const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+    const { lastFrame } = render(
+      <WorktreeOverview
+        worktrees={worktrees}
+        worktreeChanges={changes}
+        activeWorktreeId="alpha"
+        focusedWorktreeId="alpha"
+        expandedWorktreeIds={new Set()}
+        visibleStart={1}
+        visibleEnd={3}
+        onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
+      />
+    );
+
+    const frame = lastFrame() ?? '';
+    expect(frame).toContain('beta');
+    expect(frame).toContain('charlie');
+    expect(frame).not.toContain('alpha');
   });
 });

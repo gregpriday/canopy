@@ -9,6 +9,8 @@ export interface WorktreeOverviewProps {
   activeWorktreeId: string | null;
   focusedWorktreeId: string | null;
   expandedWorktreeIds: Set<string>;
+  visibleStart?: number;
+  visibleEnd?: number;
   onToggleExpand: (id: string) => void;
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
@@ -65,15 +67,20 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   worktreeChanges,
   focusedWorktreeId,
   expandedWorktreeIds,
+  visibleStart,
+  visibleEnd,
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
 }) => {
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
+  const start = Math.max(0, visibleStart ?? 0);
+  const end = visibleEnd ?? sorted.length;
+  const sliced = sorted.slice(start, end);
 
   return (
     <Box flexDirection="column" gap={1} flexGrow={1}>
-      {sorted.map((worktree) => {
+      {sliced.map((worktree) => {
         const changes = worktreeChanges.get(worktree.id) ?? {
           ...FALLBACK_CHANGES,
           worktreeId: worktree.id,

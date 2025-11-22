@@ -8,6 +8,7 @@ import { events } from '../services/events.js';
  */
 export interface KeyboardHandlers {
   enabled?: boolean;
+  navigationEnabled?: boolean;
   // File/Folder Actions
   onToggleExpand?: () => void;    // Space key
 
@@ -42,6 +43,7 @@ const END_SEQUENCES = new Set(['\u001B[F', '\u001BOF', '\u001B[4~', '\u001B[8~',
 export function useKeyboard(handlers: KeyboardHandlers): void {
   const { stdin } = useStdin();
   const enabled = handlers.enabled ?? true;
+  const navigationEnabled = handlers.navigationEnabled ?? true;
   // Use ref instead of state to prevent stale closures in useInput callback
   const exitConfirmRef = useRef(false);
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,6 +58,10 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
 
     const handleData = (data: Buffer | string) => {
       const chunk = typeof data === 'string' ? data : data.toString();
+
+      if (!navigationEnabled) {
+        return;
+      }
 
       if (HOME_SEQUENCES.has(chunk)) {
         events.emit('nav:move', { direction: 'home' });
@@ -76,7 +82,7 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
         stdin.removeListener?.('data', handleData);
       }
     };
-  }, [stdin, enabled]); // Removed handlers.onHome, handlers.onEnd from dependencies
+  }, [stdin, enabled, navigationEnabled]); // Removed handlers.onHome, handlers.onEnd from dependencies
 
   useInput((input, key) => {
     if (!enabled) {
@@ -112,50 +118,50 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
     }
 
     // Navigation - Arrow keys
-    if (key.upArrow) {
+    if (navigationEnabled && key.upArrow) {
       events.emit('nav:move', { direction: 'up' });
       return;
     }
 
-    if (key.downArrow) {
+    if (navigationEnabled && key.downArrow) {
       events.emit('nav:move', { direction: 'down' });
       return;
     }
 
-    if (key.leftArrow) {
+    if (navigationEnabled && key.leftArrow) {
       events.emit('nav:move', { direction: 'left' });
       return;
     }
 
-    if (key.rightArrow) {
+    if (navigationEnabled && key.rightArrow) {
       events.emit('nav:move', { direction: 'right' });
       return;
     }
 
     // Navigation - Page Up/Down
-    if (key.pageUp) {
+    if (navigationEnabled && key.pageUp) {
       events.emit('nav:move', { direction: 'pageUp' });
       return;
     }
 
-    if (key.pageDown) {
+    if (navigationEnabled && key.pageDown) {
       events.emit('nav:move', { direction: 'pageDown' });
       return;
     }
 
     // Navigation - Ctrl+U/D (alternate page up/down)
-    if (key.ctrl && input === 'u') {
+    if (navigationEnabled && key.ctrl && input === 'u') {
       events.emit('nav:move', { direction: 'pageUp' });
       return;
     }
 
-    if (key.ctrl && input === 'd') {
+    if (navigationEnabled && key.ctrl && input === 'd') {
       events.emit('nav:move', { direction: 'pageDown' });
       return;
     }
 
     // File/Folder Actions
-    if (key.return) {
+    if (navigationEnabled && key.return) {
       events.emit('nav:primary');
       return;
     }
