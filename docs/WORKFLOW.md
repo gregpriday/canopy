@@ -13,6 +13,7 @@ Authoritative checklist for handling a single GitHub issue end-to-end.
 5. **Implement and verify**  
    - Make the changes, keep the worktree clean, and ensure the full test suite (`npm test`, etc.) passes locally.
 6. **Open and merge a PR**  
-   - Push the branch, open a PR with a clear summary and testing notes, then merge immediately once checks pass. Delete the feature branch after merge.
+   - Push the branch, open a PR that explicitly references and closes the issue (e.g., `Closes #123`), includes a concise implementation summary and testing notes, then merge immediately once checks pass. Delete the feature branch after merge.
+   - Keep PR bodies readable: use real newlines/bullets (no escaped `\n` strings), list key changes and tests run.
 
 Use this workflow as the source of truth for future issue handling.***
