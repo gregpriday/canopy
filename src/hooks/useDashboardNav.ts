@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useInput } from 'ink';
 import type { Worktree } from '../types/index.js';
+import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
 
 export interface DashboardNavProps {
   worktrees: Worktree[];
@@ -180,8 +181,16 @@ export function useDashboardNav({
         return;
       }
 
-      // Note: Home/End keys are not exposed in Ink's Key type as of v6.5
-      // These would need to be detected via raw terminal input if needed
+      // Home and End keys use escape sequences (not in Ink's Key type)
+      if (HOME_SEQUENCES.has(input)) {
+        focusExact(0);
+        return;
+      }
+
+      if (END_SEQUENCES.has(input)) {
+        focusExact(worktrees.length - 1);
+        return;
+      }
 
       handlePrimaryActions(input, key);
     },

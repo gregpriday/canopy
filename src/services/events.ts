@@ -101,6 +101,7 @@ export type CanopyEventMap = {
   'ui:filter:clear': void;
   'ui:modal:open': UIModalOpenPayload;
   'ui:modal:close': UIModalClosePayload;
+  'ui:view:mode': { mode: 'dashboard' | 'tree' };
 
   'sys:worktree:switch': { worktreeId: string };
   'sys:worktree:refresh': void;

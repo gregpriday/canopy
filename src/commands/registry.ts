@@ -3,6 +3,8 @@ import { copyTreeCommand } from './definitions/copytree.js';
 import { openCommand } from './definitions/open.js';
 import { exitCommand } from './definitions/exit.js';
 import { worktreeCommand } from './definitions/worktree.js';
+import { treeCommand } from './definitions/tree.js';
+import { dashboardCommand } from './definitions/dashboard.js';
 
 const registry = new Map<string, CommandDefinition>();
 
@@ -26,4 +28,6 @@ export function loadCoreCommands() {
   registerCommand(openCommand);
   registerCommand(exitCommand);
   registerCommand(worktreeCommand);
+  registerCommand(treeCommand);
+  registerCommand(dashboardCommand);
 }
