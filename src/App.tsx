@@ -1087,6 +1087,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         activeRootPath={activeRootPath}
         commandMode={commandMode}
         isIdle={isIdle}
+        worktreeChanges={worktreeChanges}
+        focusedWorktreeId={focusedWorktreeId}
+        worktrees={sortedWorktrees}
       />
       {isProfileSelectorOpen && (
         <Box
