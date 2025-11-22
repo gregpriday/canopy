@@ -1,15 +1,10 @@
 import React from 'react';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { render } from 'ink-testing-library';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { describe, it, expect, vi } from 'vitest';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { TreeNode } from '../../src/components/TreeNode.js';
 import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import type { TreeNode as TreeNodeType, GitStatus } from '../../src/types/index.js';
-import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 
 describe('TreeNode', () => {
   const renderWithTheme = (component) => {
@@ -20,7 +15,10 @@ describe('TreeNode', () => {
     );
   };
 
-  const mockConfig = DEFAULT_CONFIG;
+  const mockConfig = {
+    ...DEFAULT_CONFIG,
+    git: { ...(DEFAULT_CONFIG.git || {}), statusStyle: 'letter' },
+  };
   const mockOnSelect = vi.fn();
   const mockOnToggle = vi.fn();
 
