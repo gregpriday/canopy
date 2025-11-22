@@ -16,7 +16,7 @@ import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { useViewportHeight } from './hooks/useViewportHeight.js';
-import { openFile } from './utils/fileOpener.js';
+import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
 import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
 import { buildCopyTreeRequest } from './utils/copyTreePayload.js';
@@ -390,13 +390,24 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, []);
 
-  const handleOpenWorktreeEditor = useCallback((id: string) => {
+  const handleOpenWorktreeEditor = useCallback(async (id: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
     if (!target) {
       return;
     }
-    events.emit('file:open', { path: target.path });
-  }, [sortedWorktrees]);
+
+    const openerName = effectiveConfig.openers?.default?.cmd ?? effectiveConfig.editor;
+    const label = target.branch ?? target.name ?? target.path;
+
+    try {
+      await openWorktreeInEditor(target, effectiveConfig);
+      events.emit('ui:notify', { type: 'success', message: `Opened '${label}' in ${openerName}` });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Failed to open editor';
+      events.emit('ui:notify', { type: 'error', message });
+    }
+  }, [effectiveConfig, sortedWorktrees]);
 
   const handleCopyTreeForWorktree = useCallback((id: string, profile?: string) => {
     const request = buildCopyTreeRequest({

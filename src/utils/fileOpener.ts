@@ -1,31 +1,11 @@
 import { execa } from 'execa';
 import path from 'path';
 import { minimatch } from 'minimatch';
-import type { CanopyConfig, OpenerConfig } from '../types/index.js';
+import type { CanopyConfig, OpenerConfig, Worktree } from '../types/index.js';
 
-/**
- * Open a file using the configured opener.
- * Matches file against opener patterns in order:
- * 1. byExtension - exact extension match
- * 2. byGlob - glob pattern match (first match wins)
- * 3. default - fallback opener
- *
- * @param filePath - Absolute path to file to open
- * @param config - Canopy configuration
- * @throws Error if editor command fails or is not found
- */
-export async function openFile(
-  filePath: string,
-  config: CanopyConfig,
-  overrideOpener?: OpenerConfig
-): Promise<void> {
-  // Find the right opener for this file
-  const opener = overrideOpener ?? resolveOpener(filePath, config);
+async function launchOpener(opener: OpenerConfig, targetPath: string): Promise<void> {
+  const args = [...opener.args, targetPath];
 
-  // Build full command with args + filepath
-  const args = [...opener.args, filePath];
-
-  // Spawn editor process in detached mode
   const child = execa(opener.cmd, args, {
     detached: true,
     stdio: 'ignore',
@@ -58,10 +38,32 @@ export async function openFile(
       );
     } else {
       throw new Error(
-        `Failed to open file with '${opener.cmd}': ${err.message}`
+        `Failed to open with '${opener.cmd}': ${err.message}`
       );
     }
   }
+}
+
+/**
+ * Open a file using the configured opener.
+ * Matches file against opener patterns in order:
+ * 1. byExtension - exact extension match
+ * 2. byGlob - glob pattern match (first match wins)
+ * 3. default - fallback opener
+ *
+ * @param filePath - Absolute path to file to open
+ * @param config - Canopy configuration
+ * @throws Error if editor command fails or is not found
+ */
+export async function openFile(
+  filePath: string,
+  config: CanopyConfig,
+  overrideOpener?: OpenerConfig
+): Promise<void> {
+  // Find the right opener for this file
+  const opener = overrideOpener ?? resolveOpener(filePath, config);
+
+  await launchOpener(opener, filePath);
 }
 
 /**
@@ -124,4 +126,30 @@ function matchesGlob(filePath: string, pattern: string): boolean {
     dot: true,        // Match dotfiles
     matchBase: true,  // Match basename if no slashes in pattern
   });
+}
+
+function resolveDefaultOpener(config: CanopyConfig): OpenerConfig {
+  if (config.openers?.default) {
+    return config.openers.default;
+  }
+
+  return {
+    cmd: config.editor,
+    args: config.editorArgs,
+  };
+}
+
+/**
+ * Open a worktree in the configured editor (workspace/folder mode).
+ *
+ * @param worktree - Worktree to open
+ * @param config - Canopy configuration
+ */
+export async function openWorktreeInEditor(
+  worktree: Worktree,
+  config: CanopyConfig,
+  overrideOpener?: OpenerConfig
+): Promise<void> {
+  const opener = overrideOpener ?? resolveDefaultOpener(config);
+  await launchOpener(opener, worktree.path);
 }

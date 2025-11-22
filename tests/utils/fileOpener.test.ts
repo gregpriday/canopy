@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { openFile } from '../../src/utils/fileOpener.js';
+import { openFile, openWorktreeInEditor } from '../../src/utils/fileOpener.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { CanopyConfig } from '../../src/types/index.js';
 import * as execa from 'execa';
@@ -9,8 +9,9 @@ vi.mock('execa', () => ({
   execa: vi.fn(),
 }));
 
+const mockExeca = vi.mocked(execa.execa);
+
 describe('openFile', () => {
-  const mockExeca = vi.mocked(execa.execa);
 
   beforeEach(() => {
     mockExeca.mockReset();
@@ -358,7 +359,92 @@ describe('openFile', () => {
     };
 
     await expect(openFile('/file.txt', config)).rejects.toThrow(
-      "Failed to open file with 'myeditor': Some other error"
+      "Failed to open with 'myeditor': Some other error"
+    );
+  });
+});
+
+describe('openWorktreeInEditor', () => {
+  const worktree = {
+    id: 'main',
+    path: '/repo/main',
+    name: 'main',
+    branch: 'main',
+    isCurrent: true,
+    mood: 'stable',
+  };
+
+  beforeEach(() => {
+    mockExeca.mockReset();
+    mockExeca.mockReturnValue({
+      once: vi.fn((event: string, handler: Function) => {
+        if (event === 'spawn') {
+          setTimeout(() => handler(), 0);
+        }
+      }),
+      unref: vi.fn(),
+      catch: vi.fn(),
+    } as any);
+  });
+
+  it('opens the worktree path using the default opener', async () => {
+    const config: CanopyConfig = {
+      ...DEFAULT_CONFIG,
+      openers: {
+        default: { cmd: 'code', args: ['-r'] },
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+
+    await openWorktreeInEditor(worktree, config);
+
+    expect(mockExeca).toHaveBeenCalledWith(
+      'code',
+      ['-r', '/repo/main'],
+      expect.objectContaining({ detached: true, stdio: 'ignore' })
+    );
+  });
+
+  it('falls back to editor/editorArgs when no openers are configured', async () => {
+    const config: CanopyConfig = {
+      ...DEFAULT_CONFIG,
+      editor: 'vim',
+      editorArgs: ['-p'],
+    };
+    delete (config as any).openers;
+
+    await openWorktreeInEditor(worktree, config);
+
+    expect(mockExeca).toHaveBeenCalledWith(
+      'vim',
+      ['-p', '/repo/main'],
+      expect.any(Object)
+    );
+  });
+
+  it('surfaces opener errors with context', async () => {
+    mockExeca.mockReturnValue({
+      once: vi.fn((event: string, handler: Function) => {
+        if (event === 'error') {
+          setTimeout(() => handler({ code: 'ENOENT', message: 'not found' }), 0);
+        }
+      }),
+      unref: vi.fn(),
+      catch: vi.fn(),
+    } as any);
+
+    const config: CanopyConfig = {
+      ...DEFAULT_CONFIG,
+      openers: {
+        default: { cmd: 'missing-editor', args: [] },
+        byExtension: {},
+        byGlob: {},
+      },
+    };
+
+    await expect(openWorktreeInEditor(worktree, config)).rejects.toThrow(
+      "Editor 'missing-editor' not found"
     );
   });
 });

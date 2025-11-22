@@ -105,7 +105,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
             <Text color={palette.accent.primary}>[p]</Text> Profile{'  '}
             {showOpenEditorHint && (
               <>
-                <Text color={palette.accent.primary}>[Enter]</Text> VS Code
+                <Text color={palette.accent.primary}>[Enter]</Text> Editor
               </>
             )}
           </Text>
