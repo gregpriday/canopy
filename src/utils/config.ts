@@ -165,6 +165,19 @@ function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
       }
 
       if (
+        typedKey === 'copytreeProfiles' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        merged[typedKey] = {
+          ...(merged.copytreeProfiles || {}),
+          ...(value as Record<string, unknown>),
+        } as typeof merged.copytreeProfiles;
+        continue;
+      }
+
+      if (
         typedKey === 'openers' &&
         value &&
         typeof value === 'object' &&
@@ -301,6 +314,33 @@ function validateConfig(config: unknown): CanopyConfig {
     }
     if (typeof c.copytreeDefaults.asReference !== 'boolean') {
       errors.push('config.copytreeDefaults.asReference must be a boolean');
+    }
+  }
+
+  if (c.copytreeProfiles !== undefined) {
+    if (!c.copytreeProfiles || typeof c.copytreeProfiles !== 'object' || Array.isArray(c.copytreeProfiles)) {
+      errors.push('config.copytreeProfiles must be an object');
+    } else {
+      for (const [profileName, profile] of Object.entries(c.copytreeProfiles)) {
+        if (!profile || typeof profile !== 'object' || Array.isArray(profile)) {
+          errors.push(`config.copytreeProfiles.${profileName} must be an object`);
+          continue;
+        }
+
+        if (!Array.isArray((profile as any).args)) {
+          errors.push(`config.copytreeProfiles.${profileName}.args must be an array of strings`);
+        } else {
+          for (let i = 0; i < (profile as any).args.length; i++) {
+            if (typeof (profile as any).args[i] !== 'string') {
+              errors.push(`config.copytreeProfiles.${profileName}.args[${i}] must be a string`);
+            }
+          }
+        }
+
+        if ((profile as any).description !== undefined && typeof (profile as any).description !== 'string') {
+          errors.push(`config.copytreeProfiles.${profileName}.description must be a string if provided`);
+        }
+      }
     }
   }
 

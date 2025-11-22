@@ -294,6 +294,33 @@ describe('loadConfig', () => {
     // Missing field should be filled from defaults
     expect(config.copytreeDefaults).toEqual(DEFAULT_CONFIG.copytreeDefaults);
   });
+
+  it('validates copytreeProfiles entries', async () => {
+    const invalidConfig = {
+      copytreeProfiles: {
+        bad: { args: '--flag' as any },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+    await expect(loadConfig(tempDir)).rejects.toThrow('copytreeProfiles.bad.args must be an array of strings');
+  });
+
+  it('merges copytreeProfiles with defaults', async () => {
+    const projectConfig = {
+      copytreeProfiles: {
+        default: { args: ['--custom-default'] },
+        quick: { args: ['--depth', '1'] },
+      },
+    };
+    await fs.writeJSON(path.join(tempDir, '.canopy.json'), projectConfig);
+
+    const config = await loadConfig(tempDir);
+
+    expect(config.copytreeProfiles?.default.args).toEqual(['--custom-default']);
+    expect(config.copytreeProfiles?.quick.args).toEqual(['--depth', '1']);
+    expect(config.copytreeProfiles?.minimal).toBeDefined();
+  });
 });
 
 // Global config tests

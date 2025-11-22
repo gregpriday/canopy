@@ -318,7 +318,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [projectIdentity]);
 
   // Centralized CopyTree listener (survives StatusBar unmount/hide)
-  useCopyTree(activeRootPath);
+  useCopyTree(activeRootPath, effectiveConfig);
 
   useWatcher(activeRootPath, effectiveConfig, !!noWatch);
 

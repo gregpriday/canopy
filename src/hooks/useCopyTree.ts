@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { runCopyTree } from '../utils/copytree.js';
+import { runCopyTreeWithProfile } from '../utils/copytree.js';
 import { events } from '../services/events.js';
+import type { CanopyConfig } from '../types/index.js';
 
 /**
  * CopyTree service hook - centralized listener and executor for CopyTree operations.
@@ -15,8 +16,9 @@ import { events } from '../services/events.js';
  * - Uses latest activeRootPath via ref to avoid stale closures
  *
  * @param activeRootPath - Current root directory path (updates when switching worktrees)
+ * @param config - Active Canopy configuration (used to resolve CopyTree profiles)
  */
-export function useCopyTree(activeRootPath: string): void {
+export function useCopyTree(activeRootPath: string, config: CanopyConfig): void {
   // Track in-flight state to prevent concurrent executions
   const isRunningRef = useRef(false);
 
@@ -24,9 +26,13 @@ export function useCopyTree(activeRootPath: string): void {
   const activeRootPathRef = useRef(activeRootPath);
   activeRootPathRef.current = activeRootPath;
 
+  // Keep config in a ref to avoid stale closures when settings change
+  const configRef = useRef(config);
+  configRef.current = config;
+
   useEffect(() => {
     // Subscribe to file:copy-tree events
-    const unsubscribe = events.on('file:copy-tree', async (payload) => {
+    const unsubscribe = events.on('file:copy-tree', async (payload = {}) => {
       // Guard against concurrent executions
       if (isRunningRef.current) {
         events.emit('ui:notify', {
@@ -41,9 +47,16 @@ export function useCopyTree(activeRootPath: string): void {
 
         // Use payload rootPath if provided, otherwise use activeRootPath
         const targetPath = payload.rootPath || activeRootPathRef.current;
+        const profile = payload.profile || 'default';
+        const extraArgs = payload.extraArgs || [];
 
         // Execute CopyTree
-        const output = await runCopyTree(targetPath);
+        const output = await runCopyTreeWithProfile(
+          targetPath,
+          profile,
+          configRef.current,
+          extraArgs
+        );
 
         // Parse output to extract last meaningful line (removing ANSI codes)
         const lines = output
