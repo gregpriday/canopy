@@ -728,7 +728,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       }
 
       const currentIndex = worktreeList.findIndex(wt => wt.id === activeWorktreeId);
-      const nextIndex = (currentIndex + direction + worktreeList.length) % worktreeList.length;
+      const fallbackIndex = worktreeList.findIndex(wt => wt.isCurrent);
+      const resolvedIndex = currentIndex >= 0
+        ? currentIndex
+        : (fallbackIndex >= 0 ? fallbackIndex : 0);
+      const nextIndex = (resolvedIndex + direction + worktreeList.length) % worktreeList.length;
       const nextWorktree = worktreeList[nextIndex];
 
       await handleSwitchWorktree(nextWorktree);
@@ -748,7 +752,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     const worktreeList = worktreesWithStatus;
     const currentIndex = worktreeList.findIndex(wt => wt.id === activeWorktreeId);
-    const nextIndex = (currentIndex + direction + worktreeList.length) % worktreeList.length;
+    const fallbackIndex = worktreeList.findIndex(wt => wt.isCurrent);
+    const resolvedIndex = currentIndex >= 0
+      ? currentIndex
+      : (fallbackIndex >= 0 ? fallbackIndex : 0);
+    const nextIndex = (resolvedIndex + direction + worktreeList.length) % worktreeList.length;
     const nextWorktree = worktreeList[nextIndex];
 
     if (nextWorktree) {
