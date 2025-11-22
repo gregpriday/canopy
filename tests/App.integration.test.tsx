@@ -22,13 +22,13 @@ vi.mock('../src/utils/worktree.js', () => ({
 vi.mock('../src/utils/config.js');
 
 vi.mock('../src/utils/copytree.js', () => ({
-  runCopyTree: vi.fn().mockResolvedValue('Success\nCopied!'),
+  runCopyTreeWithProfile: vi.fn().mockResolvedValue('Success\nCopied!'),
 }));
 
 import { openFile } from '../src/utils/fileOpener.js';
 import { copyFilePath } from '../src/utils/clipboard.js';
 import * as configUtils from '../src/utils/config.js';
-import { runCopyTree } from '../src/utils/copytree.js';
+import { runCopyTreeWithProfile } from '../src/utils/copytree.js';
 import { events } from '../src/services/events.js';
 import { getWorktrees, getCurrentWorktree } from '../src/utils/worktree.js';
 
@@ -137,7 +137,7 @@ describe('App integration - CopyTree centralized listener', () => {
     await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Clear any previous calls
-    vi.mocked(runCopyTree).mockClear();
+    vi.mocked(runCopyTreeWithProfile).mockClear();
 
     // Create a promise to wait for notification
     let notificationReceived = false;
@@ -151,10 +151,15 @@ describe('App integration - CopyTree centralized listener', () => {
     events.emit('file:copy-tree', {});
 
     // Wait for runCopyTree to be called
-    await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0);
+    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0);
 
     // Verify runCopyTree was called with the correct path
-    expect(runCopyTree).toHaveBeenCalledWith('/test/project');
+    expect(runCopyTreeWithProfile).toHaveBeenCalledWith(
+      '/test/project',
+      'default',
+      expect.any(Object),
+      []
+    );
 
     // Wait for notification
     await waitForCondition(() => notificationReceived);
@@ -169,21 +174,26 @@ describe('App integration - CopyTree centralized listener', () => {
     await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Clear any previous calls
-    vi.mocked(runCopyTree).mockClear();
+    vi.mocked(runCopyTreeWithProfile).mockClear();
 
     // Emit file:copy-tree event with custom path
     events.emit('file:copy-tree', { rootPath: '/custom/path' });
 
     // Wait for runCopyTree to be called
-    await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0);
+    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0);
 
     // Verify runCopyTree was called with the custom path
-    expect(runCopyTree).toHaveBeenCalledWith('/custom/path');
+    expect(runCopyTreeWithProfile).toHaveBeenCalledWith(
+      '/custom/path',
+      'default',
+      expect.any(Object),
+      []
+    );
   });
 
   it('emits error notification when CopyTree fails', async () => {
     // Mock failure
-    vi.mocked(runCopyTree).mockRejectedValueOnce(new Error('CopyTree command failed'));
+    vi.mocked(runCopyTreeWithProfile).mockRejectedValueOnce(new Error('CopyTree command failed'));
 
     const { lastFrame } = render(<App cwd="/test/project" />);
 

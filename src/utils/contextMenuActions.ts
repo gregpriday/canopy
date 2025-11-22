@@ -1,6 +1,5 @@
 import path from 'path';
 import { execa } from 'execa';
-import { runCopyTree } from './copytree.js';
 import { copyFilePath, copyToClipboard } from './clipboard.js';
 import { openFile } from './fileOpener.js';
 import type { ContextMenuItem } from '../types/contextMenu.js';

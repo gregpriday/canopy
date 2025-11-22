@@ -13,6 +13,8 @@ export interface ModalContextMap {
 // 1. Define Payload Types
 export interface CopyTreePayload {
   rootPath?: string;
+  profile?: string;
+  extraArgs?: string[];
 }
 
 export interface CopyPathPayload {
