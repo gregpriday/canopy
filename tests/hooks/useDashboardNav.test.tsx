@@ -148,9 +148,8 @@ describe('useDashboardNav', () => {
     stdin.write('\x1B[B'); // move to index 2
     await tick();
     await tick();
-    await tick();
 
-    expect(lastFrame()).toContain('focus:bug');
+    expect(spies.onFocusChange).toHaveBeenLastCalledWith('bug');
     expect(lastFrame()).toContain('window:1-3');
   });
 });

@@ -105,7 +105,7 @@ describe('WorktreeCard', () => {
       />,
     );
 
-    expect(lastFrame()).toContain('CopyTree');
+    expect(lastFrame()).toContain('Copy Context');
 
     rerender(
       <ThemeProvider mode="dark">
@@ -122,7 +122,7 @@ describe('WorktreeCard', () => {
       </ThemeProvider>,
     );
 
-    expect(lastFrame()).not.toContain('CopyTree');
+    expect(lastFrame()).not.toContain('Copy Context');
   });
 
   it('limits visible changes and shows overflow indicator', () => {

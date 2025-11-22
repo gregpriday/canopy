@@ -13,6 +13,7 @@ export interface InitialState {
   expandedFolders: Set<string>;
   cursorPosition: number;
   gitOnlyMode: boolean;
+  lastCopyProfile: string;
 }
 
 /**
@@ -23,6 +24,7 @@ export interface SessionState {
   expandedFolders: string[];  // Array for JSON serialization
   gitOnlyMode?: boolean;      // Git-only view mode preference
   timestamp: number;
+  lastCopyProfile?: string;
 }
 
 /**
@@ -66,6 +68,7 @@ export async function loadInitialState(
   let expandedFolders = new Set<string>();
   let cursorPosition = 0;
   let gitOnlyMode = false;
+  let lastCopyProfile = 'default';
 
   if (sessionState) {
     // Restore null selection if explicitly saved
@@ -85,6 +88,10 @@ export async function loadInitialState(
 
     // Restore git-only mode preference
     gitOnlyMode = sessionState.gitOnlyMode ?? false;
+
+    if (sessionState.lastCopyProfile && typeof sessionState.lastCopyProfile === 'string') {
+      lastCopyProfile = sessionState.lastCopyProfile;
+    }
   }
 
   return {
@@ -93,6 +100,7 @@ export async function loadInitialState(
     expandedFolders,
     cursorPosition,
     gitOnlyMode,
+    lastCopyProfile,
   };
 }
 
@@ -136,8 +144,11 @@ export async function loadSessionState(
     const gitOnlyModeValid =
       !Object.prototype.hasOwnProperty.call(raw, 'gitOnlyMode') ||
       typeof raw.gitOnlyMode === 'boolean';
+    const lastCopyProfileValid =
+      !Object.prototype.hasOwnProperty.call(raw, 'lastCopyProfile') ||
+      typeof raw.lastCopyProfile === 'string';
 
-    if (!hasValidSelectedPath || !expandedFoldersValid || !timestampValid || !gitOnlyModeValid) {
+    if (!hasValidSelectedPath || !expandedFoldersValid || !timestampValid || !gitOnlyModeValid || !lastCopyProfileValid) {
       console.warn('Invalid session state format, ignoring');
       return null;
     }
@@ -148,6 +159,7 @@ export async function loadSessionState(
       expandedFolders: raw.expandedFolders,
       gitOnlyMode: raw.gitOnlyMode,
       timestamp: raw.timestamp,
+      lastCopyProfile: raw.lastCopyProfile,
     };
 
     // Ignore stale sessions (> 30 days old)

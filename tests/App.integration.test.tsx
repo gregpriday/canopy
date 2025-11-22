@@ -25,12 +25,21 @@ vi.mock('../src/utils/copytree.js', () => ({
   runCopyTreeWithProfile: vi.fn().mockResolvedValue('Success\nCopied!'),
 }));
 
+vi.mock('../src/hooks/useMultiWorktreeStatus.js', () => ({
+  useMultiWorktreeStatus: vi.fn().mockReturnValue({
+    worktreeChanges: new Map(),
+    refresh: vi.fn(),
+    clear: vi.fn(),
+  }),
+}));
+
 import { openFile } from '../src/utils/fileOpener.js';
 import { copyFilePath } from '../src/utils/clipboard.js';
 import * as configUtils from '../src/utils/config.js';
 import { runCopyTreeWithProfile } from '../src/utils/copytree.js';
 import { events } from '../src/services/events.js';
 import { getWorktrees, getCurrentWorktree } from '../src/utils/worktree.js';
+import { useMultiWorktreeStatus } from '../src/hooks/useMultiWorktreeStatus.js';
 
 // Helper to wait for condition
 async function waitForCondition(fn: () => boolean, timeout = 1000): Promise<void> {
@@ -48,6 +57,11 @@ describe('App integration - file operations', () => {
     vi.clearAllMocks();
     // Setup default mock for loadConfig
     vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
   });
 
   it('renders without crashing', async () => {
@@ -128,6 +142,11 @@ describe('App integration - CopyTree centralized listener', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
   });
 
   it('useCopyTree hook is mounted and responds to file:copy-tree events', async () => {
@@ -225,6 +244,11 @@ describe('App integration - clear selection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
   });
 
   it('clears selection when nav:clear-selection event is emitted', async () => {
@@ -254,6 +278,11 @@ describe('App integration - file:copy-path event', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
   });
 
   it('handles file:copy-path event and calls copyFilePath', async () => {
@@ -347,6 +376,11 @@ describe('App integration - worktree event handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
   });
 
   it('handles sys:worktree:cycle with multiple worktrees', async () => {

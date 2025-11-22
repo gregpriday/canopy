@@ -46,6 +46,7 @@ describe('Worktree Session Restoration', () => {
       const currentSelection = {
         selectedPath: '/path/to/worktree-a/src/file.ts',
         expandedFolders: ['/path/to/worktree-a/src', '/path/to/worktree-a/tests'],
+        lastCopyProfile: 'debug',
         timestamp: expect.any(Number),
       };
 
@@ -59,6 +60,7 @@ describe('Worktree Session Restoration', () => {
         expect.objectContaining({
           selectedPath: currentSelection.selectedPath,
           expandedFolders: currentSelection.expandedFolders,
+          lastCopyProfile: 'debug',
         })
       );
     });
