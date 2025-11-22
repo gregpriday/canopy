@@ -25,11 +25,13 @@ import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useWorktreeSummaries } from './hooks/useWorktreeSummaries.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { useRecentActivity } from './hooks/useRecentActivity.js';
+import { useMultiWorktreeStatus } from './hooks/useMultiWorktreeStatus.js';
 import { RecentActivityPanel } from './components/RecentActivityPanel.js';
 import { useActivity } from './hooks/useActivity.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
+import { logWarn } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import { detectTerminalTheme } from './theme/colorPalette.js';
 import { execa } from 'execa';
@@ -143,6 +145,19 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const selectedPathRef = useRef<string | null>(null);
 
+  const {
+    worktreeChanges,
+    clear: clearWorktreeStatuses,
+  } = useMultiWorktreeStatus(
+    enrichedWorktrees,
+    activeWorktreeId,
+    {
+      activeMs: 1500,
+      backgroundMs: config.worktrees?.refreshIntervalMs ?? 10000,
+    },
+    !noGit && config.showGitStatus
+  );
+
   // Mutable initial selection state for session restoration during worktree switches
   const [initialSelection, setInitialSelection] = useState<{
     selectedPath: string | null;
@@ -195,19 +210,62 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     [config, showGitMarkers]
   );
 
+  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus, isLoading: isGitLoading } = useGitStatus(
+    activeRootPath,
+    noGit ? false : config.showGitStatus,
+    config.refreshDebounce,
+  );
+
+  const worktreesWithStatus = useMemo(() => {
+    return enrichedWorktrees.map(wt => {
+      const changes = worktreeChanges.get(wt.id);
+      const modifiedCount = changes?.changedFileCount ?? wt.modifiedCount;
+      return {
+        ...wt,
+        modifiedCount,
+        changes: changes?.changes,
+      };
+    });
+  }, [enrichedWorktrees, worktreeChanges]);
+
+  const currentWorktree = worktreesWithStatus.find(wt => wt.id === activeWorktreeId) || null;
+
+  const activeWorktreeChanges = useMemo(
+    () => (activeWorktreeId ? worktreeChanges.get(activeWorktreeId) : undefined),
+    [activeWorktreeId, worktreeChanges]
+  );
+
+  const effectiveGitStatus = useMemo(() => {
+    if (activeWorktreeChanges?.changes) {
+      return new Map(activeWorktreeChanges.changes.map(change => [change.path, change.status] as const));
+    }
+    return gitStatus;
+  }, [activeWorktreeChanges, gitStatus]);
+
   const commandMode = activeModals.has('command-bar');
   const isWorktreePanelOpen = activeModals.has('worktree');
   const showHelpModal = activeModals.has('help');
   const contextMenuOpen = activeModals.has('context-menu');
   const isRecentActivityOpen = activeModals.has('recent-activity');
+  const worktreesRef = useRef<Worktree[]>([]);
+  worktreesRef.current = worktreesWithStatus;
   // Sync active worktree/path from lifecycle on initialization
   useEffect(() => {
     if (lifecycleStatus === 'ready') {
-      setActiveWorktreeId(initialActiveWorktreeId);
-      setActiveRootPath(initialActiveRootPath);
-      events.emit('sys:ready', { cwd: initialActiveRootPath });
+      const fallbackWorktree =
+        (initialActiveWorktreeId
+          ? worktreesWithStatus.find(wt => wt.id === initialActiveWorktreeId)
+          : worktreesWithStatus.find(wt => wt.isCurrent)) ??
+        worktreesWithStatus[0];
+
+      const nextWorktreeId = fallbackWorktree?.id ?? initialActiveWorktreeId;
+      const nextRootPath = fallbackWorktree?.path ?? initialActiveRootPath;
+
+      setActiveWorktreeId(nextWorktreeId);
+      setActiveRootPath(nextRootPath);
+      events.emit('sys:ready', { cwd: nextRootPath });
     }
-  }, [lifecycleStatus, initialActiveWorktreeId, initialActiveRootPath]);
+  }, [initialActiveRootPath, initialActiveWorktreeId, lifecycleStatus, worktreesWithStatus]);
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
@@ -215,12 +273,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const statusRows = 5;
   const reservedRows = headerRows + statusRows;
   const viewportHeight = useViewportHeight(reservedRows);
-
-  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus, isLoading: isGitLoading } = useGitStatus(
-    activeRootPath,
-    noGit ? false : config.showGitStatus,
-    config.refreshDebounce,
-  );
 
   // Listen for sys:refresh events
   useEffect(() => {
@@ -232,7 +284,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // NEW: Initialize AI Status Hook
   // We pass the gitStatus map; the hook monitors it for activity/silence
-  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, gitStatus, isGitLoading);
+  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, effectiveGitStatus, isGitLoading);
 
   // Initialize Activity Hook for temporal styling
   const { activeFiles, isIdle } = useActivity();
@@ -277,7 +329,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     rootPath: activeRootPath,
     config: effectiveConfig,
     filterQuery: filterActive ? filterQuery : null,
-    gitStatusMap: gitStatus,
+    gitStatusMap: effectiveGitStatus,
     gitStatusFilter,
     initialSelectedPath: initialSelection.selectedPath,
     initialExpandedFolders: initialSelection.expandedFolders,
@@ -400,13 +452,14 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [notification]);
 
-  const currentWorktree = enrichedWorktrees.find(wt => wt.id === activeWorktreeId) || null;
-
   const modifiedCount = useMemo(() => {
-    return Array.from(gitStatus.values()).filter(
+    if (activeWorktreeChanges) {
+      return activeWorktreeChanges.changedFileCount;
+    }
+    return Array.from(effectiveGitStatus.values()).filter(
       status => status === 'modified' || status === 'added' || status === 'deleted'
     ).length;
-  }, [gitStatus]);
+  }, [activeWorktreeChanges, effectiveGitStatus]);
 
   const totalFileCount = useMemo(() => countTotalFiles(fileTree), [fileTree]);
 
@@ -514,7 +567,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const handleNextWorktree = () => {
     // Edge case: only one worktree
-    if (enrichedWorktrees.length <= 1) {
+    if (worktreesWithStatus.length <= 1) {
       events.emit('ui:notify', {
         type: 'info',
         message: 'Only one worktree available',
@@ -530,16 +583,28 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     lastWorktreeSwitchTime.current = now;
 
     // Find next worktree (wrap around to first after last)
-    const currentIndex = enrichedWorktrees.findIndex(wt => wt.id === activeWorktreeId);
-    const nextIndex = (currentIndex + 1) % enrichedWorktrees.length;
-    const nextWorktree = enrichedWorktrees[nextIndex];
+    const currentIndex = worktreesWithStatus.findIndex(wt => wt.id === activeWorktreeId);
+    const nextIndex = (currentIndex + 1) % worktreesWithStatus.length;
+    const nextWorktree = worktreesWithStatus[nextIndex];
 
     if (nextWorktree) {
       handleSwitchWorktree(nextWorktree);
     }
   };
 
-  const handleSwitchWorktree = useCallback(async (targetWorktree: Worktree) => {
+  const formatWorktreeSwitchMessage = useCallback((targetWorktree: Worktree) => {
+    let message = `Switched to ${targetWorktree.branch || targetWorktree.name}`;
+    if (targetWorktree.summary) {
+      message += ` — ${targetWorktree.summary}`;
+    }
+    if (targetWorktree.modifiedCount !== undefined && targetWorktree.modifiedCount > 0) {
+      message += ` [${targetWorktree.modifiedCount} files]`;
+    }
+    return message;
+  }, []);
+
+  const handleSwitchWorktree = useCallback(async (targetWorktree: Worktree, options?: { suppressNotify?: boolean }) => {
+    const suppressNotify = options?.suppressNotify ?? false;
     // Mark this as the latest requested switch to prevent race conditions
     latestWorktreeSwitchRef.current = targetWorktree.id;
 
@@ -555,16 +620,30 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
       // 1. Save current worktree's session BEFORE switching
       if (activeWorktreeId) {
-        await saveSessionState(activeWorktreeId, {
-          selectedPath,
-          expandedFolders: Array.from(expandedFolders),
-          gitOnlyMode,
-          timestamp: Date.now(),
-        });
+        try {
+          await saveSessionState(activeWorktreeId, {
+            selectedPath,
+            expandedFolders: Array.from(expandedFolders),
+            gitOnlyMode,
+            timestamp: Date.now(),
+          });
+        } catch (error) {
+          logWarn('Failed to save session state during worktree switch', {
+            message: (error as Error).message,
+          });
+        }
       }
 
       // 2. Load target worktree's session
-      const session = await loadSessionState(targetWorktree.id);
+      let session: Awaited<ReturnType<typeof loadSessionState>> | null = null;
+      try {
+        session = await loadSessionState(targetWorktree.id);
+      } catch (error) {
+        logWarn('Failed to load session state for worktree', {
+          worktreeId: targetWorktree.id,
+          message: (error as Error).message,
+        });
+      }
 
       // 3. Check if a newer switch was requested while we were awaiting - bail out if so
       if (latestWorktreeSwitchRef.current !== targetWorktree.id) {
@@ -588,23 +667,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setFilterActive(false);
       setFilterQuery('');
       clearGitStatus();
+      clearWorktreeStatuses();
       clearEvents(); // Clear activity buffer for new worktree
 
       // 6. Notify user of success
       events.emit('ui:modal:close', { id: 'worktree' });
 
-      // Build notification message with summary if available
-      let message = `Switched to ${targetWorktree.branch || targetWorktree.name}`;
-      if (targetWorktree.summary) {
-        message += ` — ${targetWorktree.summary}`;
-      }
-      if (targetWorktree.modifiedCount !== undefined && targetWorktree.modifiedCount > 0) {
-        message += ` [${targetWorktree.modifiedCount} files]`;
-      }
-
       events.emit('ui:notify', {
         type: 'success',
-        message,
+        message: formatWorktreeSwitchMessage(targetWorktree),
       });
     } catch (error) {
       // Only show error if this is still the latest requested switch
@@ -620,23 +691,24 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, clearGitStatus, clearEvents, expandedFolders, gitOnlyMode, selectedPath]);
+  }, [activeWorktreeId, clearEvents, clearGitStatus, clearWorktreeStatuses, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, selectedPath]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
-      const targetWorktree = enrichedWorktrees.find(wt => wt.id === worktreeId);
+      const targetWorktree = worktreesRef.current.find(wt => wt.id === worktreeId);
       if (targetWorktree) {
         await handleSwitchWorktree(targetWorktree);
       } else {
         events.emit('ui:notify', { type: 'error', message: 'Worktree not found' });
       }
     });
-  }, [enrichedWorktrees, handleSwitchWorktree]);
+  }, [handleSwitchWorktree]);
 
   // Listen for sys:worktree:cycle (from /wt next or /wt prev)
   useEffect(() => {
     return events.on('sys:worktree:cycle', async ({ direction }) => {
-      if (enrichedWorktrees.length <= 1) {
+      const worktreeList = worktreesRef.current;
+      if (worktreeList.length <= 1) {
         events.emit('ui:notify', {
           type: 'warning',
           message: 'No other worktrees to switch to',
@@ -644,18 +716,28 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         return;
       }
 
-      const currentIndex = enrichedWorktrees.findIndex(wt => wt.id === activeWorktreeId);
-      const nextIndex = (currentIndex + direction + enrichedWorktrees.length) % enrichedWorktrees.length;
-      const nextWorktree = enrichedWorktrees[nextIndex];
+      const currentIndex = worktreeList.findIndex(wt => wt.id === activeWorktreeId);
+      const nextIndex = (currentIndex + direction + worktreeList.length) % worktreeList.length;
+      const nextWorktree = worktreeList[nextIndex];
 
       await handleSwitchWorktree(nextWorktree);
     });
-  }, [enrichedWorktrees, activeWorktreeId, handleSwitchWorktree]);
+  }, [activeWorktreeId, handleSwitchWorktree]);
 
   // Listen for sys:worktree:selectByName (from /wt <pattern>)
   useEffect(() => {
     return events.on('sys:worktree:selectByName', async ({ query }) => {
-      if (enrichedWorktrees.length === 0) {
+      let worktreeList =
+        worktreesRef.current.length > 0 ? worktreesRef.current : worktreesWithStatus;
+
+      // If worktrees aren't ready yet, wait briefly before failing
+      if (worktreeList.length === 0) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        worktreeList =
+          worktreesRef.current.length > 0 ? worktreesRef.current : worktreesWithStatus;
+      }
+
+      if (worktreeList.length === 0) {
         events.emit('ui:notify', {
           type: 'error',
           message: 'No worktrees available',
@@ -666,16 +748,16 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       const q = query.toLowerCase();
 
       // Try exact match on branch first
-      let match = enrichedWorktrees.find(wt => wt.branch?.toLowerCase() === q);
+      let match = worktreeList.find(wt => wt.branch?.toLowerCase() === q);
 
       // Then try exact match on name
       if (!match) {
-        match = enrichedWorktrees.find(wt => wt.name.toLowerCase() === q);
+        match = worktreeList.find(wt => wt.name.toLowerCase() === q);
       }
 
       // Finally try substring match on path
       if (!match) {
-        match = enrichedWorktrees.find(wt => wt.path.toLowerCase().includes(q));
+        match = worktreeList.find(wt => wt.path.toLowerCase().includes(q));
       }
 
       if (match) {
@@ -687,7 +769,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         });
       }
     });
-  }, [enrichedWorktrees, handleSwitchWorktree]);
+  }, [handleSwitchWorktree, worktreesWithStatus]);
 
   // Handle navigation from Recent Activity Panel to tree
   const handleSelectActivityPath = useCallback((targetPath: string) => {
@@ -818,7 +900,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           filterActive={filterActive}
           filterQuery={filterQuery}
           currentWorktree={currentWorktree}
-          worktreeCount={enrichedWorktrees.length}
+          worktreeCount={worktreesWithStatus.length}
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
           config={effectiveConfig}
@@ -826,7 +908,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitOnlyMode={gitOnlyMode}
           onToggleGitOnlyMode={handleToggleGitOnlyMode}
           gitEnabled={gitEnabled}
-          gitStatus={gitStatus}
+          gitStatus={effectiveGitStatus}
         />
       <Box flexGrow={1}>
         {gitOnlyMode && fileTree.length === 0 ? (
@@ -908,7 +990,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       })()}
       {isWorktreePanelOpen && (
         <WorktreePanel
-          worktrees={enrichedWorktrees}
+          worktrees={worktreesWithStatus}
           activeWorktreeId={activeWorktreeId}
           onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
         />

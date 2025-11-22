@@ -4,6 +4,14 @@ export type FileType = 'file' | 'directory';
 
 export type NotificationType = 'info' | 'success' | 'error' | 'warning';
 
+export interface WorktreeChanges {
+  worktreeId: string;
+  rootPath: string;
+  changes: Array<{ path: string; status: GitStatus }>;
+  changedFileCount: number;
+  lastUpdated: number;
+}
+
 export interface TreeNode {
   name: string;
   path: string;
@@ -51,6 +59,9 @@ export interface Worktree {
 
   /** Loading state for async summary generation */
   summaryLoading?: boolean;
+
+  /** Recent git status changes for this worktree */
+  changes?: Array<{ path: string; status: GitStatus }>;
 }
 
 export interface OpenerConfig {
