@@ -2,9 +2,10 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { relative } from 'node:path';
-import type { Worktree, CanopyConfig } from '../types/index.js';
+import type { Worktree, CanopyConfig, GitStatus } from '../types/index.js';
 import type { ProjectIdentity } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
+import { getHeaderGradient } from '../utils/repositoryMood.js';
 
 interface HeaderProps {
   cwd: string;
@@ -19,6 +20,7 @@ interface HeaderProps {
   gitOnlyMode?: boolean;
   onToggleGitOnlyMode?: () => void;
   gitEnabled?: boolean;
+  gitStatus?: Map<string, GitStatus>;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
   gitOnlyMode = false,
   onToggleGitOnlyMode,
   gitEnabled = true,
+  gitStatus = new Map(),
 }) => {
   const { palette } = useTheme();
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
@@ -71,12 +74,19 @@ export const Header: React.FC<HeaderProps> = ({
   // Show git-only mode button only when git is enabled
   const showGitOnlyButton = gitEnabled && onToggleGitOnlyMode !== undefined;
 
+  // Calculate mood-based gradient (or use project identity)
+  const gradient = getHeaderGradient(
+    gitStatus,
+    { start: identity.gradientStart, end: identity.gradientEnd },
+    config.ui?.moodGradients ?? true
+  );
+
   return (
     <Box borderStyle="single" borderColor={gitOnlyMode ? palette.alert.warning : undefined} paddingX={1}>
       <Text>{identity.emoji} </Text>
 
-      {/* Dynamic Gradient and Title */}
-      <Gradient colors={[identity.gradientStart, identity.gradientEnd]}>
+      {/* Dynamic Mood-Based Gradient */}
+      <Gradient colors={[gradient.start, gradient.end]}>
         <Text bold>{identity.title}</Text>
       </Gradient>
 

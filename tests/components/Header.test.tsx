@@ -40,7 +40,6 @@ describe('Header', () => {
           filterQuery=""
           identity={mockIdentity}
           config={DEFAULT_CONFIG}
-          config={DEFAULT_CONFIG}
         />
       );
 
@@ -60,7 +59,6 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={3}
           identity={mockIdentity}
-          config={DEFAULT_CONFIG}
           config={DEFAULT_CONFIG}
         />
       );
@@ -447,7 +445,6 @@ describe('Header', () => {
           filterQuery=""
           identity={emojiIdentity}
           config={DEFAULT_CONFIG}
-          config={DEFAULT_CONFIG}
         />
       );
 
@@ -469,7 +466,6 @@ describe('Header', () => {
           filterActive={false}
           filterQuery=""
           identity={noEmojiIdentity}
-          config={DEFAULT_CONFIG}
           config={DEFAULT_CONFIG}
         />
       );
@@ -500,7 +496,6 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={3}
           identity={mockIdentity}
-          config={DEFAULT_CONFIG}
           config={configWithHiddenWorktree}
         />
       );
@@ -521,7 +516,6 @@ describe('Header', () => {
           currentWorktree={mockWorktree}
           worktreeCount={3}
           identity={mockIdentity}
-          config={DEFAULT_CONFIG}
           config={DEFAULT_CONFIG}
         />
       );

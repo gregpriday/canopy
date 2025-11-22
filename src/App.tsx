@@ -779,6 +779,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitOnlyMode={gitOnlyMode}
           onToggleGitOnlyMode={handleToggleGitOnlyMode}
           gitEnabled={gitEnabled}
+          gitStatus={gitStatus}
         />
       <Box flexGrow={1}>
         {gitOnlyMode && fileTree.length === 0 ? (
