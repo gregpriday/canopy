@@ -49,13 +49,15 @@ export function useCopyTree(activeRootPath: string, config: CanopyConfig): void 
         const targetPath = payload.rootPath || activeRootPathRef.current;
         const profile = payload.profile || 'default';
         const extraArgs = payload.extraArgs || [];
+        const files = payload.files || [];
+        const combinedArgs = [...extraArgs, ...files];
 
         // Execute CopyTree
         const output = await runCopyTreeWithProfile(
           targetPath,
           profile,
           configRef.current,
-          extraArgs
+          combinedArgs
         );
 
         // Parse output to extract last meaningful line (removing ANSI codes)

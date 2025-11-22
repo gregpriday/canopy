@@ -99,7 +99,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
             )}
             {showCopyTreeHint && (
               <>
-                <Text color={palette.accent.primary}>[c]</Text> CopyTree{'  '}
+                <Text color={palette.accent.primary}>[c]</Text> Copy Context{'  '}
               </>
             )}
             <Text color={palette.accent.primary}>[p]</Text> Profile{'  '}

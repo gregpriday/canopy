@@ -105,6 +105,27 @@ describe('useCopyTree', () => {
     });
   });
 
+  it('appends files to extra args when provided in payload', async () => {
+    vi.mocked(copytree.runCopyTreeWithProfile).mockResolvedValue('ok');
+
+    renderHook(() => useCopyTree('/default/path', DEFAULT_CONFIG));
+
+    await act(async () => {
+      events.emit('file:copy-tree', {
+        extraArgs: ['--foo'],
+        files: ['src/index.ts', 'README.md'],
+      });
+      await vi.waitFor(() => {
+        expect(copytree.runCopyTreeWithProfile).toHaveBeenCalledWith(
+          '/default/path',
+          'default',
+          DEFAULT_CONFIG,
+          ['--foo', 'src/index.ts', 'README.md']
+        );
+      });
+    });
+  });
+
   it('emits error notification when runCopyTreeWithProfile fails', async () => {
     const mockError = new Error('copytree command not found. Please install it first.');
     vi.mocked(copytree.runCopyTreeWithProfile).mockRejectedValue(mockError);

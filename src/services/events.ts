@@ -15,6 +15,7 @@ export interface CopyTreePayload {
   rootPath?: string;
   profile?: string;
   extraArgs?: string[];
+  files?: string[];
 }
 
 export interface CopyPathPayload {

@@ -18,6 +18,7 @@ import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile } from './utils/fileOpener.js';
 import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
+import { buildCopyTreeRequest } from './utils/copyTreePayload.js';
 import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
@@ -84,6 +85,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     initialSelectedPath,
     initialExpandedFolders,
     initialGitOnlyMode,
+    initialCopyProfile,
     error: lifecycleError,
     notification: lifecycleNotification,
     setNotification: setLifecycleNotification,
@@ -140,6 +142,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [focusedWorktreeId, setFocusedWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [expandedWorktreeIds, setExpandedWorktreeIds] = useState<Set<string>>(new Set());
   const selectedPathRef = useRef<string | null>(null);
+  const [lastCopyProfile, setLastCopyProfile] = useState<string>(initialCopyProfile || 'default');
+
+  useEffect(() => {
+    setLastCopyProfile(initialCopyProfile || 'default');
+  }, [initialCopyProfile]);
 
   const {
     worktreeChanges,
@@ -389,12 +396,21 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [sortedWorktrees]);
 
   const handleCopyTreeForWorktree = useCallback((id: string, profile?: string) => {
-    const target = sortedWorktrees.find(wt => wt.id === id);
-    if (!target) {
+    const request = buildCopyTreeRequest({
+      worktreeId: id,
+      worktrees: sortedWorktrees,
+      changes: worktreeChanges,
+      profile,
+      lastCopyProfile,
+    });
+
+    if (!request) {
       return;
     }
-    events.emit('file:copy-tree', { rootPath: target.path, profile });
-  }, [sortedWorktrees]);
+
+    events.emit('file:copy-tree', request.payload);
+    setLastCopyProfile(request.profile);
+  }, [lastCopyProfile, sortedWorktrees, worktreeChanges]);
 
   const handleOpenProfileSelector = useCallback((id: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
@@ -476,13 +492,14 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           selectedPath,
           expandedFolders: Array.from(expandedFolders),
           gitOnlyMode,
+          lastCopyProfile,
           timestamp: Date.now(),
         }).catch((err) => {
           console.error('Error saving session state:', err);
         });
       }
     };
-  }, [activeWorktreeId, selectedPath, expandedFolders, gitOnlyMode]);
+  }, [activeWorktreeId, expandedFolders, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
     const unsubscribeSubmit = events.on('ui:command:submit', async ({ input }) => {
@@ -689,6 +706,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             selectedPath,
             expandedFolders: Array.from(expandedFolders),
             gitOnlyMode,
+            lastCopyProfile,
             timestamp: Date.now(),
           });
         } catch (error) {
@@ -717,6 +735,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       const nextSelectedPath = session?.selectedPath ?? null;
       const nextExpandedFolders = new Set(session?.expandedFolders ?? []);
       const nextGitOnlyMode = session?.gitOnlyMode ?? false;
+      const nextCopyProfile = session?.lastCopyProfile ?? 'default';
 
       // 4. Update all state atomically
       setActiveWorktreeId(targetWorktree.id);
@@ -726,6 +745,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         expandedFolders: nextExpandedFolders,
       });
       setGitOnlyMode(nextGitOnlyMode);
+      setLastCopyProfile(nextCopyProfile);
 
       // 5. Reset transient UI state
       setFilterActive(false);
@@ -755,7 +775,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, clearEvents, clearGitStatus, clearWorktreeStatuses, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, selectedPath]);
+  }, [activeWorktreeId, clearEvents, clearGitStatus, clearWorktreeStatuses, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
@@ -907,6 +927,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         selectedPath,
         expandedFolders: Array.from(expandedFolders),
         gitOnlyMode,
+        lastCopyProfile,
         timestamp: Date.now(),
       }).catch((err) => {
         console.error('Error saving session state on quit:', err);
