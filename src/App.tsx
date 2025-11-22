@@ -1045,7 +1045,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     onOpenCommandBar: undefined,
     onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
-    onClearFilter: handleClearFilter,
+    // Don't clear filter when fuzzy search is open (let it handle Escape itself)
+    onClearFilter: isFuzzySearchOpen ? undefined : handleClearFilter,
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
