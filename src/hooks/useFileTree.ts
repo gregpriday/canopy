@@ -302,10 +302,6 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
 
   // --- Event Listeners for Navigation, Selection, Expansion ---
   useEffect(() => {
-    if (!navigationEnabled) {
-      return undefined;
-    }
-
     const unsubscribes = [
       events.on('nav:select', (payload) => {
         selectPath(payload.path);
@@ -317,6 +313,10 @@ export function useFileTree(options: UseFileTreeOptions): UseFileTreeResult {
         collapseFolder(payload.path);
       }),
       events.on('nav:move', (payload) => {
+        // Only handle keyboard navigation when enabled (tree mode)
+        if (!navigationEnabled) {
+          return;
+        }
         if (flattenedTree.length === 0) return;
 
         let newPath: string | null = null;

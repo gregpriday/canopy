@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Box, Text, useApp, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
+import { TreeView } from './components/TreeView.js';
 import { StatusBar } from './components/StatusBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
@@ -113,6 +114,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       });
   }, []);
 
+  // Listen for view mode changes
+  useEffect(() => {
+    return events.on('ui:view:mode', ({ mode }) => {
+      setViewMode(mode);
+    });
+  }, []);
+
   // Listen for file:open events
   useEffect(() => {
     return events.on('file:open', async (payload) => {
@@ -179,6 +187,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     selectedPath: initialSelectedPath,
     expandedFolders: initialExpandedFolders,
   });
+
+  // View mode state - dashboard is default
+  const [viewMode, setViewMode] = useState<'dashboard' | 'tree'>('dashboard');
 
   // Git-only view mode state
   const [gitOnlyMode, setGitOnlyMode] = useState<boolean>(initialGitOnlyMode);
@@ -352,10 +363,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     return undefined;
   }, [projectIdentity]);
 
+  // Derive tree root path based on view mode
+  // In tree mode, use focused worktree path; in dashboard mode, use active worktree path
+  const treeRootPath = useMemo(() => {
+    if (viewMode === 'tree' && focusedWorktreeId) {
+      const focusedWorktree = worktreesWithStatus.find(wt => wt.id === focusedWorktreeId);
+      return focusedWorktree?.path || activeRootPath;
+    }
+    return activeRootPath;
+  }, [viewMode, focusedWorktreeId, worktreesWithStatus, activeRootPath]);
+
   // Centralized CopyTree listener (survives StatusBar unmount/hide)
   useCopyTree(activeRootPath, effectiveConfig);
 
-  useWatcher(activeRootPath, effectiveConfig, !!noWatch);
+  useWatcher(treeRootPath, effectiveConfig, !!noWatch);
 
   // Calculate git status filter based on git-only mode
   const gitStatusFilter = gitOnlyMode
@@ -363,7 +384,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     : null;
 
   const { tree: fileTree, rawTree, expandedFolders, selectedPath } = useFileTree({
-    rootPath: activeRootPath,
+    rootPath: treeRootPath,
     config: effectiveConfig,
     filterQuery: filterActive ? filterQuery : null,
     gitStatusMap: effectiveGitStatus,
@@ -371,7 +392,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     initialSelectedPath: initialSelection.selectedPath,
     initialExpandedFolders: initialSelection.expandedFolders,
     viewportHeight,
-    navigationEnabled: false,
+    navigationEnabled: viewMode === 'tree',
   });
 
   useEffect(() => {
@@ -986,7 +1007,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   });
 
   useKeyboard({
-    navigationEnabled: false,
+    navigationEnabled: viewMode === 'tree',
 
     onOpenCommandBar: undefined,
     onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
@@ -1064,18 +1085,29 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitStatus={effectiveGitStatus}
         />
       <Box flexGrow={1}>
-        <WorktreeOverview
-          worktrees={sortedWorktrees}
-          worktreeChanges={worktreeChanges}
-          activeWorktreeId={activeWorktreeId}
-          focusedWorktreeId={focusedWorktreeId}
-          expandedWorktreeIds={expandedWorktreeIds}
-          visibleStart={visibleStart}
-          visibleEnd={visibleEnd}
-          onToggleExpand={handleToggleExpandWorktree}
-          onCopyTree={handleCopyTreeForWorktree}
-          onOpenEditor={handleOpenWorktreeEditor}
-        />
+        {viewMode === 'dashboard' ? (
+          <WorktreeOverview
+            worktrees={sortedWorktrees}
+            worktreeChanges={worktreeChanges}
+            activeWorktreeId={activeWorktreeId}
+            focusedWorktreeId={focusedWorktreeId}
+            expandedWorktreeIds={expandedWorktreeIds}
+            visibleStart={visibleStart}
+            visibleEnd={visibleEnd}
+            onToggleExpand={handleToggleExpandWorktree}
+            onCopyTree={handleCopyTreeForWorktree}
+            onOpenEditor={handleOpenWorktreeEditor}
+          />
+        ) : (
+          <TreeView
+            fileTree={fileTree}
+            selectedPath={selectedPath}
+            config={effectiveConfig}
+            expandedPaths={expandedFolders}
+            viewportHeight={viewportHeight}
+            activeFiles={activeFiles}
+          />
+        )}
       </Box>
       <StatusBar
         notification={notification}

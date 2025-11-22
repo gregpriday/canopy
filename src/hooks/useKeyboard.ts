@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useInput, useStdin } from 'ink';
 import { events } from '../services/events.js';
+import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
 
 /**
  * Keyboard handlers for various actions.
@@ -37,8 +38,7 @@ export interface KeyboardHandlers {
   onWarnExit?: () => void;         // Ctrl+C (first press)
 }
 
-const HOME_SEQUENCES = new Set(['\u001B[H', '\u001BOH', '\u001B[1~', '\u001B[7~', '\u001B[7$', '\u001B[7^']);
-const END_SEQUENCES = new Set(['\u001B[F', '\u001BOF', '\u001B[4~', '\u001B[8~', '\u001B[8$', '\u001B[8^']);
+// Home/End sequences moved to shared utils/keySequences.ts
 
 export function useKeyboard(handlers: KeyboardHandlers): void {
   const { stdin } = useStdin();
