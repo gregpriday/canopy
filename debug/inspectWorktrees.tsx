@@ -11,12 +11,11 @@ const { lastFrame } = render(
       worktreeChanges={mockWorktreeChanges}
       activeWorktreeId={mockWorktrees[0].id}
       focusedWorktreeId={mockWorktrees[0].id}
-      expandedWorktreeIds={new Set()}
-      onToggleExpand={() => undefined}
-      onCopyTree={() => undefined}
-      onOpenEditor={() => undefined}
-      onOpenProfile={() => undefined}
-    />
+    expandedWorktreeIds={new Set()}
+    onToggleExpand={() => undefined}
+    onCopyTree={() => undefined}
+    onOpenEditor={() => undefined}
+  />
   </ThemeProvider>
 );
 

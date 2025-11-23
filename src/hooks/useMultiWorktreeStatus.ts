@@ -101,6 +101,7 @@ export function useMultiWorktreeStatus(
               totalDeletions: 0,
               insertions: 0,
               deletions: 0,
+              latestFileMtime: 0,
               lastUpdated: Date.now(),
             });
             return;

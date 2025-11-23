@@ -25,7 +25,6 @@ import { buildCopyTreeRequest } from './utils/copyTreePayload.js';
 import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
-import { useAIStatus } from './hooks/useAIStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useWorktreeSummaries } from './hooks/useWorktreeSummaries.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
@@ -361,10 +360,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
     });
   }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
-
-  // NEW: Initialize AI Status Hook
-  // We pass the gitStatus map; the hook monitors it for activity/silence
-  const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, effectiveGitStatus, isGitLoading);
 
   // Initialize Activity Hook for temporal styling
   const { activeFiles } = useActivity();
@@ -1205,8 +1200,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onToggleGitOnlyMode={handleToggleGitOnlyMode}
           gitEnabled={gitEnabled}
           gitStatus={effectiveGitStatus}
-          aiStatus={aiStatus}
-          isAnalyzing={isAnalyzing}
         />
         {notification && (
           <Box marginTop={1}>
@@ -1245,7 +1238,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
               onToggleExpand={handleToggleExpandWorktree}
               onCopyTree={handleCopyTreeForWorktree}
               onOpenEditor={handleOpenWorktreeEditor}
-              onOpenProfile={handleOpenProfileSelector}
             />
           ) : (
             <TreeView

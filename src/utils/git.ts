@@ -1,5 +1,5 @@
-import { resolve } from 'path';
-import { realpathSync } from 'fs';
+import { dirname, resolve } from 'path';
+import { realpathSync, promises as fs } from 'fs';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import type { FileChangeDetail, GitStatus, WorktreeChanges } from '../types/index.js';
 import { GitError } from './errorTypes.js';
@@ -342,6 +342,23 @@ export async function getWorktreeChangesWithStats(
       });
     }
 
+    // Calculate the latest modification time across all changed files so we can
+    // throttle AI refreshes based on real file activity instead of hash churn.
+    const mtimes = await Promise.all(
+      Array.from(changesMap.values()).map(async (change) => {
+        const targetPath = change.status === 'deleted'
+          ? dirname(change.path)
+          : change.path;
+
+        try {
+          const stat = await fs.stat(targetPath);
+          return stat.mtimeMs;
+        } catch {
+          return 0;
+        }
+      })
+    );
+
     const changes = Array.from(changesMap.values());
     const totalInsertions = changes.reduce(
       (sum, change) => sum + (change.insertions ?? 0),
@@ -351,6 +368,7 @@ export async function getWorktreeChangesWithStats(
       (sum, change) => sum + (change.deletions ?? 0),
       0
     );
+    const latestFileMtime = mtimes.length > 0 ? Math.max(...mtimes) : 0;
 
     const result: WorktreeChanges = {
       worktreeId: realpathSync(cwd),
@@ -361,6 +379,7 @@ export async function getWorktreeChangesWithStats(
       totalDeletions,
       insertions: totalInsertions,
       deletions: totalDeletions,
+      latestFileMtime,
       lastUpdated: Date.now(),
     };
 

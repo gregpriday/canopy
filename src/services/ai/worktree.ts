@@ -33,19 +33,35 @@ export async function generateWorktreeSummary(
       status.modified.length +
       status.created.length +
       status.deleted.length +
-      status.renamed.length;
+      status.renamed.length +
+      status.not_added.length;
 
-    // Get diff between this branch and main
+    // Get diff between this branch and main (broadest context)
     let diff = '';
     try {
-      // Try comparing with main branch
       diff = await git.diff([`${mainBranch}...HEAD`, '--stat']);
     } catch {
-      // Fallback: get staged + unstaged changes
+      // ignore; fall through to other strategies
+    }
+
+    // Fallback: staged + unstaged working tree diff
+    if (!diff.trim()) {
       try {
         diff = await git.diff(['--stat']);
       } catch {
-        // If even that fails, just use status
+        diff = '';
+      }
+    }
+
+    // Fallback: status --short to include untracked files that diff omits
+    if (!diff.trim() && modifiedCount > 0) {
+      try {
+        const statusShort = await git.status(['--short']);
+        diff = statusShort.files
+          .map(f => `${f.index}${f.working_dir} ${f.path}`)
+          .slice(0, 50) // keep concise for prompt
+          .join('\n');
+      } catch {
         diff = '';
       }
     }
@@ -61,7 +77,7 @@ export async function generateWorktreeSummary(
     // Prepare AI input
     const diffSnippet = diff.slice(0, 1500);
     const branchContext = branchName ? `Branch: ${branchName}\n` : '';
-    const input = `${branchContext}${diffSnippet}`;
+    const input = `${branchContext}Files changed:\n${diffSnippet}`;
 
     // Call AI model
     const response = await client.responses.create({

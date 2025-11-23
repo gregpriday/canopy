@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { Box } from 'ink';
 import type { Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { WorktreeCard } from './WorktreeCard.js';
+import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 
 export interface WorktreeOverviewProps {
   worktrees: Worktree[];
@@ -14,7 +15,6 @@ export interface WorktreeOverviewProps {
   onToggleExpand: (id: string) => void;
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
-  onOpenProfile: (id: string) => void;
 }
 
 const MOOD_PRIORITY: Record<WorktreeMood, number> = {
@@ -75,12 +75,17 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
-  onOpenProfile,
 }) => {
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
   const start = Math.max(0, visibleStart ?? 0);
   const end = visibleEnd ?? sorted.length;
   const sliced = sorted.slice(start, end);
+
+  // Enable mouse reporting for dashboard actions so Ink onClick handlers fire.
+  useTerminalMouse({
+    enabled: sliced.length > 0,
+    onMouse: () => {},
+  });
 
   return (
     <Box flexDirection="column" gap={1} flexGrow={1}>
@@ -103,7 +108,6 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             // Future interactive actions
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
-            onOpenProfile={() => onOpenProfile(worktree.id)}
           />
         );
       })}

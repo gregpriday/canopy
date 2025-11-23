@@ -14,7 +14,6 @@ export interface WorktreeCardProps {
   onToggleExpand: () => void;
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
-  onOpenProfile?: () => void;
 }
 
 const MAX_VISIBLE_CHANGES = 10;
@@ -119,7 +118,6 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
-  onOpenProfile,
 }) => {
   const { palette } = useTheme();
 
@@ -164,9 +162,36 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
     changes.deletions ??
     changes.changes.reduce((sum, change) => sum + (change.deletions ?? 0), 0);
 
-  const summaryText = worktree.summaryLoading
-    ? 'Analyzing worktree...'
-    : worktree.summary ?? 'No summary yet';
+  const hasChanges = changes.changedFileCount > 0;
+  let SummaryComponent: React.ReactNode;
+
+  if (worktree.summary && hasChanges) {
+    SummaryComponent = (
+      <Text color={palette.text.secondary}>
+        {worktree.summaryLoading ? '⟳ ' : '🤖 '}
+        {worktree.summary}
+      </Text>
+    );
+  } else if (worktree.summaryLoading) {
+    SummaryComponent = (
+      <Text color={palette.text.tertiary}>
+        Generating summary...
+      </Text>
+    );
+  } else if (hasChanges) {
+    SummaryComponent = (
+      <Text color={palette.text.tertiary}>
+        No summary available
+      </Text>
+    );
+  } else {
+    SummaryComponent = (
+      <Text color={palette.text.tertiary}>
+        No active changes
+      </Text>
+    );
+  }
+
   const accentColors = {
     added: palette.git.added,
     deleted: palette.git.deleted,
@@ -207,9 +232,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       </Box>
 
       <Box justifyContent="space-between" marginTop={1}>
-        <Text color={palette.text.secondary} dimColor={!worktree.summary}>
-          🤖 {summaryText}
-        </Text>
+        {SummaryComponent}
         <Box gap={1}>
           <Text>📊</Text>
           <Text color={palette.git.added}>+{totalInsertions}</Text>
@@ -235,9 +258,6 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
 
       <Box marginTop={1} gap={2}>
         <ActionButton label="CopyTree" color={palette.accent.primary} onPress={onCopyTree} />
-        {onOpenProfile && (
-          <ActionButton label="Profile" color={palette.accent.primary} onPress={onOpenProfile} />
-        )}
         <ActionButton label="VS Code" color={palette.accent.secondary} onPress={onOpenEditor} />
         <ActionButton
           label={isExpanded ? 'Collapse' : 'Expand'}

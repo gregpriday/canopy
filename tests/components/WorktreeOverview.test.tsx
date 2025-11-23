@@ -68,7 +68,6 @@ describe('WorktreeOverview', () => {
         onToggleExpand={toggleSpy}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
-        onOpenProfile={vi.fn()}
       />
     );
 
@@ -99,7 +98,6 @@ describe('WorktreeOverview', () => {
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
-        onOpenProfile={vi.fn()}
       />
     );
 

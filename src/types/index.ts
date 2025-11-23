@@ -25,6 +25,7 @@ export interface WorktreeChanges {
   totalDeletions?: number;
   insertions?: number;
   deletions?: number;
+  latestFileMtime?: number;
   lastUpdated: number;
 }
 
@@ -255,7 +256,7 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   worktrees: {
     enable: true,              // Enabled by default for backwards compatibility
     showInHeader: true,        // Show indicator by default
-    refreshIntervalMs: 10000,  // 10 second refresh by default
+    refreshIntervalMs: 5000,   // 5 second refresh by default for snappier updates
   },
   copytreeProfiles: {
     default: {

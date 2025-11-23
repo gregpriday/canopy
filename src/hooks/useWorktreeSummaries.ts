@@ -21,10 +21,16 @@ export function useWorktreeSummaries(
   const [enrichedWorktrees, setEnrichedWorktrees] = useState<Worktree[]>(worktrees);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isEnrichingRef = useRef(false);
+  const lastProcessedRef = useRef<Map<string, number>>(new Map());
 
-  // Update enriched worktrees when input worktrees change
+  // Remove stale processed markers when worktrees list changes
   useEffect(() => {
-    setEnrichedWorktrees(worktrees);
+    const activeIds = new Set(worktrees.map(wt => wt.id));
+    for (const id of Array.from(lastProcessedRef.current.keys())) {
+      if (!activeIds.has(id)) {
+        lastProcessedRef.current.delete(id);
+      }
+    }
   }, [worktrees]);
 
   // Enrich worktrees with AI summaries
@@ -35,12 +41,30 @@ export function useWorktreeSummaries(
       return;
     }
 
+    // Only run AI if there is a file-level change we haven't already processed.
+    const worktreesToUpdate = worktrees.filter(wt => {
+      const changes = worktreeChanges?.get(wt.id);
+      const lastProcessed = lastProcessedRef.current.get(wt.id);
+      const latestMtime = changes?.latestFileMtime;
+
+      // If we don't have any change info yet, run once to seed summaries.
+      if (changes === undefined || latestMtime === undefined) {
+        return lastProcessed === undefined;
+      }
+
+      return lastProcessed === undefined || latestMtime > lastProcessed;
+    });
+
+    if (worktreesToUpdate.length === 0) {
+      return;
+    }
+
     isEnrichingRef.current = true;
 
     try {
       // Create a mutable copy of worktrees and prioritize those with changes
       const mutableWorktreesById = new Map<string, Worktree>();
-      for (const wt of worktrees) {
+      for (const wt of worktreesToUpdate) {
         mutableWorktreesById.set(wt.id, { ...wt });
       }
 
@@ -54,8 +78,23 @@ export function useWorktreeSummaries(
       // Helper to apply updates to state in original order
       const applyUpdate = (updated: Worktree) => {
         setEnrichedWorktrees(prev =>
-          prev.map(wt => (wt.id === updated.id ? { ...wt, ...updated } : wt))
+          prev.map(wt => {
+            if (wt.id !== updated.id) return wt;
+            return {
+              ...wt,
+              ...updated,
+              // Preserve existing data when upstream refresh sends undefined fields
+              summary: updated.summary ?? wt.summary,
+              mood: updated.mood ?? wt.mood,
+            };
+          })
         );
+
+        if (!updated.summaryLoading) {
+          const processedAt =
+            worktreeChanges?.get(updated.id)?.latestFileMtime ?? Date.now();
+          lastProcessedRef.current.set(updated.id, processedAt);
+        }
       };
 
       if (hasApiKey) {
@@ -94,10 +133,26 @@ export function useWorktreeSummaries(
     }
   }, [mainBranch, worktreeChanges, worktrees]);
 
-  // Initial enrichment when worktrees change
+  // Sync enriched worktrees with lifecycle updates and trigger enrichment
+  // Preserve existing summaries/loading flags so periodic worktree refreshes
+  // don't wipe AI results before new work arrives.
   useEffect(() => {
-    enrichWorktrees();
-  }, [enrichWorktrees]);
+    setEnrichedWorktrees(prev => {
+      const prevById = new Map(prev.map(wt => [wt.id, wt]));
+      return worktrees.map(wt => {
+        const previous = prevById.get(wt.id);
+        if (!previous) return wt;
+        return {
+          ...wt,
+          summary: previous.summary,
+          summaryLoading: previous.summaryLoading,
+          mood: previous.mood,
+          modifiedCount: wt.modifiedCount ?? previous.modifiedCount,
+        };
+      });
+    });
+    void enrichWorktrees();
+  }, [worktrees, enrichWorktrees]);
 
   // Set up refresh interval if enabled
   useEffect(() => {

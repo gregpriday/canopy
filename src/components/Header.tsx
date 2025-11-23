@@ -3,7 +3,7 @@ import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { relative } from 'node:path';
 import type { Worktree, CanopyConfig, GitStatus } from '../types/index.js';
-import type { AIStatus, ProjectIdentity } from '../services/ai/index.js';
+import type { ProjectIdentity } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { getHeaderGradient } from '../utils/repositoryMood.js';
 
@@ -22,8 +22,6 @@ interface HeaderProps {
   onToggleGitOnlyMode?: () => void;
   gitEnabled?: boolean;
   gitStatus?: Map<string, GitStatus>;
-  aiStatus?: AIStatus | null;
-  isAnalyzing?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,8 +39,6 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleGitOnlyMode,
   gitEnabled = true,
   gitStatus = new Map(),
-  aiStatus = null,
-  isAnalyzing = false,
 }) => {
   const { palette } = useTheme();
   // Note: Keyboard handling for worktree actions (w/W keys) is delegated to
@@ -89,12 +85,6 @@ export const Header: React.FC<HeaderProps> = ({
     { start: identity.gradientStart, end: identity.gradientEnd },
     config.ui?.moodGradients ?? true
   );
-
-  const aiLabel = isAnalyzing
-    ? '🧠 Analyzing...'
-    : aiStatus
-    ? `${aiStatus.emoji} ${aiStatus.description}`
-    : null;
 
   return (
     <Box borderStyle="single" borderColor={gitOnlyMode ? palette.alert.warning : undefined} paddingX={1}>
@@ -164,13 +154,6 @@ export const Header: React.FC<HeaderProps> = ({
           <Text color={palette.alert.warning}>*</Text>
           <Text dimColor>] </Text>
           <Text color={palette.accent.primary}>{filterQuery}</Text>
-        </>
-      )}
-
-      {aiLabel && (
-        <>
-          <Text dimColor> • </Text>
-          <Text color={palette.ai.primary}>{aiLabel}</Text>
         </>
       )}
     </Box>
