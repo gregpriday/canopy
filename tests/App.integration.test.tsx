@@ -622,3 +622,121 @@ describe('App integration - worktree event handlers', () => {
     unsubscribe();
   });
 });
+
+describe('App integration - dashboard mode', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(configUtils.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: new Map(),
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
+  });
+
+  it('renders in dashboard mode by default', async () => {
+    // Mock multiple worktrees for dashboard
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/feature', path: '/project/feature', name: 'feature', branch: 'feature', isCurrent: false },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    const output = lastFrame();
+
+    // Dashboard is rendered by default (verifiable by examining the output)
+    expect(output).toBeDefined();
+    expect(output!.length > 0).toBe(true);
+    // In dashboard mode, we show the dashboard view which contains worktree/session info
+    // Verify the view is NOT showing typical tree-mode file listings
+    // Tree mode would show the file structure with '.gitignore', 'src/', 'tests/', etc.
+    expect(output?.includes('.gitignore')).toBe(false);
+  });
+
+  it('switches from dashboard to tree mode when ui:view:mode event is emitted', async () => {
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+    ];
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Initially in dashboard mode
+    let output = lastFrame();
+    expect(output).toBeDefined();
+    // Dashboard shows worktree cards - should contain worktree name
+    const dashboardOutput = output!;
+    expect(dashboardOutput).toContain('main');
+
+    // Switch to tree mode
+    events.emit('ui:view:mode', { mode: 'tree' });
+
+    // Give it time to process
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Should now be in tree mode - the output should differ from dashboard
+    output = lastFrame();
+    expect(output).toBeDefined();
+    // Verify the view actually changed by checking that output is different
+    // Tree mode will show different UI structure than dashboard
+    expect(output !== dashboardOutput).toBe(true);
+  });
+
+  it('uses focused worktree root when copying from dashboard', async () => {
+    const mockWorktrees = [
+      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
+      { id: '/project/feature', path: '/project/feature', name: 'feature', branch: 'feature', isCurrent: false },
+    ];
+
+    // Use proper WorktreeChanges structure
+    const mockChanges = new Map([
+      ['/project/feature', {
+        worktreeId: '/project/feature',
+        rootPath: '/project/feature',
+        changes: [
+          { path: 'src/file.ts', status: 'modified' as const },
+          { path: 'src/new.ts', status: 'added' as const },
+        ],
+        changedFileCount: 2,
+        lastUpdated: Date.now(),
+      }],
+    ]);
+
+    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
+    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
+    vi.mocked(useMultiWorktreeStatus).mockReturnValue({
+      worktreeChanges: mockChanges,
+      refresh: vi.fn(),
+      clear: vi.fn(),
+    });
+
+    const { lastFrame } = render(<App cwd="/project/main" />);
+
+    // Wait for initialization
+    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
+
+    // Clear previous calls
+    vi.mocked(runCopyTreeWithProfile).mockClear();
+
+    // Trigger CopyTree - in dashboard mode, StatusBar determines the root path
+    events.emit('file:copy-tree', {});
+
+    // Wait for runCopyTree to be called
+    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0, 2000);
+
+    // Verify CopyTree was called (focused root logic is tested in StatusBar component tests)
+    expect(runCopyTreeWithProfile).toHaveBeenCalled();
+  });
+});

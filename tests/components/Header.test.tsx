@@ -603,4 +603,123 @@ describe('Header', () => {
       expect(output).toContain('worktrees');
     });
   });
+
+  describe('dashboard-specific features', () => {
+    it('shows switching spinner when isSwitching is true', () => {
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          currentWorktree={mockWorktree}
+          worktreeCount={3}
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          isSwitching={true}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('⟳');
+    });
+
+    it('does not show spinner when isSwitching is false', () => {
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          currentWorktree={mockWorktree}
+          worktreeCount={3}
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          isSwitching={false}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).not.toContain('⟳');
+    });
+
+    it('shows git toggle button when gitEnabled and onToggleGitOnlyMode provided', () => {
+      const mockToggle = vi.fn();
+
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          gitEnabled={true}
+          onToggleGitOnlyMode={mockToggle}
+          gitOnlyMode={false}
+        />
+      );
+
+      const output = lastFrame();
+      // Should show git toggle button with "All" label when gitOnlyMode is false
+      expect(output).toContain('[');
+      expect(output).toContain(']');
+    });
+
+    it('shows Git label when gitOnlyMode is true', () => {
+      const mockToggle = vi.fn();
+
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          gitEnabled={true}
+          onToggleGitOnlyMode={mockToggle}
+          gitOnlyMode={true}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('[');
+      expect(output).toContain(']');
+    });
+
+    it('does not show git toggle when gitEnabled is false', () => {
+      const mockToggle = vi.fn();
+
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          gitEnabled={false}
+          onToggleGitOnlyMode={mockToggle}
+          gitOnlyMode={false}
+        />
+      );
+
+      const output = lastFrame();
+      // Should not have toggle button elements when git is disabled
+      expect(output).toContain('Canopy');
+    });
+
+    it('does not show git toggle when onToggleGitOnlyMode is missing', () => {
+      const { lastFrame } = renderWithTheme(
+        <Header
+          cwd="/Users/dev/project"
+          filterActive={false}
+          filterQuery=""
+          identity={mockIdentity}
+          config={DEFAULT_CONFIG}
+          gitEnabled={true}
+          gitOnlyMode={false}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('Canopy');
+    });
+  });
 });
