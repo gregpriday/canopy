@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { CopyTreePayload } from '../services/events.js';
 import type { Worktree, WorktreeChanges } from '../types/index.js';
 
@@ -29,7 +30,14 @@ export function buildCopyTreeRequest({
   const changeSet = changes.get(worktreeId);
   const resolvedProfile = profile || lastCopyProfile || 'default';
   const changedFiles =
-    changeSet?.changes?.map(change => change.path).filter(Boolean) ?? [];
+    changeSet?.changes
+      ?.map(change => {
+        const relativePath = path.isAbsolute(change.path)
+          ? path.relative(changeSet.rootPath || target.path, change.path)
+          : change.path;
+        return relativePath || change.path;
+      })
+      .filter(Boolean) ?? [];
 
   const payload: CopyTreePayload = {
     rootPath: changeSet?.rootPath || target.path,

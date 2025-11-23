@@ -161,10 +161,10 @@ export function getTerminalHeight(): number {
 /**
  * Calculate viewport height by subtracting UI elements from terminal height.
  *
- * @param reservedRows - Number of rows reserved for header/status bar (default: 3)
+ * @param reservedRows - Number of rows reserved for header/overlays (default: 2)
  * @returns Available viewport height for tree content
  */
-export function calculateViewportHeight(reservedRows = 3): number {
+export function calculateViewportHeight(reservedRows = 2): number {
   const terminalHeight = getTerminalHeight();
   // Ensure at least 1 row for content
   return Math.max(1, terminalHeight - reservedRows);

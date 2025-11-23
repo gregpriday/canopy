@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { GitStatus, Worktree, WorktreeChanges } from '../types/index.js';
+import type { Worktree, WorktreeChanges } from '../types/index.js';
 import {
-  getGitStatusCached,
+  getWorktreeChangesWithStats,
   invalidateGitStatusCache,
   isGitRepository,
 } from '../utils/git.js';
@@ -97,6 +97,10 @@ export function useMultiWorktreeStatus(
               rootPath: worktree.path,
               changes: [],
               changedFileCount: 0,
+              totalInsertions: 0,
+              totalDeletions: 0,
+              insertions: 0,
+              deletions: 0,
               lastUpdated: Date.now(),
             });
             return;
@@ -106,18 +110,12 @@ export function useMultiWorktreeStatus(
             invalidateGitStatusCache(worktree.path);
           }
 
-          const status = await getGitStatusCached(worktree.path, forceRefresh);
-          const changeList: Array<{ path: string; status: GitStatus }> = [];
-          for (const [path, statusValue] of status.entries()) {
-            changeList.push({ path, status: statusValue });
-          }
+          const changes = await getWorktreeChangesWithStats(worktree.path, forceRefresh);
 
           setChangesForWorktree(worktree.id, {
+            ...changes,
             worktreeId: worktree.id,
-            rootPath: worktree.path,
-            changes: changeList,
-            changedFileCount: changeList.length,
-            lastUpdated: Date.now(),
+            rootPath: changes.rootPath || worktree.path,
           });
         } catch (error) {
           logWarn('Failed to fetch git status for worktree', {

@@ -23,10 +23,12 @@ const baseChanges: WorktreeChanges = {
   worktreeId: 'wt-1',
   rootPath: '/repo/main',
   changes: [
-    { path: 'src/index.ts', status: 'modified' },
-    { path: 'README.md', status: 'added' },
+    { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
+    { path: 'README.md', status: 'added', insertions: 2, deletions: 0 },
   ],
   changedFileCount: 2,
+  totalInsertions: 12,
+  totalDeletions: 2,
   lastUpdated: Date.now(),
 };
 
@@ -53,6 +55,8 @@ describe('WorktreeCard', () => {
     const output = lastFrame();
     expect(output).toContain('Refining dashboard layout');
     expect(output).toContain('2 files');
+    expect(output).toContain('+12');
+    expect(output).toContain('-2');
   });
 
   it('shows change list when expanded', () => {
@@ -72,6 +76,8 @@ describe('WorktreeCard', () => {
     const output = lastFrame();
     expect(output).toContain('src/index.ts');
     expect(output).toContain('README.md');
+    expect(output).toContain('+10');
+    expect(output).toContain('-2');
   });
 
   it('hides change list when collapsed', () => {
@@ -91,13 +97,13 @@ describe('WorktreeCard', () => {
     expect(lastFrame()).not.toContain('src/index.ts');
   });
 
-  it('shows footer hints only when focused', () => {
-    const { lastFrame, rerender } = renderWithTheme(
+  it('renders action buttons for CopyTree and editor', () => {
+    const { lastFrame } = renderWithTheme(
       <WorktreeCard
         worktree={baseWorktree}
         changes={baseChanges}
         mood="stable"
-        isFocused={true}
+        isFocused={false}
         isExpanded={false}
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
@@ -105,24 +111,10 @@ describe('WorktreeCard', () => {
       />,
     );
 
-    expect(lastFrame()).toContain('Copy Context');
-
-    rerender(
-      <ThemeProvider mode="dark">
-        <WorktreeCard
-          worktree={baseWorktree}
-          changes={baseChanges}
-          mood="stable"
-          isFocused={false}
-          isExpanded={false}
-          onToggleExpand={vi.fn()}
-          onCopyTree={vi.fn()}
-          onOpenEditor={vi.fn()}
-        />
-      </ThemeProvider>,
-    );
-
-    expect(lastFrame()).not.toContain('Copy Context');
+    const output = lastFrame();
+    expect(output).toContain('CopyTree');
+    expect(output).toContain('VS Code');
+    expect(output).toContain('Expand');
   });
 
   it('limits visible changes and shows overflow indicator', () => {
@@ -131,8 +123,12 @@ describe('WorktreeCard', () => {
       changes: Array.from({ length: 12 }, (_, index) => ({
         path: `file-${index}.ts`,
         status: 'modified' as const,
+        insertions: index,
+        deletions: 0,
       })),
       changedFileCount: 12,
+      totalInsertions: 66,
+      totalDeletions: 0,
     };
 
     const { lastFrame } = renderWithTheme(
@@ -149,8 +145,8 @@ describe('WorktreeCard', () => {
     );
 
     const output = lastFrame();
-    expect(output).toContain('file-0.ts');
-    expect(output).not.toContain('file-11.ts');
+    expect(output).toContain('file-11.ts');
+    expect(output).not.toContain('file-1.ts');
     expect(output).toContain('...and 2 more');
   });
 

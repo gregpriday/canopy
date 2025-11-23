@@ -28,6 +28,8 @@ const makeChanges = (id: string): WorktreeChanges => ({
   rootPath: `/repo/${id}`,
   changes: [],
   changedFileCount: 0,
+  totalInsertions: 0,
+  totalDeletions: 0,
   lastUpdated: Date.now(),
 });
 
@@ -66,6 +68,7 @@ describe('WorktreeOverview', () => {
         onToggleExpand={toggleSpy}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
+        onOpenProfile={vi.fn()}
       />
     );
 
@@ -96,6 +99,7 @@ describe('WorktreeOverview', () => {
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
+        onOpenProfile={vi.fn()}
       />
     );
 

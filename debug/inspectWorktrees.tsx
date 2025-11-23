@@ -15,6 +15,7 @@ const { lastFrame } = render(
       onToggleExpand={() => undefined}
       onCopyTree={() => undefined}
       onOpenEditor={() => undefined}
+      onOpenProfile={() => undefined}
     />
   </ThemeProvider>
 );

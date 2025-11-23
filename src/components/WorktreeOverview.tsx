@@ -14,6 +14,7 @@ export interface WorktreeOverviewProps {
   onToggleExpand: (id: string) => void;
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
+  onOpenProfile: (id: string) => void;
 }
 
 const MOOD_PRIORITY: Record<WorktreeMood, number> = {
@@ -28,6 +29,8 @@ const FALLBACK_CHANGES: WorktreeChanges = {
   rootPath: '',
   changes: [],
   changedFileCount: 0,
+  totalInsertions: 0,
+  totalDeletions: 0,
   lastUpdated: 0,
 };
 
@@ -72,6 +75,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
+  onOpenProfile,
 }) => {
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
   const start = Math.max(0, visibleStart ?? 0);
@@ -99,6 +103,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             // Future interactive actions
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
+            onOpenProfile={() => onOpenProfile(worktree.id)}
           />
         );
       })}

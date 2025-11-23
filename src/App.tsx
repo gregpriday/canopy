@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'; // Added useCallback
-import { Box, Text, useApp, useStdout } from 'ink';
+import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { TreeView } from './components/TreeView.js';
-import { StatusBar } from './components/StatusBar.js';
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
+import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification, Worktree, TreeNode, GitStatus } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, Worktree, TreeNode, GitStatus } from './types/index.js';
 import type { CommandServices } from './commands/types.js';
 import { useCommandExecutor } from './hooks/useCommandExecutor.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
@@ -42,6 +42,7 @@ import { detectTerminalTheme } from './theme/colorPalette.js';
 import { execa } from 'execa';
 import open from 'open';
 import clipboardy from 'clipboardy';
+import { InlineInput } from './components/StatusBar/InlineInput.js';
 
 interface AppProps {
   cwd: string;
@@ -97,7 +98,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   } = useAppLifecycle({ cwd, initialConfig, noWatch, noGit });
 
   // Local notification state (merged with lifecycle notifications)
-  const [notification, setNotification] = useState<Notification | null>(null);
+  const [notification, setNotification] = useState<NotificationType | null>(null);
 
   useEffect(() => {
     if (!lifecycleNotification) {
@@ -138,6 +139,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Listen for ui:modal:open events
   const [activeModals, setActiveModals] = useState<Set<ModalId>>(new Set());
   const [modalContext, setModalContext] = useState<Partial<ModalContextMap>>({});
+  const [commandInput, setCommandInput] = useState<string>('');
 
   // Filter state - initialize from CLI if provided
   const [filterActive, setFilterActive] = useState(!!initialFilter);
@@ -286,6 +288,27 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
 
+  const headerRows = 3;
+  const overlayRows = (notification ? 2 : 0) + (commandMode ? 2 : 0);
+  const reservedRows = headerRows + overlayRows;
+  const viewportHeight = useViewportHeight(reservedRows);
+  const dashboardViewportSize = useMemo(() => {
+    const available = Math.max(1, height - reservedRows);
+    return Math.max(3, Math.floor(available / 5));
+  }, [height, reservedRows]);
+
+  useEffect(() => {
+    if (commandMode) {
+      const initialInput =
+        (modalContext['command-bar'] as ModalContextMap['command-bar'] | undefined)
+          ?.initialInput ?? '';
+      const cleaned = initialInput.startsWith('/') ? initialInput.slice(1) : initialInput;
+      setCommandInput(cleaned);
+    } else {
+      setCommandInput('');
+    }
+  }, [commandMode, modalContext]);
+
   // Reset fuzzy search query when modal closes
   useEffect(() => {
     if (!isFuzzySearchOpen) {
@@ -331,15 +354,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
-  const headerRows = 3;
-  const statusRows = 5;
-  const reservedRows = headerRows + statusRows;
-  const viewportHeight = useViewportHeight(reservedRows);
-  const dashboardViewportSize = useMemo(() => {
-    const available = Math.max(1, height - reservedRows);
-    return Math.max(3, Math.floor(available / 5));
-  }, [height, reservedRows]);
-
   // Listen for sys:refresh events
   useEffect(() => {
     return events.on('sys:refresh', () => {
@@ -353,7 +367,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const { status: aiStatus, isAnalyzing } = useAIStatus(activeRootPath, effectiveGitStatus, isGitLoading);
 
   // Initialize Activity Hook for temporal styling
-  const { activeFiles, isIdle } = useActivity();
+  const { activeFiles } = useActivity();
 
   const projectIdentity = useProjectIdentity(activeRootPath);
 
@@ -481,6 +495,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     if (!target) {
       return;
     }
+    setActiveModals((prev) => {
+      const next = new Set(prev);
+      next.add('profile-selector');
+      return next;
+    });
+    setModalContext((prev) => ({
+      ...prev,
+      'profile-selector': { worktreeId: target.id },
+    }));
     events.emit('ui:modal:open', { id: 'profile-selector', context: { worktreeId: target.id } });
   }, [sortedWorktrees]);
 
@@ -558,9 +581,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   useEffect(() => {
     return () => {
       if (activeWorktreeId) {
+        const expandedSnapshot = expandedFolders ? Array.from(expandedFolders) : [];
         void saveSessionState(activeWorktreeId, {
           selectedPath,
-          expandedFolders: Array.from(expandedFolders),
+          expandedFolders: expandedSnapshot,
           gitOnlyMode,
           lastCopyProfile,
           timestamp: Date.now(),
@@ -602,17 +626,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       return () => clearTimeout(timer);
     }
   }, [notification]);
-
-  const modifiedCount = useMemo(() => {
-    if (activeWorktreeChanges) {
-      return activeWorktreeChanges.changedFileCount;
-    }
-    return Array.from(effectiveGitStatus.values()).filter(
-      status => status === 'modified' || status === 'added' || status === 'deleted'
-    ).length;
-  }, [activeWorktreeChanges, effectiveGitStatus]);
-
-  const totalFileCount = useMemo(() => countTotalFiles(fileTree), [fileTree]);
 
   // Helper function to collect all folder paths from a tree
   const collectAllFolderPaths = useCallback((tree: TreeNode[]): string[] => {
@@ -668,7 +681,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       // Exiting git-only mode - restore previous expansion state
       if (previousExpandedFoldersRef.current) {
         // First collapse all folders
-        Array.from(expandedFolders).forEach(folderPath => {
+        Array.from(expandedFolders ?? []).forEach(folderPath => {
           events.emit('nav:collapse', { path: folderPath });
         });
 
@@ -774,7 +787,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         try {
           await saveSessionState(activeWorktreeId, {
             selectedPath,
-            expandedFolders: Array.from(expandedFolders),
+            expandedFolders: Array.from(expandedFolders ?? []),
             gitOnlyMode,
             lastCopyProfile,
             timestamp: Date.now(),
@@ -1039,7 +1052,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     if (activeWorktreeId) {
       await saveSessionState(activeWorktreeId, {
         selectedPath,
-        expandedFolders: Array.from(expandedFolders),
+        expandedFolders: Array.from(expandedFolders ?? []),
         gitOnlyMode,
         lastCopyProfile,
         timestamp: Date.now(),
@@ -1064,6 +1077,27 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
   };
 
+  const handleOpenProfileSelectorForFocused = useCallback(() => {
+    const targetId =
+      focusedWorktreeId ||
+      activeWorktreeId ||
+      sortedWorktrees[0]?.id;
+    if (!targetId) {
+      return;
+    }
+    handleOpenProfileSelector(targetId);
+  }, [activeWorktreeId, focusedWorktreeId, handleOpenProfileSelector, sortedWorktrees]);
+
+  const handleCommandSubmit = useCallback((value: string) => {
+    const fullCommand = value.startsWith('/') ? value : `/${value}`;
+    events.emit('ui:command:submit', { input: fullCommand });
+    events.emit('ui:modal:close', { id: 'command-bar' });
+  }, []);
+
+  const handleCommandCancel = useCallback(() => {
+    events.emit('ui:modal:close', { id: 'command-bar' });
+  }, []);
+
   const anyModalOpen = activeModals.size > 0;
 
   const { visibleStart, visibleEnd } = useDashboardNav({
@@ -1079,6 +1113,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onOpenProfileSelector: handleOpenProfileSelector,
   });
 
+  useInput(
+    (input) => {
+      if (viewMode !== 'dashboard' || anyModalOpen) {
+        return;
+      }
+      if (input === 'p') {
+        handleOpenProfileSelectorForFocused();
+      }
+    },
+    { isActive: true }
+  );
+
   useKeyboard({
     navigationEnabled: viewMode === 'tree',
 
@@ -1089,6 +1135,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
+    onOpenProfileSelector: anyModalOpen ? undefined : handleOpenProfileSelectorForFocused,
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
     onToggleGitOnlyMode: anyModalOpen ? undefined : handleToggleGitOnlyMode,
@@ -1143,13 +1190,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   return (
     <ThemeProvider mode={themeMode} projectAccent={projectAccent}>
       <Box flexDirection="column" height={height}>
-      <Header
-        cwd={cwd}
-        filterActive={filterActive}
-        filterQuery={filterQuery}
-        currentWorktree={currentWorktree}
-        worktreeCount={worktreesWithStatus.length}
-        activeWorktreeCount={activeWorktreeCount}
+        <Header
+          cwd={cwd}
+          filterActive={filterActive}
+          filterQuery={filterQuery}
+          currentWorktree={currentWorktree}
+          worktreeCount={worktreesWithStatus.length}
+          activeWorktreeCount={activeWorktreeCount}
           onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
           config={effectiveConfig}
@@ -1158,65 +1205,64 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onToggleGitOnlyMode={handleToggleGitOnlyMode}
           gitEnabled={gitEnabled}
           gitStatus={effectiveGitStatus}
+          aiStatus={aiStatus}
+          isAnalyzing={isAnalyzing}
         />
-      <Box flexGrow={1}>
-        {viewMode === 'dashboard' ? (
-          <WorktreeOverview
-            worktrees={sortedWorktrees}
-            worktreeChanges={worktreeChanges}
-            activeWorktreeId={activeWorktreeId}
-            focusedWorktreeId={focusedWorktreeId}
-            expandedWorktreeIds={expandedWorktreeIds}
-            visibleStart={visibleStart}
-            visibleEnd={visibleEnd}
-            onToggleExpand={handleToggleExpandWorktree}
-            onCopyTree={handleCopyTreeForWorktree}
-            onOpenEditor={handleOpenWorktreeEditor}
-          />
-        ) : (
-          <TreeView
-            fileTree={fileTree}
-            selectedPath={selectedPath}
-            config={effectiveConfig}
-            expandedPaths={expandedFolders}
-            viewportHeight={viewportHeight}
-            activeFiles={activeFiles}
-          />
+        {notification && (
+          <Box marginTop={1}>
+            <Notification notification={notification} onDismiss={() => setNotification(null)} />
+          </Box>
         )}
-      </Box>
-      <StatusBar
-        notification={notification}
-        fileCount={totalFileCount}
-        modifiedCount={modifiedCount}
-        aiStatus={aiStatus}
-        isAnalyzing={isAnalyzing}
-        filterQuery={filterActive ? filterQuery : null}
-        activeRootPath={activeRootPath}
-        commandMode={commandMode}
-        isIdle={isIdle}
-        worktreeChanges={worktreeChanges}
-        focusedWorktreeId={focusedWorktreeId}
-        worktrees={sortedWorktrees}
-      />
-      {isProfileSelectorOpen && (
-        <Box
-          flexDirection="row"
-          justifyContent="center"
-          marginTop={1}
-        >
-          <ProfileSelector
-            profiles={config.copytreeProfiles || {}}
-            currentProfile={lastCopyProfile}
-            onSelect={handleProfileSelect}
-            onClose={() => events.emit('ui:modal:close', { id: 'profile-selector' })}
-          />
+        {commandMode && (
+          <Box marginTop={notification ? 1 : 0} paddingX={1}>
+            <InlineInput
+              input={commandInput}
+              onChange={setCommandInput}
+              onSubmit={handleCommandSubmit}
+              onCancel={handleCommandCancel}
+            />
+          </Box>
+        )}
+        <Box flexGrow={1} marginTop={1}>
+          {isProfileSelectorOpen ? (
+            <Box flexDirection="row" justifyContent="center">
+              <ProfileSelector
+                profiles={config.copytreeProfiles || {}}
+                currentProfile={lastCopyProfile}
+                onSelect={handleProfileSelect}
+                onClose={() => events.emit('ui:modal:close', { id: 'profile-selector' })}
+              />
+            </Box>
+          ) : viewMode === 'dashboard' ? (
+            <WorktreeOverview
+              worktrees={sortedWorktrees}
+              worktreeChanges={worktreeChanges}
+              activeWorktreeId={activeWorktreeId}
+              focusedWorktreeId={focusedWorktreeId}
+              expandedWorktreeIds={expandedWorktreeIds}
+              visibleStart={visibleStart}
+              visibleEnd={visibleEnd}
+              onToggleExpand={handleToggleExpandWorktree}
+              onCopyTree={handleCopyTreeForWorktree}
+              onOpenEditor={handleOpenWorktreeEditor}
+              onOpenProfile={handleOpenProfileSelector}
+            />
+          ) : (
+            <TreeView
+              fileTree={fileTree}
+              selectedPath={selectedPath}
+              config={effectiveConfig}
+              expandedPaths={expandedFolders}
+              viewportHeight={viewportHeight}
+              activeFiles={activeFiles}
+            />
+          )}
         </Box>
-      )}
       {contextMenuOpen && (() => {
         // Create CommandServices object for context menu
         const contextMenuServices: CommandServices = {
           ui: {
-            notify: (n: Notification) => events.emit('ui:notify', n),
+            notify: (n: NotificationType) => events.emit('ui:notify', n),
             refresh: refreshTree,
             exit: exitApp,
           },

@@ -33,13 +33,29 @@ describe('useMultiWorktreeStatus', () => {
 		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
 		const callCounts = { active: 0, background: 0 };
 
-		vi.mocked(gitUtils.getGitStatusCached).mockImplementation(async (cwd) => {
+		vi.mocked(gitUtils.getWorktreeChangesWithStats).mockImplementation(async (cwd) => {
 			if (cwd.includes('wt-1')) {
 				callCounts.active += 1;
-				return new Map([['/repo/wt-1/file.txt', 'modified']]);
+				return {
+					worktreeId: 'wt-1',
+					rootPath: '/repo/wt-1',
+					changes: [{ path: '/repo/wt-1/file.txt', status: 'modified', insertions: 5, deletions: 1 }],
+					changedFileCount: 1,
+					totalInsertions: 5,
+					totalDeletions: 1,
+					lastUpdated: Date.now(),
+				};
 			}
 			callCounts.background += 1;
-			return new Map([['/repo/wt-2/other.txt', 'added']]);
+			return {
+				worktreeId: 'wt-2',
+				rootPath: '/repo/wt-2',
+				changes: [{ path: '/repo/wt-2/other.txt', status: 'added', insertions: 3, deletions: 0 }],
+				changedFileCount: 1,
+				totalInsertions: 3,
+				totalDeletions: 0,
+				lastUpdated: Date.now(),
+			};
 		});
 
 		const { result } = renderHook(() =>
@@ -69,11 +85,19 @@ describe('useMultiWorktreeStatus', () => {
 
 	it('isolates errors so one failing worktree does not block others', async () => {
 		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(true);
-		vi.mocked(gitUtils.getGitStatusCached).mockImplementation(async (cwd) => {
+		vi.mocked(gitUtils.getWorktreeChangesWithStats).mockImplementation(async (cwd) => {
 			if (cwd.includes('wt-2')) {
 				throw new Error('boom');
 			}
-			return new Map([['/repo/wt-1/file.txt', 'modified']]);
+			return {
+				worktreeId: 'wt-1',
+				rootPath: '/repo/wt-1',
+				changes: [{ path: '/repo/wt-1/file.txt', status: 'modified', insertions: 1, deletions: 0 }],
+				changedFileCount: 1,
+				totalInsertions: 1,
+				totalDeletions: 0,
+				lastUpdated: Date.now(),
+			};
 		});
 
 		const { result } = renderHook(() =>

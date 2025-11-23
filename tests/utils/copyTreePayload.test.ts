@@ -14,10 +14,12 @@ const changeSet: WorktreeChanges = {
   worktreeId: worktree.id,
   rootPath: worktree.path,
   changes: [
-    { path: 'src/index.ts', status: 'modified' },
-    { path: 'README.md', status: 'added' },
+    { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
+    { path: 'README.md', status: 'added', insertions: 3, deletions: 0 },
   ],
   changedFileCount: 2,
+  totalInsertions: 13,
+  totalDeletions: 2,
   lastUpdated: Date.now(),
 };
 

@@ -8,7 +8,7 @@ import { calculateViewportHeight } from '../utils/treeViewVirtualization.js';
  * Encapsulates stdout resize measurements for reuse by App and TreeView.
  * Ensures both use the same reserved-row calculation for consistent behavior.
  *
- * @param reservedRows - Number of rows reserved for header/status bar (default: 3)
+ * @param reservedRows - Number of rows reserved for header/overlays (default: 2)
  * @returns Current viewport height in rows
  *
  * @example
@@ -17,7 +17,7 @@ import { calculateViewportHeight } from '../utils/treeViewVirtualization.js';
  * // Returns available height for tree content, auto-updates on terminal resize
  * ```
  */
-export function useViewportHeight(reservedRows = 3): number {
+export function useViewportHeight(reservedRows = 2): number {
   const { stdout } = useStdout();
   const [viewportHeight, setViewportHeight] = useState(() =>
     calculateViewportHeight(reservedRows)

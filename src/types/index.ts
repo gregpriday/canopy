@@ -1,4 +1,4 @@
-export type GitStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'ignored';
+export type GitStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'ignored' | 'renamed';
 
 export type FileType = 'file' | 'directory';
 
@@ -9,11 +9,22 @@ export interface CopytreeProfile {
   description?: string;
 }
 
+export interface FileChangeDetail {
+  path: string;
+  status: GitStatus;
+  insertions: number | null;
+  deletions: number | null;
+}
+
 export interface WorktreeChanges {
   worktreeId: string;
   rootPath: string;
-  changes: Array<{ path: string; status: GitStatus }>;
+  changes: FileChangeDetail[];
   changedFileCount: number;
+  totalInsertions?: number;
+  totalDeletions?: number;
+  insertions?: number;
+  deletions?: number;
   lastUpdated: number;
 }
 
@@ -68,7 +79,7 @@ export interface Worktree {
   summaryLoading?: boolean;
 
   /** Recent git status changes for this worktree */
-  changes?: Array<{ path: string; status: GitStatus }>;
+  changes?: FileChangeDetail[];
 
   /** High-level mood/state for dashboard sorting */
   mood?: WorktreeMood;

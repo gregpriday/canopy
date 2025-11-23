@@ -1,7 +1,7 @@
 import { resolve } from 'path';
 import { realpathSync } from 'fs';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
-import type { GitStatus } from '../types/index.js';
+import type { FileChangeDetail, GitStatus, WorktreeChanges } from '../types/index.js';
 import { GitError } from './errorTypes.js';
 import { logWarn, logError } from './logger.js';
 import { Cache } from './cache.js';
@@ -118,16 +118,24 @@ export async function getGitStatus(cwd: string): Promise<Map<string, GitStatus>>
 
 // Git status cache configuration
 const GIT_STATUS_CACHE = new Cache<string, Map<string, GitStatus>>({
-	maxSize: 100, // Cache up to 100 different directories
-	defaultTTL: 5000, // 5 second TTL
+  maxSize: 100, // Cache up to 100 different directories
+  defaultTTL: 5000, // 5 second TTL
+});
+
+const GIT_WORKTREE_CHANGES_CACHE = new Cache<string, WorktreeChanges>({
+  maxSize: 100,
+  defaultTTL: 5000,
 });
 
 // Periodically clean up expired entries
-const cleanupInterval = setInterval(() => GIT_STATUS_CACHE.cleanup(), 10000); // Every 10 seconds
+const cleanupInterval = setInterval(() => {
+  GIT_STATUS_CACHE.cleanup();
+  GIT_WORKTREE_CHANGES_CACHE.cleanup();
+}, 10000); // Every 10 seconds
 
 // Allow cleanup to be stopped (for testing)
 export function stopGitStatusCacheCleanup(): void {
-	clearInterval(cleanupInterval);
+  clearInterval(cleanupInterval);
 }
 
 /**
@@ -139,30 +147,30 @@ export function stopGitStatusCacheCleanup(): void {
  * @returns Map of file paths to git status
  */
 export async function getGitStatusCached(
-	cwd: string,
-	forceRefresh = false,
+  cwd: string,
+  forceRefresh = false,
 ): Promise<Map<string, GitStatus>> {
-	// Check cache first (unless forced refresh)
-	if (!forceRefresh) {
-		const cached = GIT_STATUS_CACHE.get(cwd);
-		if (cached) {
-			perfMonitor.recordMetric('git-status-cache-hit', 1);
-			// Return a new Map instance to ensure React detects changes via reference equality
-			return new Map(cached);
-		}
-	}
+  // Check cache first (unless forced refresh)
+  if (!forceRefresh) {
+    const cached = GIT_STATUS_CACHE.get(cwd);
+    if (cached) {
+      perfMonitor.recordMetric('git-status-cache-hit', 1);
+      // Return a new Map instance to ensure React detects changes via reference equality
+      return new Map(cached);
+    }
+  }
 
-	perfMonitor.recordMetric('git-status-cache-miss', 1);
+  perfMonitor.recordMetric('git-status-cache-miss', 1);
 
-	// Cache miss or forced refresh - call original function with metrics
-	const status = await perfMonitor.measure('git-status-fetch', () =>
-		getGitStatus(cwd),
-	);
+  // Cache miss or forced refresh - call original function with metrics
+  const status = await perfMonitor.measure('git-status-fetch', () =>
+    getGitStatus(cwd),
+  );
 
-	// Store in cache
-	GIT_STATUS_CACHE.set(cwd, status);
+  // Store in cache
+  GIT_STATUS_CACHE.set(cwd, status);
 
-	return status;
+  return status;
 }
 
 /**
@@ -172,7 +180,8 @@ export async function getGitStatusCached(
  * @param cwd - Directory to invalidate
  */
 export function invalidateGitStatusCache(cwd: string): void {
-	GIT_STATUS_CACHE.invalidate(cwd);
+  GIT_STATUS_CACHE.invalidate(cwd);
+  GIT_WORKTREE_CHANGES_CACHE.invalidate(cwd);
 }
 
 /**
@@ -180,5 +189,191 @@ export function invalidateGitStatusCache(cwd: string): void {
  * Useful when switching worktrees.
  */
 export function clearGitStatusCache(): void {
-	GIT_STATUS_CACHE.clear();
+  GIT_STATUS_CACHE.clear();
+  GIT_WORKTREE_CHANGES_CACHE.clear();
+}
+
+interface DiffStat {
+  insertions: number | null;
+  deletions: number | null;
+}
+
+const NUMSTAT_PATH_SPLITTERS = ['=>', '->'];
+
+function normalizeNumstatPath(rawPath: string): string {
+  const trimmed = rawPath.trim();
+  for (const splitter of NUMSTAT_PATH_SPLITTERS) {
+    const idx = trimmed.lastIndexOf(splitter);
+    if (idx !== -1) {
+      return trimmed
+        .slice(idx + splitter.length)
+        .replace(/[{}]/g, '')
+        .trim();
+    }
+  }
+  return trimmed.replace(/[{}]/g, '');
+}
+
+function parseNumstat(diffOutput: string, gitRoot: string): Map<string, DiffStat> {
+  const stats = new Map<string, DiffStat>();
+  const lines = diffOutput.split('\n');
+
+  for (const line of lines) {
+    if (!line.trim()) continue;
+    const parts = line.split('\t');
+    if (parts.length < 3) continue;
+
+    const [insertionsRaw, deletionsRaw, ...pathParts] = parts;
+    const rawPath = pathParts.join('\t');
+    const normalizedPath = normalizeNumstatPath(rawPath);
+    const absolutePath = resolve(gitRoot, normalizedPath);
+
+    const insertions =
+      insertionsRaw === '-' ? null : Number.parseInt(insertionsRaw, 10);
+    const deletions =
+      deletionsRaw === '-' ? null : Number.parseInt(deletionsRaw, 10);
+
+    stats.set(absolutePath, {
+      insertions: Number.isNaN(insertions) ? null : insertions,
+      deletions: Number.isNaN(deletions) ? null : deletions,
+    });
+  }
+
+  return stats;
+}
+
+/**
+ * Fetch worktree changes enriched with insertion/deletion counts.
+ * Includes caching with the same TTL as basic status.
+ */
+export async function getWorktreeChangesWithStats(
+  cwd: string,
+  forceRefresh = false,
+): Promise<WorktreeChanges> {
+  if (!forceRefresh) {
+    const cached = GIT_WORKTREE_CHANGES_CACHE.get(cwd);
+    if (cached) {
+      return {
+        ...cached,
+        changes: cached.changes.map(change => ({ ...change })),
+      };
+    }
+  }
+
+  try {
+    const git: SimpleGit = simpleGit(cwd);
+    const status: StatusResult = await git.status();
+    const gitRoot = realpathSync((await git.revparse(['--show-toplevel'])).trim());
+
+    let diffOutput = '';
+    try {
+      diffOutput = await git.diff(['--numstat', 'HEAD']);
+    } catch (error) {
+      logWarn('Failed to read numstat diff; continuing without line stats', {
+        cwd,
+        message: (error as Error).message,
+      });
+    }
+
+    const diffStats = parseNumstat(diffOutput, gitRoot);
+    const changesMap = new Map<string, FileChangeDetail>();
+
+    const addChange = (pathFragment: string, statusValue: GitStatus) => {
+      const absolutePath = resolve(gitRoot, pathFragment);
+      const existing = changesMap.get(absolutePath);
+      if (existing) {
+        return;
+      }
+
+      const statsForFile = diffStats.get(absolutePath);
+      const insertions = statsForFile?.insertions ?? (statusValue === 'untracked' ? null : 0);
+      const deletions = statsForFile?.deletions ?? (statusValue === 'untracked' ? null : 0);
+
+      changesMap.set(absolutePath, {
+        path: absolutePath,
+        status: statusValue,
+        insertions,
+        deletions,
+      });
+    };
+
+    // Modified files (staged or unstaged)
+    for (const file of status.modified) {
+      addChange(file, 'modified');
+    }
+
+    // Renamed files
+    for (const file of status.renamed) {
+      if (typeof file !== 'string' && file.to) {
+        addChange(file.to, 'renamed');
+      }
+    }
+
+    // Added files
+    for (const file of status.created) {
+      addChange(file, 'added');
+    }
+
+    // Deleted files
+    for (const file of status.deleted) {
+      addChange(file, 'deleted');
+    }
+
+    // Untracked files
+    for (const file of status.not_added) {
+      addChange(file, 'untracked');
+    }
+
+    // Conflicted files (treat as modified)
+    if (status.conflicted) {
+      for (const file of status.conflicted) {
+        addChange(file, 'modified');
+      }
+    }
+
+    // Backfill any files that appear in diff stats but not in status
+    for (const [absolutePath, stats] of diffStats.entries()) {
+      if (changesMap.has(absolutePath)) continue;
+      changesMap.set(absolutePath, {
+        path: absolutePath,
+        status: 'modified',
+        insertions: stats.insertions ?? 0,
+        deletions: stats.deletions ?? 0,
+      });
+    }
+
+    const changes = Array.from(changesMap.values());
+    const totalInsertions = changes.reduce(
+      (sum, change) => sum + (change.insertions ?? 0),
+      0
+    );
+    const totalDeletions = changes.reduce(
+      (sum, change) => sum + (change.deletions ?? 0),
+      0
+    );
+
+    const result: WorktreeChanges = {
+      worktreeId: realpathSync(cwd),
+      rootPath: gitRoot,
+      changes,
+      changedFileCount: changes.length,
+      totalInsertions,
+      totalDeletions,
+      insertions: totalInsertions,
+      deletions: totalDeletions,
+      lastUpdated: Date.now(),
+    };
+
+    GIT_WORKTREE_CHANGES_CACHE.set(cwd, result);
+    return result;
+  } catch (error) {
+    const cause = error instanceof Error ? error : new Error(String(error));
+    const gitError = new GitError(
+      'Failed to get git worktree changes',
+      { cwd },
+      cause
+    );
+    logError('Git worktree changes operation failed', gitError, { cwd });
+    throw gitError;
+  }
 }

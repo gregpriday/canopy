@@ -20,6 +20,7 @@ export interface KeyboardHandlers {
   // Worktree Actions
   onNextWorktree?: () => void;      // w key
   onOpenWorktreePanel?: () => void; // Shift+W key
+  onOpenProfileSelector?: () => void; // p key
 
   // Command/Filter Actions
   onOpenCommandBar?: () => void;  // / key
@@ -182,6 +183,15 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
       return;
     }
 
+    if (input === 'p') {
+      if (handlers.onOpenProfileSelector) {
+        handlers.onOpenProfileSelector();
+      } else {
+        events.emit('ui:modal:open', { id: 'profile-selector' });
+      }
+      return;
+    }
+
     // Command/Filter Actions
     if (isAction(input, key, 'ui.command', keyMap)) {
       events.emit('ui:modal:open', { id: 'fuzzy-search', context: { initialQuery: '' } });
@@ -193,7 +203,7 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
       return;
     }
 
-    if (isAction(input, key, 'ui.escape', keyMap) && handlers.onClearFilter) {
+    if ((key.escape || isAction(input, key, 'ui.escape', keyMap)) && handlers.onClearFilter) {
       handlers.onClearFilter();
       return;
     }
