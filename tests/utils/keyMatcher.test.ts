@@ -78,10 +78,11 @@ describe('matchesKey', () => {
 
 		it('allows naturally shifted characters without explicit shift modifier', () => {
 			// These are critical for '?', 'G', 'W', 'C' keybindings
+			// Configs now use uppercase to properly match shifted chars
 			expect(matchesKey('?', { shift: true } as Key, '?')).toBe(true);
-			expect(matchesKey('G', { shift: true } as Key, 'g')).toBe(true);
-			expect(matchesKey('W', { shift: true } as Key, 'w')).toBe(true);
-			expect(matchesKey('C', { shift: true } as Key, 'c')).toBe(true);
+			expect(matchesKey('G', { shift: true } as Key, 'G')).toBe(true);
+			expect(matchesKey('W', { shift: true } as Key, 'W')).toBe(true);
+			expect(matchesKey('C', { shift: true } as Key, 'C')).toBe(true);
 		});
 
 		it('rejects special keys when flag not set', () => {

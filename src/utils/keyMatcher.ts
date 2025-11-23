@@ -19,9 +19,9 @@ import type { KeyAction } from '../types/keymap.js';
  * matchesKey('f', { ctrl: true }, 'ctrl+f') // true
  */
 export function matchesKey(input: string, key: Key, keyString: string): boolean {
-	const parts = keyString.toLowerCase().split('+');
+	const parts = keyString.split('+');
 	const mainKey = parts.pop()!;
-	const modifiers = new Set(parts);
+	const modifiers = new Set(parts.map(p => p.toLowerCase()));
 
 	// Check modifiers match (except shift for literal chars - see below)
 	if (modifiers.has('ctrl') && !key.ctrl) return false;
@@ -44,7 +44,7 @@ export function matchesKey(input: string, key: Key, keyString: string): boolean 
 		tab: 'tab',
 	};
 
-	const inkKey = specialKeys[mainKey];
+	const inkKey = specialKeys[mainKey.toLowerCase()];
 	if (inkKey) {
 		// For special keys, check shift modifier if explicitly requested
 		if (modifiers.has('shift') && !key.shift) return false;
@@ -53,23 +53,29 @@ export function matchesKey(input: string, key: Key, keyString: string): boolean 
 	}
 
 	// Special handling for space - check input character
-	if (mainKey === 'space') {
+	if (mainKey.toLowerCase() === 'space') {
 		// For space with explicit shift modifier
 		if (modifiers.has('shift') && !key.shift) return false;
 		if (!modifiers.has('shift') && key.shift) return false;
 		return input === ' ';
 	}
 
-	// Literal character match - exact case match required
+	// Literal character match
 	// For literal characters, shift is encoded in the character itself
 	// (e.g., '?' requires shift but we match on '?' not 'shift+/')
-	// So we ignore the shift modifier for literal chars
-	if (modifiers.has('shift')) {
-		// If 'shift+x' is in config, check shift modifier
-		if (!key.shift) return false;
-	}
-	// Don't check !modifiers.has('shift') - allow naturally shifted chars
+	// So we need special handling for shifted characters
 
+	// If config has explicit 'shift+x', check shift modifier
+	if (modifiers.has('shift')) {
+		if (!key.shift) return false;
+		// For shift+letter configs, allow case-insensitive match
+		// (e.g., 'G' with shift=true matches 'shift+g' config)
+		return input.toLowerCase() === mainKey.toLowerCase();
+	}
+
+	// Exact case match required
+	// This preserves the distinction between uppercase and lowercase bindings
+	// (e.g., 'W' vs 'w', 'G' vs 'g', 'C' vs 'c')
 	return input === mainKey;
 }
 
