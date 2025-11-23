@@ -108,14 +108,49 @@ Goal: Align header, status bar, and documentation with new model
 ---
 
 ### 🧪 Phase 7: Testing & Final QA
-Goal: Ensure stability and complete test coverage  
+Goal: Ensure stability and complete test coverage
 **Sequential Execution:** Integration tests first, then update existing
 
-- [ ] **#157 Integration Tests for Dashboard Flow**  
+- [x] **#157 Integration Tests for Dashboard Flow**
   Dependencies: All prior phases • Complexity: Complex • Priority: Critical • Blocks: (None)
+  **Status: COMPLETED** – Comprehensive integration test suite with 25 test scenarios covering all dashboard flows
 
-- [ ] **#158 Update All Existing Tests for Dashboard Architecture**  
+- [ ] **#158 Update All Existing Tests for Dashboard Architecture**
   Dependencies: #157 (can run in parallel) • Complexity: Medium • Priority: Critical • Blocks: (None)
+
+#### Running Dashboard Integration Tests
+
+The dashboard integration test suite is located at `tests/dashboard.integration.test.tsx` and covers:
+
+- **Dashboard Loading** (3 tests): Worktree rendering, AI summaries, modified file counts
+- **Keyboard Navigation** (3 tests): Arrow keys, Space expansion, Home/End navigation
+- **CopyTree Actions** (2 tests): Triggering CopyTree, error handling
+- **Profile Selection** (2 tests): Opening selector, closing with Escape
+- **VS Code Integration** (2 tests): Opening editor, error handling
+- **Fuzzy Search** (3 tests): Opening modal, search filtering, closing
+- **View Mode Switching** (2 tests): Dashboard ↔ tree mode transitions
+- **Help Modal** (2 tests): Opening help, closing
+- **Error Scenarios** (3 tests): Missing worktrees, file operation errors, lifecycle errors
+- **Notification System** (3 tests): Success/error notifications, auto-clear timeout
+
+**Run the tests:**
+```bash
+# Run all dashboard integration tests
+npm test -- tests/dashboard.integration.test.tsx
+
+# Run specific test pattern
+npm test -- tests/dashboard.integration.test.tsx -t "Dashboard Loading"
+
+# Run with coverage
+npm run test:coverage -- tests/dashboard.integration.test.tsx
+```
+
+**Test Architecture:**
+- Uses `ink-testing-library` for terminal UI testing
+- Mocks heavy hooks (useAppLifecycle, useWorktreeSummaries, useFileTree, useMultiWorktreeStatus)
+- Fixtures in `tests/fixtures/mockWorktrees.ts` provide consistent test data
+- Async UI updates handled with `waitForCondition` helper
+- All 25 scenarios passing with comprehensive coverage
 
 ---
 
