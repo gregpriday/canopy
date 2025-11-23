@@ -1116,7 +1116,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         message: 'Press Ctrl+C again to quit',
       });
     },
-  });
+  }, config);
 
   if (lifecycleStatus === 'initializing') {
     return (

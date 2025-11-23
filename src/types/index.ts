@@ -122,6 +122,7 @@ export interface RecentActivityConfig {
  * Import context menu configuration types
  */
 import type { ContextMenuConfig } from './contextMenu.js';
+import type { KeyMapConfig } from './keymap.js';
 
 export interface CanopyConfig {
   editor: string;
@@ -172,6 +173,7 @@ export interface CanopyConfig {
     limit?: number; // Maximum number of search results to show
     respectGitignore?: boolean; // Whether to respect gitignore in search (inherits from respectGitignore if not set)
   };
+  keys?: KeyMapConfig; // Configurable keyboard shortcuts with preset support
 }
 
 export interface CanopyState {

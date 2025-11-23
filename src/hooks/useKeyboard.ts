@@ -1,7 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useInput, useStdin } from 'ink';
 import { events } from '../services/events.js';
 import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
+import { isAction } from '../utils/keyMatcher.js';
+import { getResolvedKeyMap } from '../utils/keyPresets.js';
+import type { CanopyConfig } from '../types/index.js';
+import type { KeyAction } from '../types/keymap.js';
 
 /**
  * Keyboard handlers for various actions.
@@ -28,7 +32,7 @@ export interface KeyboardHandlers {
 
   // Copy Actions
   onOpenCopyTreeBuilder?: () => void;  // Shift+C key
-  
+
   // UI Actions
   onRefresh?: () => void;          // r key
   onOpenHelp?: () => void;         // ? key
@@ -40,13 +44,19 @@ export interface KeyboardHandlers {
 
 // Home/End sequences moved to shared utils/keySequences.ts
 
-export function useKeyboard(handlers: KeyboardHandlers): void {
+export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): void {
   const { stdin } = useStdin();
   const enabled = handlers.enabled ?? true;
   const navigationEnabled = handlers.navigationEnabled ?? true;
   // Use ref instead of state to prevent stale closures in useInput callback
   const exitConfirmRef = useRef(false);
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Resolve keymap from config once
+  const keyMap = useMemo(
+    () => getResolvedKeyMap(config.keys),
+    [config.keys],
+  );
 
   useEffect(() => {
     if (!stdin) {
@@ -88,8 +98,9 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
     if (!enabled) {
       return;
     }
-    // Handle Ctrl+C (Exit)
-    if ((key.ctrl && input === 'c') || input === '\u0003') {
+
+    // Handle force exit (Ctrl+C) - always uses hardcoded binding for safety
+    if (isAction(input, key, 'app.forceQuit', keyMap)) {
       if (exitConfirmRef.current) {
         if (handlers.onForceExit) {
           handlers.onForceExit();
@@ -106,7 +117,7 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
           exitTimeoutRef.current = null;
         }, 2000);
       }
-      return; 
+      return;
     }
 
     if (exitConfirmRef.current) {
@@ -117,128 +128,120 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
       }
     }
 
-    // Navigation - Arrow keys
-    if (navigationEnabled && key.upArrow) {
+    // Navigation - Using semantic actions
+    if (navigationEnabled && isAction(input, key, 'nav.up', keyMap)) {
       events.emit('nav:move', { direction: 'up' });
       return;
     }
 
-    if (navigationEnabled && key.downArrow) {
+    if (navigationEnabled && isAction(input, key, 'nav.down', keyMap)) {
       events.emit('nav:move', { direction: 'down' });
       return;
     }
 
-    if (navigationEnabled && key.leftArrow) {
+    if (navigationEnabled && isAction(input, key, 'nav.left', keyMap)) {
       events.emit('nav:move', { direction: 'left' });
       return;
     }
 
-    if (navigationEnabled && key.rightArrow) {
+    if (navigationEnabled && isAction(input, key, 'nav.right', keyMap)) {
       events.emit('nav:move', { direction: 'right' });
       return;
     }
 
-    // Navigation - Page Up/Down
-    if (navigationEnabled && key.pageUp) {
+    if (navigationEnabled && isAction(input, key, 'nav.pageUp', keyMap)) {
       events.emit('nav:move', { direction: 'pageUp' });
       return;
     }
 
-    if (navigationEnabled && key.pageDown) {
+    if (navigationEnabled && isAction(input, key, 'nav.pageDown', keyMap)) {
       events.emit('nav:move', { direction: 'pageDown' });
       return;
     }
 
-    // Navigation - Ctrl+U/D (alternate page up/down)
-    if (navigationEnabled && key.ctrl && input === 'u') {
-      events.emit('nav:move', { direction: 'pageUp' });
-      return;
-    }
-
-    if (navigationEnabled && key.ctrl && input === 'd') {
-      events.emit('nav:move', { direction: 'pageDown' });
-      return;
-    }
-
-    // File/Folder Actions
-    if (navigationEnabled && key.return) {
+    // Primary action (Enter/Return)
+    if (navigationEnabled && isAction(input, key, 'nav.primary', keyMap)) {
       events.emit('nav:primary');
       return;
     }
 
-    if (input === ' ' && handlers.onToggleExpand) {
+    // Expand/Collapse (Space)
+    if (isAction(input, key, 'nav.expand', keyMap) && handlers.onToggleExpand) {
       handlers.onToggleExpand();
       return;
     }
 
     // Worktree Actions
-    if (input === 'w' && !key.shift && handlers.onNextWorktree) {
+    if (isAction(input, key, 'worktree.next', keyMap) && handlers.onNextWorktree) {
       handlers.onNextWorktree();
       return;
     }
 
-    if (input === 'W') {
+    if (isAction(input, key, 'worktree.panel', keyMap)) {
       events.emit('ui:modal:open', { id: 'worktree' });
       return;
     }
 
     // Command/Filter Actions
-    if (input === '/') {
+    if (isAction(input, key, 'ui.command', keyMap)) {
       events.emit('ui:modal:open', { id: 'fuzzy-search', context: { initialQuery: '' } });
       return;
     }
 
-    if (key.ctrl && input === 'f') {
+    if (isAction(input, key, 'ui.filter', keyMap)) {
       events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
       return;
     }
 
-    if (key.escape && handlers.onClearFilter) {
+    if (isAction(input, key, 'ui.escape', keyMap) && handlers.onClearFilter) {
       handlers.onClearFilter();
       return;
     }
 
     // Git Actions
-    if (input === 'g' && !key.shift && handlers.onToggleGitStatus) {
+    if (isAction(input, key, 'git.toggle', keyMap) && handlers.onToggleGitStatus) {
       handlers.onToggleGitStatus();
       return;
     }
 
+    // Note: Git only mode (Shift+G) not yet mapped to semantic action
+    // Keep legacy check for now to avoid breaking changes
     if (input === 'G' && handlers.onToggleGitOnlyMode) {
       handlers.onToggleGitOnlyMode();
       return;
     }
 
     // Copy Actions
+    // Note: CopyTree builder (Shift+C) not yet mapped to semantic action
     if (input === 'C' && handlers.onOpenCopyTreeBuilder) {
       handlers.onOpenCopyTreeBuilder();
       return;
     }
 
-    // Use Event Bus for CopyTree Shortcut (Cmd+C)
-    if (key.meta && input === 'c') {
-      events.emit('file:copy-tree', {}); // Use empty payload, handled by listener
+    // CopyTree shortcut - mapped to file.copyTree
+    if (isAction(input, key, 'file.copyTree', keyMap)) {
+      events.emit('file:copy-tree', {});
       return;
     }
 
-    // Recent Activity
+    // Recent Activity (not yet configurable - keeping legacy behavior)
     if (input === 'a' && !key.shift && !key.ctrl && !key.meta) {
       events.emit('ui:modal:open', { id: 'recent-activity' });
       return;
     }
 
     // UI Actions
-    if (input === 'r' && handlers.onRefresh) {
+    if (isAction(input, key, 'ui.refresh', keyMap) && handlers.onRefresh) {
       handlers.onRefresh();
       return;
     }
 
-    if (input === '?') {
+    if (isAction(input, key, 'ui.help', keyMap)) {
       events.emit('ui:modal:open', { id: 'help' });
       return;
     }
 
-    if (input === 'm') {
+    if (isAction(input, key, 'ui.contextMenu', keyMap)) {
       if (handlers.onOpenContextMenu) {
         handlers.onOpenContextMenu();
         return;
@@ -247,7 +250,7 @@ export function useKeyboard(handlers: KeyboardHandlers): void {
       return;
     }
 
-    if (input === 'q' && handlers.onQuit) {
+    if (isAction(input, key, 'app.quit', keyMap) && handlers.onQuit) {
       handlers.onQuit();
       return;
     }

@@ -516,6 +516,38 @@ function validateConfig(config: unknown): CanopyConfig {
     }
   }
 
+  // Validate keys (optional field)
+  if (c.keys !== undefined) {
+    if (typeof c.keys !== 'object' || c.keys === null) {
+      errors.push('config.keys must be an object');
+    } else {
+      if (c.keys.preset !== undefined && !['standard', 'vim'].includes(c.keys.preset)) {
+        errors.push('config.keys.preset must be "standard" or "vim"');
+      }
+      if (c.keys.overrides !== undefined) {
+        if (typeof c.keys.overrides !== 'object' || Array.isArray(c.keys.overrides)) {
+          errors.push('config.keys.overrides must be an object');
+        } else {
+          // Validate each override entry
+          for (const [action, bindings] of Object.entries(c.keys.overrides)) {
+            if (!Array.isArray(bindings)) {
+              errors.push(`config.keys.overrides.${action} must be an array of key binding strings`);
+            } else {
+              if (bindings.length === 0) {
+                errors.push(`config.keys.overrides.${action} must have at least one key binding`);
+              }
+              for (let i = 0; i < bindings.length; i++) {
+                if (typeof bindings[i] !== 'string') {
+                  errors.push(`config.keys.overrides.${action}[${i}] must be a string`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   if (errors.length > 0) {
     throw new ConfigError(
       `Config validation failed:\n${errors.join('\n')}`,

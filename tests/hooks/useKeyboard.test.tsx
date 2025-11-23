@@ -5,10 +5,11 @@ import { useKeyboard, type KeyboardHandlers } from '../../src/hooks/useKeyboard.
 import { Box, Text } from 'ink';
 import { events } from '../../src/services/events.js';
 import type { CanopyEventMap } from '../../src/services/events.js';
+import { DEFAULT_CONFIG } from '../../src/types/index.js';
 
 // Test component that uses the hook
 function TestComponent({ handlers }: { handlers: KeyboardHandlers }) {
-  useKeyboard(handlers);
+  useKeyboard(handlers, DEFAULT_CONFIG);
   return (
     <Box>
       <Text>Test</Text>
