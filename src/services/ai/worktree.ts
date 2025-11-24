@@ -14,7 +14,7 @@ export interface WorktreeSummary {
 }
 
 const ERROR_SNIPPET_MAX = 400;
-const MAX_WORDS = 8;
+const MAX_WORDS = 10;
 
 function formatErrorSnippet(raw: unknown): string {
   const asString =
@@ -32,10 +32,54 @@ function formatErrorSnippet(raw: unknown): string {
   return asString.length > ERROR_SNIPPET_MAX ? `${asString.slice(0, ERROR_SNIPPET_MAX)}...` : asString;
 }
 
+/**
+ * Resilient JSON parser that can handle malformed JSON responses.
+ * Tries standard JSON.parse first, then falls back to regex extraction.
+ */
+function parseResilientJSON(text: string): string | null {
+  // First try: standard JSON parsing
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.summary === 'string') {
+      return parsed.summary.replace(/\s+/g, ' ').trim();
+    }
+  } catch {
+    // Fall through to regex parsing
+  }
+
+  // Second try: regex extraction
+  // Match "summary": "value" or "summary":"value" with various quote styles
+  const patterns = [
+    /"summary"\s*:\s*"([^"]+)"/,
+    /"summary"\s*:\s*'([^']+)'/,
+    /'summary'\s*:\s*"([^"]+)"/,
+    /'summary'\s*:\s*'([^']+)'/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return match[1].replace(/\s+/g, ' ').trim();
+    }
+  }
+
+  // Third try: look for any quoted string after "summary" (even more lenient)
+  const laxMatch = text.match(/"summary"[^"']*["']([^"']+)["']/);
+  if (laxMatch?.[1]) {
+    return laxMatch[1].replace(/\s+/g, ' ').trim();
+  }
+
+  return null;
+}
+
 function normalizeSummary(text: string): string {
   const firstLine = text.split(/\r?\n/)[0] ?? '';
-  const compressed = firstLine.replace(/\s+/g, ' ').trim();
+  let compressed = firstLine.replace(/\s+/g, ' ').trim();
   if (!compressed) return '';
+
+  // Ensure space after emoji before alphanumeric characters
+  // Match any non-ASCII character (likely emoji) directly followed by alphanumeric
+  compressed = compressed.replace(/([\u{80}-\u{10ffff}])([a-zA-Z0-9])/gu, '$1 $2');
 
   const words = compressed.split(' ').slice(0, MAX_WORDS);
   return words.join(' ');
@@ -59,7 +103,6 @@ export async function generateWorktreeSummary(
 
   const git = simpleGit(worktreePath);
   let modifiedCount = 0;
-  let lastCommitMsg = '';
   let promptContext = '';
 
   try {
@@ -77,93 +120,149 @@ export async function generateWorktreeSummary(
       status.renamed.length +
       status.not_added.length;
 
+    // Two-stage system: if no changes, show last commit instead of AI summary
     if (modifiedCount === 0) {
+      try {
+        const log = await git.log({ maxCount: 1 });
+        const lastCommitMsg = log.latest?.message ?? '';
+        if (lastCommitMsg) {
+          // Use first line of commit message only
+          const firstLine = lastCommitMsg.split('\n')[0].trim();
+          return {
+            summary: firstLine,
+            modifiedCount: 0
+          };
+        }
+      } catch {
+        // No commits or git error - fall through to default
+      }
+
+      // Edge case: no commits exist yet
       return {
         summary: branchName ? `Clean: ${branchName}` : 'No changes',
         modifiedCount: 0
       };
     }
 
-    try {
-      const log = await git.log({ maxCount: 1 });
-      lastCommitMsg = log.latest?.message ?? '';
-    } catch {
-      lastCommitMsg = '';
-    }
-
-    const branchLabel = branchName ?? mainBranch ?? '';
-    const branchContext = branchLabel ? `Branch: ${branchLabel}` : '';
-    promptContext = branchContext ? `${branchContext}\n` : '';
-    if (lastCommitMsg) {
-      promptContext += `Last Commit: "${lastCommitMsg}"\n`;
-    }
-    promptContext += '\n--- CHANGES ---\n';
-
+    // Start with deleted files (minimal info)
     if (deletedFiles.length > 0) {
-      promptContext += `Deleted files:\n- ${deletedFiles.join('\n- ')}\n`;
+      promptContext += deletedFiles.map(f => `Deleted: ${f}`).join('\n') + '\n\n';
     }
 
     if (renamedFiles.length > 0) {
-      promptContext += `Renamed:\n- ${renamedFiles.join('\n- ')}\n`;
+      promptContext += renamedFiles.map(r => `Renamed: ${r}`).join('\n') + '\n\n';
     }
 
-    const filesForDiff = Array.from(new Set([...createdFiles, ...modifiedFiles, ...renamedTargets]));
-    const MAX_DIFF_LINES = 50;
-    const MAX_INPUT_CHARS = 6000;
+    // Step 1: Aggressive noise filtering
+    const IGNORED_PATTERNS = [
+      /package-lock\.json$/,
+      /yarn\.lock$/,
+      /pnpm-lock\.yaml$/,
+      /\.map$/,
+      /\.svg$/, /\.png$/, /\.ico$/, /\.jpg$/, /\.jpeg$/,
+      /^dist\//, /^build\//, /^\.next\//
+    ];
+
+    const isHighValue = (file: string) => !IGNORED_PATTERNS.some(p => p.test(file));
+    const filesForDiff = Array.from(new Set([...createdFiles, ...modifiedFiles, ...renamedTargets]))
+      .filter(isHighValue);
+
+    // Step 4: Smart context budgeting - sort by importance
+    filesForDiff.sort((a, b) => {
+      const aScore = (a.startsWith('src/') ? 0 : 1) + a.length * 0.01;
+      const bScore = (b.startsWith('src/') ? 0 : 1) + b.length * 0.01;
+      return aScore - bScore;
+    });
+
+    const CHAR_LIMIT = 1500; // Strict token budget
+    let currentLength = 0;
 
     for (const file of filesForDiff) {
-      if (/(^|\/)package-lock\.json$|\.map$|\.svg$|\.png$/i.test(file)) {
-        continue;
-      }
+      if (currentLength >= CHAR_LIMIT) break;
 
       try {
         const isNewFile = createdFiles.includes(file);
         let diff = '';
 
         if (isNewFile) {
+          // Step 3: Skeletonize new files - only extract structural definitions
           const content = await fs.readFile(path.join(worktreePath, file), 'utf8');
-          diff = content.split('\n').slice(0, 20).join('\n');
+          const lines = content.split('\n');
+
+          const skeleton = lines
+            .filter(line => /^(import|export|class|function|interface|type|const|let|var)\s/.test(line.trim()))
+            .slice(0, 15)
+            .join('\n');
+
+          diff = skeleton ? `NEW FILE STRUCTURE:\n${skeleton}` : `NEW FILE: ${file}`;
         } else {
-          diff = await git.diff(['--unified=0', '--minimal', '-w', 'HEAD', '--', file]);
+          // Step 2: Zero-context diffs - only the changed lines
+          diff = await git.diff([
+            '--unified=0',           // 0 lines of context (crucial for token savings)
+            '--minimal',             // Smallest diff possible
+            '--ignore-all-space',    // Ignore whitespace-only changes
+            '--ignore-blank-lines',  // Ignore blank line changes
+            'HEAD',
+            '--',
+            file
+          ]);
         }
 
         const cleanDiff = diff
           .split('\n')
           .filter(line => !line.startsWith('index ') && !line.startsWith('diff --git'))
-          .slice(0, MAX_DIFF_LINES)
           .join('\n');
 
         if (cleanDiff.trim()) {
-          promptContext += `\nFile: ${file}\n${cleanDiff}\n`;
+          const diffBlock = `\nFile: ${file}\n${cleanDiff}\n`;
+          promptContext += diffBlock;
+          currentLength += diffBlock.length;
         }
       } catch {
         // Skip unreadable files
       }
-
-      if (promptContext.length > MAX_INPUT_CHARS) {
-        promptContext = `${promptContext.slice(0, MAX_INPUT_CHARS)}\n... (truncated)`;
-        break;
-      }
     }
 
     if (!promptContext.trim()) {
-      promptContext = branchContext || 'Worktree changes';
+      promptContext = 'Worktree changes';
     }
 
     const callModel = async (): Promise<WorktreeSummary> => {
       const response = await client.responses.create({
         model: 'gpt-5-nano',
-        instructions: `You are a git worktree summarizer. You receive: branch name, last commit message, and file changes.
-Respond with ONE line of plain text that starts with a single emoji representing the work, followed by up to 8 words.
-No quotes, no JSON, no bullets, no prefixes, no extra lines. We only read your first line.
+        instructions: `Summarize the git diffs into a single active-tense sentence (max 10 words).
+Ignore imports, formatting, and minor refactors.
+Focus on the feature being added or the bug being fixed.
+Start with an emoji.
+Respond with JSON: {"summary":"emoji + description"}
+No newlines in your response.
 Examples:
-🚧 Building dashboard filters for sprint demo
-🔧 Tweaking CLI flags to speed sync runs
-✅ Fixing flaky tests in auth handshake
-🎨 Updating auth page styles for clarity`,
+{"summary":"🚧 Building dashboard filters"}
+{"summary":"🔧 Optimizing CLI flag parsing"}
+{"summary":"✅ Fixing auth handshake bug"}
+{"summary":"🎨 Redesigning settings page"}`,
         input: promptContext,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'worktree_summary',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                summary: {
+                  type: 'string',
+                  description: 'One emoji followed by up to 10 words describing the feature or bug fix, no newlines',
+                  maxLength: 100
+                }
+              },
+              required: ['summary'],
+              additionalProperties: false
+            }
+          }
+        },
         reasoning: { effort: 'minimal' },
-        max_output_tokens: 32
+        max_output_tokens: 128
       } as any);
 
       const text = extractOutputText(response);
@@ -171,13 +270,21 @@ Examples:
         throw new Error(`Worktree summary: empty response from model. Raw: ${formatErrorSnippet(response)}`);
       }
 
-      const summary = normalizeSummary(text);
+      // Remove all newlines and carriage returns before parsing
+      const cleanedText = text.replace(/[\r\n]+/g, '');
+
+      const summary = parseResilientJSON(cleanedText);
       if (!summary) {
-        throw new Error(`Worktree summary: empty normalized summary. Raw: ${formatErrorSnippet(text)}`);
+        throw new Error(`Worktree summary: failed to parse summary. Raw: ${formatErrorSnippet(text)}`);
+      }
+
+      const normalized = normalizeSummary(summary);
+      if (!normalized) {
+        throw new Error(`Worktree summary: empty normalized summary. Raw: ${formatErrorSnippet(summary)}`);
       }
 
       return {
-        summary,
+        summary: normalized,
         modifiedCount
       };
     };
