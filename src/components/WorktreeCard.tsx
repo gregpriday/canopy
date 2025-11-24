@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { getBorderColorForMood } from '../utils/moodColors.js';
+import { useTrafficLight } from '../hooks/useTrafficLight.js';
 
 export interface WorktreeCardProps {
   worktree: Worktree;
@@ -199,6 +200,18 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
 }) => {
   const { palette } = useTheme();
 
+  // Traffic Light System: Show worktree activity status
+  const trafficState = useTrafficLight(changes.latestFileMtime);
+
+  // Map traffic state to palette colors
+  const trafficColor = useMemo(() => {
+    switch (trafficState) {
+      case 'green': return palette.git.added;      // Bright Green (active development)
+      case 'yellow': return palette.git.modified;  // Gold/Yellow (agent thinking)
+      case 'gray': return palette.text.tertiary;   // Dim Gray (idle/complete)
+    }
+  }, [trafficState, palette]);
+
   const borderColor = getBorderColorForMood(mood);
   const borderStyle = isFocused ? 'double' : 'round';
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
@@ -324,10 +337,11 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
         </Box>
       </Box>
 
-      {/* Row 2: Statistics Bar */}
+      {/* Row 2: Statistics Bar with Traffic Light */}
       <Box marginTop={0} marginBottom={0}>
         <Text>
-          <Text color={palette.text.secondary}>📝 {fileCountLabel}</Text>
+          <Text color={trafficColor}>● </Text>
+          <Text color={palette.text.secondary}>{fileCountLabel}</Text>
           <Text dimColor> • </Text>
           <Text color={palette.git.added}>+{totalInsertions}</Text>
           <Text dimColor> • </Text>
