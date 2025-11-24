@@ -3,6 +3,8 @@ import type { Worktree, WorktreeChanges } from '../types/index.js';
 import { enrichWorktreesWithSummaries } from '../services/ai/worktree.js';
 import { categorizeWorktree } from '../utils/worktreeMood.js';
 
+const AI_DEBOUNCE_MS = 30000;
+
 /**
  * Hook to manage AI-generated summaries for worktrees.
  * Enriches worktrees with summaries in the background without blocking UI.
@@ -19,7 +21,7 @@ export function useWorktreeSummaries(
   worktreeChanges?: Map<string, WorktreeChanges>
 ): Worktree[] {
   const [enrichedWorktrees, setEnrichedWorktrees] = useState<Worktree[]>(worktrees);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isEnrichingRef = useRef(false);
   const lastProcessedRef = useRef<Map<string, number>>(new Map());
 
@@ -152,31 +154,27 @@ export function useWorktreeSummaries(
       });
     });
     void enrichWorktrees();
-  }, [worktrees, enrichWorktrees]);
+  }, [worktrees]);
 
-  // Set up refresh interval if enabled
+  // Debounce enrichment based on worktreeChanges updates
   useEffect(() => {
-    // Clear any existing interval
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
     }
 
-    // Set up new interval if refreshIntervalMs > 0
-    if (refreshIntervalMs > 0) {
-      intervalRef.current = setInterval(() => {
-        enrichWorktrees();
-      }, refreshIntervalMs);
-    }
+    debounceTimerRef.current = setTimeout(() => {
+      enrichWorktrees();
+    }, AI_DEBOUNCE_MS);
 
-    // Cleanup on unmount or when interval changes
+    // Cleanup on unmount or when changes arrive before the timer fires
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
     };
-  }, [refreshIntervalMs, enrichWorktrees]);
+  }, [worktreeChanges, enrichWorktrees]);
 
   return enrichedWorktrees;
 }

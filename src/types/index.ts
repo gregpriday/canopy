@@ -166,7 +166,6 @@ export interface CanopyConfig {
   ui?: {
     leftClickAction?: 'open' | 'select';
     compactMode?: boolean;
-    showStatusBar?: boolean;
     activePathHighlight?: boolean;
     activePathColor?: 'cyan' | 'blue' | 'green';
   moodGradients?: boolean; // Enable mood-based header gradients (default: true)
@@ -251,7 +250,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   ui: {
     leftClickAction: 'open',
     compactMode: true,
-    showStatusBar: true,
     activePathHighlight: true,
     activePathColor: 'cyan',
     moodGradients: true,

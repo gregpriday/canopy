@@ -24,7 +24,7 @@
 
 - `src/cli.ts`: CLI entry point. Parses args and renders `App`.
 - `src/App.tsx`: Root component. Manages global state (file tree, config, git status) and layout.
-- `src/components/`: UI components (Header, TreeView, StatusBar, etc.).
+- `src/components/`: UI components (Header, TreeView, inline command input, etc.).
 - `src/hooks/`: Custom hooks for complex logic (`useFileTree`, `useGitStatus`, `useKeyboard`).
 - `src/utils/`: Helper modules (`fileWatcher`, `git`, `config`).
 - `src/types/`: TypeScript definitions (centralized in `index.ts`).
@@ -82,7 +82,7 @@ This project utilizes the **GPT-5** model family for AI-driven features. The fol
 ## Implementation Status
 
 The project is following a batch-based implementation plan (see `SPEC.md`).
-- **Completed:** Core architecture, Configuration, File Tree structure, Git Status integration, Basic UI (Header, TreeView, StatusBar), File Watching.
+- **Completed:** Core architecture, Configuration, File Tree structure, Git Status integration, Basic UI (Header, TreeView), File Watching.
 - **In Progress/Next:** Advanced CopyTree integration, Performance tuning for large repos, comprehensive E2E testing.
 
 Refere to `CLAUDE.md` and `SPEC.md` for detailed architectural decisions and specific feature requirements.

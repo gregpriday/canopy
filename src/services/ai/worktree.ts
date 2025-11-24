@@ -1,12 +1,44 @@
 import { getAIClient } from './client.js';
 import { extractOutputText } from './utils.js';
+import fs from 'fs-extra';
+import path from 'node:path';
 import simpleGit from 'simple-git';
 import { withRetry } from '../../utils/errorHandling.js';
+import { events } from '../events.js';
+import { getUserMessage } from '../../utils/errorTypes.js';
 import type { Worktree } from '../../types/index.js';
 
 export interface WorktreeSummary {
   summary: string;
   modifiedCount: number;
+}
+
+const ERROR_SNIPPET_MAX = 400;
+const MAX_WORDS = 8;
+
+function formatErrorSnippet(raw: unknown): string {
+  const asString =
+    typeof raw === 'string'
+      ? raw
+      : (() => {
+          try {
+            return JSON.stringify(raw);
+          } catch {
+            return String(raw);
+          }
+        })();
+
+  if (!asString) return '';
+  return asString.length > ERROR_SNIPPET_MAX ? `${asString.slice(0, ERROR_SNIPPET_MAX)}...` : asString;
+}
+
+function normalizeSummary(text: string): string {
+  const firstLine = text.split(/\r?\n/)[0] ?? '';
+  const compressed = firstLine.replace(/\s+/g, ' ').trim();
+  if (!compressed) return '';
+
+  const words = compressed.split(' ').slice(0, MAX_WORDS);
+  return words.join(' ');
 }
 
 /**
@@ -27,11 +59,17 @@ export async function generateWorktreeSummary(
 
   const git = simpleGit(worktreePath);
   let modifiedCount = 0;
-  let diff = '';
+  let lastCommitMsg = '';
+  let promptContext = '';
 
   try {
-    // Get modified file count
     const status = await git.status();
+    const deletedFiles = [...status.deleted];
+    const createdFiles = Array.from(new Set([...status.created, ...status.not_added]));
+    const modifiedFiles = Array.from(new Set(status.modified));
+    const renamedFiles = status.renamed.map(r => `${r.from} -> ${r.to}`);
+    const renamedTargets = status.renamed.map(r => r.to);
+
     modifiedCount =
       status.modified.length +
       status.created.length +
@@ -39,94 +77,107 @@ export async function generateWorktreeSummary(
       status.renamed.length +
       status.not_added.length;
 
-    // Get diff between this branch and main (broadest context)
-    try {
-      diff = await git.diff([`${mainBranch}...HEAD`, '--stat']);
-    } catch {
-      // ignore; fall through to other strategies
-    }
-
-    // Fallback: staged + unstaged working tree diff
-    if (!diff.trim()) {
-      try {
-        diff = await git.diff(['--stat']);
-      } catch {
-        diff = '';
-      }
-    }
-
-    // Fallback: status --short to include untracked files that diff omits
-    if (!diff.trim() && modifiedCount > 0) {
-      try {
-        const statusShort = await git.status(['--short']);
-        diff = statusShort.files
-          .map(f => `${f.index}${f.working_dir} ${f.path}`)
-          .slice(0, 50) // keep concise for prompt
-          .join('\n');
-      } catch {
-        diff = '';
-      }
-    }
-
-    // If no changes, return simple summary
-    if (!diff.trim() && modifiedCount === 0) {
+    if (modifiedCount === 0) {
       return {
         summary: branchName ? `Clean: ${branchName}` : 'No changes',
         modifiedCount: 0
       };
     }
 
-    // Prepare AI input
-    const diffSnippet = diff.slice(0, 1500);
-    const branchContext = branchName ? `Branch: ${branchName}\n` : '';
-    const input = `${branchContext}Files changed:\n${diffSnippet}`;
+    try {
+      const log = await git.log({ maxCount: 1 });
+      lastCommitMsg = log.latest?.message ?? '';
+    } catch {
+      lastCommitMsg = '';
+    }
+
+    const branchLabel = branchName ?? mainBranch ?? '';
+    const branchContext = branchLabel ? `Branch: ${branchLabel}` : '';
+    promptContext = branchContext ? `${branchContext}\n` : '';
+    if (lastCommitMsg) {
+      promptContext += `Last Commit: "${lastCommitMsg}"\n`;
+    }
+    promptContext += '\n--- CHANGES ---\n';
+
+    if (deletedFiles.length > 0) {
+      promptContext += `Deleted files:\n- ${deletedFiles.join('\n- ')}\n`;
+    }
+
+    if (renamedFiles.length > 0) {
+      promptContext += `Renamed:\n- ${renamedFiles.join('\n- ')}\n`;
+    }
+
+    const filesForDiff = Array.from(new Set([...createdFiles, ...modifiedFiles, ...renamedTargets]));
+    const MAX_DIFF_LINES = 50;
+    const MAX_INPUT_CHARS = 6000;
+
+    for (const file of filesForDiff) {
+      if (/(^|\/)package-lock\.json$|\.map$|\.svg$|\.png$/i.test(file)) {
+        continue;
+      }
+
+      try {
+        const isNewFile = createdFiles.includes(file);
+        let diff = '';
+
+        if (isNewFile) {
+          const content = await fs.readFile(path.join(worktreePath, file), 'utf8');
+          diff = content.split('\n').slice(0, 20).join('\n');
+        } else {
+          diff = await git.diff(['--unified=0', '--minimal', '-w', 'HEAD', '--', file]);
+        }
+
+        const cleanDiff = diff
+          .split('\n')
+          .filter(line => !line.startsWith('index ') && !line.startsWith('diff --git'))
+          .slice(0, MAX_DIFF_LINES)
+          .join('\n');
+
+        if (cleanDiff.trim()) {
+          promptContext += `\nFile: ${file}\n${cleanDiff}\n`;
+        }
+      } catch {
+        // Skip unreadable files
+      }
+
+      if (promptContext.length > MAX_INPUT_CHARS) {
+        promptContext = `${promptContext.slice(0, MAX_INPUT_CHARS)}\n... (truncated)`;
+        break;
+      }
+    }
+
+    if (!promptContext.trim()) {
+      promptContext = branchContext || 'Worktree changes';
+    }
 
     const callModel = async (): Promise<WorktreeSummary> => {
       const response = await client.responses.create({
         model: 'gpt-5-nano',
-        instructions: 'Summarize git changes in max 5 words. Be specific about what feature/fix is being worked on. Examples: "Adding user authentication", "Fixed API timeout bug", "Refactored database queries". Focus on the "what", not the "how".',
-        input,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'worktree_summary',
-            strict: true,
-            schema: {
-              type: 'object',
-              properties: {
-                summary: {
-                  type: 'string',
-                  description: 'Maximum 5 words describing the work',
-                  maxLength: 40
-                }
-              },
-              required: ['summary'],
-              additionalProperties: false
-            }
-          }
-        },
+        instructions: `You are a git worktree summarizer. You receive: branch name, last commit message, and file changes.
+Respond with ONE line of plain text that starts with a single emoji representing the work, followed by up to 8 words.
+No quotes, no JSON, no bullets, no prefixes, no extra lines. We only read your first line.
+Examples:
+🚧 Building dashboard filters for sprint demo
+🔧 Tweaking CLI flags to speed sync runs
+✅ Fixing flaky tests in auth handshake
+🎨 Updating auth page styles for clarity`,
+        input: promptContext,
         reasoning: { effort: 'minimal' },
         max_output_tokens: 32
       } as any);
 
       const text = extractOutputText(response);
       if (!text) {
-        throw new Error('Worktree summary: empty response from model');
+        throw new Error(`Worktree summary: empty response from model. Raw: ${formatErrorSnippet(response)}`);
       }
 
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch (error) {
-        throw new Error(`Worktree summary: invalid JSON (${(error as Error).message})`);
-      }
-
-      if (!parsed || typeof (parsed as Record<string, unknown>).summary !== 'string') {
-        throw new Error('Worktree summary: missing summary in model response');
+      const summary = normalizeSummary(text);
+      if (!summary) {
+        throw new Error(`Worktree summary: empty normalized summary. Raw: ${formatErrorSnippet(text)}`);
       }
 
       return {
-        summary: (parsed as { summary: string }).summary,
+        summary,
         modifiedCount
       };
     };
@@ -139,6 +190,10 @@ export async function generateWorktreeSummary(
       });
     } catch (error) {
       console.error('[canopy] Worktree summary retries exhausted', error);
+      events.emit('ui:notify', {
+        type: 'error',
+        message: `AI summary failed: ${getUserMessage(error)}`
+      });
       return {
         summary: branchName ? `${branchName} (analysis unavailable)` : 'Analysis unavailable',
         modifiedCount
@@ -146,6 +201,10 @@ export async function generateWorktreeSummary(
     }
   } catch (error) {
     console.error('[canopy] generateWorktreeSummary failed', error);
+    events.emit('ui:notify', {
+      type: 'error',
+      message: `Worktree summary error: ${getUserMessage(error)}`
+    });
     return {
       summary: branchName ? `${branchName} (git unavailable)` : 'Git status unavailable',
       modifiedCount

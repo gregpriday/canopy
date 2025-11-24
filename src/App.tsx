@@ -9,7 +9,6 @@ import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { Notification } from './components/Notification.js';
-import { StatusBar } from './components/StatusBar.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus } from './types/index.js';
 import type { CommandServices } from './commands/types.js';
@@ -41,7 +40,7 @@ import { detectTerminalTheme } from './theme/colorPalette.js';
 import { execa } from 'execa';
 import open from 'open';
 import clipboardy from 'clipboardy';
-import { InlineInput } from './components/StatusBar/InlineInput.js';
+import { InlineInput } from './components/InlineInput.js';
 
 interface AppProps {
   cwd: string;
@@ -294,12 +293,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isRecentActivityOpen = activeModals.has('recent-activity');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
-  const showStatusBar = config.ui?.showStatusBar ?? true;
 
   const headerRows = 3;
   const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0) + (commandMode ? 2 : 0);
-  const footerRows = showStatusBar ? 3 : 0;
-  const reservedRows = headerRows + overlayRows + footerRows;
+  const reservedRows = headerRows + overlayRows;
   const viewportHeight = useViewportHeight(reservedRows);
   const dashboardViewportSize = useMemo(() => {
     const available = Math.max(1, height - reservedRows);
@@ -421,7 +418,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [viewMode, focusedWorktreeId, activeWorktreeId, worktreesWithStatus]);
 
-  // Centralized CopyTree listener (survives StatusBar unmount/hide)
+  // Centralized CopyTree listener
   useCopyTree(activeRootPath, effectiveConfig);
 
   useWatcher(treeRootPath, effectiveConfig, !!noWatch);
@@ -446,23 +443,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   useEffect(() => {
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
-
-  const fileCount = useMemo(() => countTotalFiles(rawTree), [rawTree]);
-
-  const modifiedCount = useMemo(() => {
-    if (activeWorktreeChanges?.changedFileCount !== undefined) {
-      return activeWorktreeChanges.changedFileCount;
-    }
-
-    let changed = 0;
-    effectiveGitStatus.forEach((status) => {
-      if (status !== 'ignored') {
-        changed += 1;
-      }
-    });
-
-    return changed;
-  }, [activeWorktreeChanges, effectiveGitStatus]);
 
   const handleDismissNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
@@ -1222,16 +1202,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitEnabled={gitEnabled}
           gitStatus={effectiveGitStatus}
         />
-        {commandMode && (
-          <Box marginTop={1} paddingX={1}>
-            <InlineInput
-              input={commandInput}
-              onChange={setCommandInput}
-              onSubmit={handleCommandSubmit}
-              onCancel={handleCommandCancel}
-            />
-          </Box>
-        )}
         <Box flexGrow={1} marginTop={1}>
           {isProfileSelectorOpen ? (
             <Box flexDirection="row" justifyContent="center">
@@ -1344,8 +1314,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
           onQueryChange={setFuzzySearchQuery}
         />
+        {commandMode && (
+          <Box borderStyle="single" borderColor="cyan" paddingX={1} marginTop={0}>
+            <InlineInput
+              input={commandInput}
+              onChange={setCommandInput}
+              onSubmit={handleCommandSubmit}
+              onCancel={handleCommandCancel}
+            />
+          </Box>
+        )}
         {notifications.length > 0 && (
-          <Box flexDirection="column" width="100%" marginBottom={1}>
+          <Box flexDirection="column" width="100%">
             {notifications.map((notification, index) => (
               <Notification
                 key={notification.id}
@@ -1355,20 +1335,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
               />
             ))}
           </Box>
-        )}
-        {showStatusBar && (
-          <StatusBar
-            fileCount={fileCount}
-            modifiedCount={modifiedCount}
-            filterQuery={filterActive ? filterQuery : null}
-            filterGitStatus={null}
-            activeRootPath={activeRootPath}
-            commandMode={commandMode}
-            worktreeChanges={worktreeChanges}
-            focusedWorktreeId={focusedWorktreeId}
-            worktrees={worktreesWithStatus}
-            showCommandInput={false}
-          />
         )}
       </Box>
     </ThemeProvider>

@@ -57,7 +57,7 @@
 - ✅ Renders App component with Ink
 
 **Root Component** (`src/App.tsx`):
-- ✅ Basic layout structure (Header, TreeView, StatusBar)
+- ✅ Basic layout structure (Header, TreeView)
 - ✅ State management for config, fileTree, selectedPath, notification, loading
 - ❌ TODO: Load configuration from cosmiconfig
 - ❌ TODO: Build initial file tree
@@ -74,11 +74,6 @@
    - ✅ Maps over fileTree array
    - ✅ Basic folder/file icon rendering (⟹/≡)
    - ❌ Needs: Full navigation, selection, expansion logic
-
-3. **StatusBar** (`src/components/StatusBar.tsx` - 34 lines):
-   - ✅ Shows notifications or file statistics
-   - ✅ Displays file count and modified count
-   - ✅ Help hint: "Press ? for help"
 
 **Build System:**
 - ✅ TypeScript compilation working
@@ -154,7 +149,7 @@ App (src/App.tsx)
 ├── ContextMenu (right-click actions)
 ├── HelpModal (keyboard shortcuts)
 ├── WorktreePanel (worktree switcher)
-└── StatusBar (src/components/StatusBar.tsx)
+└── Inline command input (rendered conditionally)
 ```
 
 **Default Mode:** Dashboard (WorktreeOverview)
@@ -500,7 +495,6 @@ The following subsections mirror the canonical Canopy PRD to ensure this documen
   },
   "ui": {
     "compactMode": true,
-    "showStatusBar": true,
     "leftClickAction": "open"
   }
 }
@@ -510,7 +504,7 @@ The following subsections mirror the canonical Canopy PRD to ensure this documen
 
 - `/` opens the command bar; typing free text that does not match a command implicitly does `/filter <text>`. `Ctrl+F` opens with `/filter ` prefilled.
 - `/filter <pattern>` (alias `/f`) performs fuzzy matching across names while keeping ancestors if descendants match. `/filter clear` or Esc without input clears.
-- Git filters: `/git modified|added|deleted|untracked` and `/changed` limit the tree to paths whose git status matches. Multiple filters surface in the status bar (`/filter: .ts • /git: modified`).
+- Git filters: `/git modified|added|deleted|untracked` and `/changed` limit the tree to paths whose git status matches.
 
 #### 5.8 Worktree Support
 
@@ -539,7 +533,7 @@ interface Worktree {
 ### 6. Technical Architecture
 
 - **Technology stack:** Ink, React 19, TypeScript 5.9, Node 18+, chokidar, simple-git, cosmiconfig, clipboardy, fs-extra, globby, execa, term-size, supports-hyperlinks.
-- **Component structure:** `Canopy` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `StatusBar`, `HelpModal`, `WorktreePanel`.
+- **Component structure:** `Canopy` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `HelpModal`, `WorktreePanel`.
 - **Responsibilities:** Canopy loads config, file trees, git status, watchers; Header displays context and handles worktree switching; TreeView manages selection, scrolling, virtualization; CommandBar parses/executes commands; WorktreePanel lists worktrees; ContextMenu drives opener/copy actions; HelpModal shows shortcuts.
 - **State management:** See interfaces below; state tracks file tree, expanded folders, selection, UI overlays, command bar input/history, filters, git/worktree data, notifications, and merged config.
 
@@ -829,7 +823,6 @@ it('handles keyboard input', () => {
 - #16: Implement FileNode component (needs #14)
 - #17: Implement FolderNode component (needs #14)
 - #18: Enhance Header with worktree indicator (needs #4)
-- #19: Enhance StatusBar with file statistics (needs #9)
 - #20: Implement HelpModal component (needs #7)
 - #21: Implement WorktreePanel component (needs #4, #7)
 

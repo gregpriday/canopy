@@ -3,6 +3,11 @@ import { generateWorktreeSummary, enrichWorktreesWithSummaries } from '../../src
 import type { Worktree } from '../../src/types/index.js';
 import * as clientModule from '../../src/services/ai/client.js';
 import simpleGit from 'simple-git';
+import fs from 'fs-extra';
+
+const { readFileMock } = vi.hoisted(() => ({
+  readFileMock: vi.fn()
+}));
 
 // Mock dependencies
 vi.mock('../../src/services/ai/client.js', () => ({
@@ -10,16 +15,25 @@ vi.mock('../../src/services/ai/client.js', () => ({
 }));
 
 vi.mock('simple-git');
+vi.mock('fs-extra', () => ({
+  __esModule: true,
+  default: { readFile: readFileMock },
+  readFile: readFileMock
+}));
 
 describe('AI Worktree Service', () => {
   let mockCreate: any;
   let mockGit: any;
+  let mockReadFile: any;
 
   beforeEach(() => {
     mockCreate = vi.fn();
+    readFileMock.mockReset();
+    mockReadFile = vi.mocked(fs.readFile);
     mockGit = {
       status: vi.fn(),
-      diff: vi.fn()
+      diff: vi.fn(),
+      log: vi.fn()
     };
 
     vi.mocked(clientModule.getAIClient).mockReturnValue({
@@ -37,10 +51,6 @@ describe('AI Worktree Service', () => {
 
   describe('generateWorktreeSummary', () => {
     it('should generate summary for worktree with changes', async () => {
-      const mockResponse = {
-        summary: 'Adding user authentication'
-      };
-
       mockGit.status.mockResolvedValue({
         modified: ['src/auth.ts', 'src/login.ts'],
         created: ['src/middleware/auth.ts'],
@@ -49,26 +59,23 @@ describe('AI Worktree Service', () => {
         not_added: []
       });
 
-      mockGit.diff.mockResolvedValue('src/auth.ts | 50 +++++\nsrc/login.ts | 30 +++++');
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("change")');
+      mockGit.log.mockResolvedValue({ latest: { message: 'Setup auth base' } });
+      mockReadFile.mockResolvedValue('line1\nline2\nline3');
 
       mockCreate.mockResolvedValue({
-        output_text: JSON.stringify(mockResponse)
+        output_text: '🚧 Adding user authentication\nSome extra text'
       });
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'feature/user-auth', 'main');
 
       expect(result).toEqual({
-        summary: 'Adding user authentication',
+        summary: '🚧 Adding user authentication',
         modifiedCount: 3
       });
 
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
-        model: 'gpt-5-nano',
-        text: expect.objectContaining({
-          format: expect.objectContaining({
-            type: 'json_schema'
-          })
-        })
+        model: 'gpt-5-nano'
       }));
     });
 
@@ -82,6 +89,7 @@ describe('AI Worktree Service', () => {
       });
 
       mockGit.diff.mockResolvedValue('');
+      mockGit.log.mockResolvedValue({ latest: { message: 'Previous commit' } });
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'main', 'main');
 
@@ -104,6 +112,7 @@ describe('AI Worktree Service', () => {
 
     it('should return fallback summary when git errors occur', async () => {
       mockGit.status.mockRejectedValue(new Error('Git error'));
+      mockGit.log.mockResolvedValue({ latest: { message: 'Previous commit' } });
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
 
@@ -122,16 +131,17 @@ describe('AI Worktree Service', () => {
         not_added: []
       });
 
-      mockGit.diff.mockResolvedValue('src/auth.ts | 10 +++++');
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("retry")');
+      mockGit.log.mockResolvedValue({ latest: { message: 'Previous commit' } });
 
       mockCreate
         .mockRejectedValueOnce(new Error('Transient error'))
-        .mockResolvedValue({ output_text: JSON.stringify({ summary: 'Retry success' }) });
+        .mockResolvedValue({ output_text: '🚀 Retry success' });
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
 
       expect(result).toEqual({
-        summary: 'Retry success',
+        summary: '🚀 Retry success',
         modifiedCount: 1
       });
       expect(mockCreate).toHaveBeenCalledTimes(2);
@@ -146,7 +156,8 @@ describe('AI Worktree Service', () => {
         not_added: []
       });
 
-      mockGit.diff.mockResolvedValue('src/auth.ts | 10 +++++');
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("fallback")');
+      mockGit.log.mockResolvedValue({ latest: { message: 'Previous commit' } });
 
       mockCreate.mockRejectedValue(new Error('API down'));
 
@@ -187,7 +198,8 @@ describe('AI Worktree Service', () => {
         not_added: []
       });
 
-      mockGit.diff.mockResolvedValue('file.ts | 10 +++++');
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("change")');
+      mockGit.log.mockResolvedValue({ latest: { message: 'Previous commit' } });
 
       mockCreate.mockResolvedValue({
         output_text: JSON.stringify({ summary: 'Working on auth' })

@@ -730,13 +730,13 @@ describe('App integration - dashboard mode', () => {
     // Clear previous calls
     vi.mocked(runCopyTreeWithProfile).mockClear();
 
-    // Trigger CopyTree - in dashboard mode, StatusBar determines the root path
+    // Trigger CopyTree - dashboard listener should use the current worktree root
     events.emit('file:copy-tree', {});
 
     // Wait for runCopyTree to be called
     await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0, 2000);
 
-    // Verify CopyTree was called (focused root logic is tested in StatusBar component tests)
+    // Verify CopyTree was called (focused root logic is covered in the hook)
     expect(runCopyTreeWithProfile).toHaveBeenCalled();
   });
 });

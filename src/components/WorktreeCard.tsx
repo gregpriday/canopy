@@ -224,7 +224,6 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   if (worktree.summary && hasChanges) {
     SummaryComponent = (
       <Text color={palette.text.secondary}>
-        {worktree.summaryLoading ? '⟳ ' : '🤖 '}
         {worktree.summary}
       </Text>
     );

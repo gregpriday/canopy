@@ -154,7 +154,7 @@ Components in `src/components/` follow Ink's React-based model:
 - `Header.tsx` - Shows worktree count and current active worktree
 - `WorktreeOverview.tsx` - Main dashboard renderer, stacks WorktreeCard components
 - `WorktreeCard.tsx` - Individual worktree card with summary, changes, mood border, keyboard hints
-- `StatusBar.tsx` - Bottom bar with worktree stats, notifications, help hints
+*removed* `StatusBar.tsx` - was bottom bar with worktree stats/notifications (now retired)
 
 **Legacy Tree Mode (via `/tree` command)**:
 - `TreeView.tsx` - Traditional tree renderer with virtualization support
