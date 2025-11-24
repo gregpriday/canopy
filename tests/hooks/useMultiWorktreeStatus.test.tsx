@@ -70,15 +70,17 @@ describe('useMultiWorktreeStatus', () => {
 			expect(callCounts).toEqual({ active: 1, background: 1 });
 		});
 
-		vi.advanceTimersByTime(2000);
+		// Active worktree polls at 5s, background at 60s
+		vi.advanceTimersByTime(6000);
 
-		// Active worktree should refresh again before background interval elapses
+		// Active worktree should refresh again (at 5s) before background interval (60s) elapses
 		await waitFor(() => {
 			expect(callCounts.active).toBeGreaterThan(callCounts.background);
 		});
 
-		vi.advanceTimersByTime(9000);
+		vi.advanceTimersByTime(55000);
 
+		// Background worktree should now refresh (at 60s total)
 		await waitFor(() => {
 			expect(callCounts.background).toBeGreaterThan(1);
 			expect(callCounts.active).toBeGreaterThan(callCounts.background);

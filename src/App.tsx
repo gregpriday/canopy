@@ -361,8 +361,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Listen for sys:refresh events
   useEffect(() => {
     return events.on('sys:refresh', () => {
-      refreshGitStatus(); // Refresh git status
-      void worktreeService.refresh(); // Refresh all worktree monitors
+      // Optimization: Only refresh the UI-critical status here.
+      // The background WorktreeService has its own polling loop and will
+      // pick up changes on its next tick (or via its own watcher).
+      refreshGitStatus();
+
+      // REMOVED: void worktreeService.refresh();
+      // We don't need to force-refresh ALL worktrees every time a file changes
+      // in the current one. The active monitor will handle it.
+
       // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
     });
   }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
