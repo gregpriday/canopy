@@ -19,6 +19,8 @@ import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
 import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
+import { execa } from 'execa';
+import { openGitHubRepo } from './utils/github.js';
 import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
@@ -35,7 +37,6 @@ import { clearTerminalScreen } from './utils/terminal.js';
 import { logWarn } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import { detectTerminalTheme } from './theme/colorPalette.js';
-import { execa } from 'execa';
 import open from 'open';
 import clipboardy from 'clipboardy';
 
@@ -455,6 +456,31 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       events.emit('ui:notify', { type: 'error', message });
     }
   }, [effectiveConfig, sortedWorktrees]);
+
+  const handleOpenGitFox = useCallback(async () => {
+    try {
+      // Open GitFox in the main repository root
+      await execa('gitfox', [cwd], { detached: true, stdio: 'ignore' });
+      events.emit('ui:notify', { type: 'success', message: 'Opening GitFox...' });
+    } catch (error) {
+      events.emit('ui:notify', {
+        type: 'error',
+        message: 'Failed to launch GitFox. Is the CLI installed?'
+      });
+    }
+  }, [cwd]);
+
+  const handleOpenGitHub = useCallback(async () => {
+    try {
+      await openGitHubRepo(activeRootPath);
+      events.emit('ui:notify', { type: 'success', message: 'Opening GitHub...' });
+    } catch (error) {
+      events.emit('ui:notify', {
+        type: 'error',
+        message: error instanceof Error ? error.message : 'Failed to open GitHub'
+      });
+    }
+  }, [activeRootPath]);
 
   const handleCopyTreeForWorktree = useCallback((id: string, profile?: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
@@ -1069,6 +1095,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       if (input === 'p') {
         handleOpenProfileSelectorForFocused();
       }
+      if (input === 'f') {
+        handleOpenGitFox();
+      }
     },
     { isActive: true }
   );
@@ -1152,6 +1181,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onToggleGitOnlyMode={handleToggleGitOnlyMode}
           gitEnabled={gitEnabled}
           gitStatus={effectiveGitStatus}
+          onOpenGitFox={handleOpenGitFox}
+          onOpenGitHub={handleOpenGitHub}
         />
         <Box flexGrow={1} marginTop={1}>
           {isProfileSelectorOpen ? (
