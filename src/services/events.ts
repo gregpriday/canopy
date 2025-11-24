@@ -102,6 +102,7 @@ export type CanopyEventMap = {
   'sys:worktree:cycle': WorktreeCyclePayload;
   'sys:worktree:selectByName': WorktreeSelectByNamePayload;
   'sys:worktree:update': WorktreeState;
+  'sys:worktree:remove': { worktreeId: string };
 
   'watcher:change': WatcherChangePayload;
 };

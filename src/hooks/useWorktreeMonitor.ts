@@ -22,7 +22,7 @@ export function useWorktreeMonitor(): Map<string, WorktreeState> {
 
   useEffect(() => {
     // Subscribe to worktree update events
-    const unsubscribe = events.on('sys:worktree:update', (newState: WorktreeState) => {
+    const unsubscribeUpdate = events.on('sys:worktree:update', (newState: WorktreeState) => {
       setStates(prev => {
         // Create new Map to trigger React re-render
         const next = new Map(prev);
@@ -31,7 +31,20 @@ export function useWorktreeMonitor(): Map<string, WorktreeState> {
       });
     });
 
-    return unsubscribe;
+    // Subscribe to worktree removal events
+    const unsubscribeRemove = events.on('sys:worktree:remove', ({ worktreeId }) => {
+      setStates(prev => {
+        // Create new Map without the removed worktree
+        const next = new Map(prev);
+        next.delete(worktreeId);
+        return next;
+      });
+    });
+
+    return () => {
+      unsubscribeUpdate();
+      unsubscribeRemove();
+    };
   }, []);
 
   return states;

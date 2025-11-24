@@ -1,6 +1,7 @@
 import { WorktreeMonitor, type WorktreeState } from './WorktreeMonitor.js';
 import type { Worktree } from '../../types/index.js';
 import { logInfo, logWarn } from '../../utils/logger.js';
+import { events } from '../events.js';
 
 const ACTIVE_WORKTREE_INTERVAL_MS = 1500; // 1.5s for active worktree
 const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
@@ -53,6 +54,8 @@ class WorktreeService {
         logInfo('Removing stale WorktreeMonitor', { id });
         await monitor.stop();
         this.monitors.delete(id);
+        // Emit removal event so hooks can clean up cached state
+        events.emit('sys:worktree:remove', { worktreeId: id });
       }
     }
 
