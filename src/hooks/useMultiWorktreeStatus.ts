@@ -47,7 +47,20 @@ export function useMultiWorktreeStatus(
   const setChangesForWorktree = useCallback(
     (worktreeId: string, changes: WorktreeChanges) => {
       if (!mountedRef.current) return;
+
       setWorktreeChanges(prev => {
+        const existing = prev.get(worktreeId);
+
+        // Optimization: Don't update state if nothing changed
+        // This prevents the useEffect in useWorktreeSummaries from firing continuously
+        if (existing &&
+            existing.changedFileCount === changes.changedFileCount &&
+            existing.latestFileMtime === changes.latestFileMtime &&
+            existing.totalInsertions === changes.totalInsertions &&
+            existing.totalDeletions === changes.totalDeletions) {
+          return prev;
+        }
+
         const next = new Map(prev);
         next.set(worktreeId, changes);
         return next;

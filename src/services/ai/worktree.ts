@@ -122,18 +122,20 @@ export async function generateWorktreeSummary(
     // Two-stage system: if no changes, show last commit instead of AI summary
     if (modifiedCount === 0) {
       try {
+        // Explicitly fetch log if status is clean
         const log = await git.log({ maxCount: 1 });
         const lastCommitMsg = log.latest?.message ?? '';
+
         if (lastCommitMsg) {
-          // Use first line of commit message only
           const firstLine = lastCommitMsg.split('\n')[0].trim();
+          // Add a distinct icon so we know this is a commit message
           return {
-            summary: firstLine,
+            summary: `💾 ${firstLine}`,
             modifiedCount: 0
           };
         }
-      } catch {
-        // No commits or git error - fall through to default
+      } catch (e) {
+        // Git log failed (empty repo?)
       }
 
       // Edge case: no commits exist yet
