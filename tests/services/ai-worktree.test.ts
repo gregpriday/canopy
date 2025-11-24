@@ -123,8 +123,16 @@ describe('AI Worktree Service', () => {
       expect(mockCreate).not.toHaveBeenCalled();
     });
 
-    it('should return null when no AI client available', async () => {
+    it('should return null when no AI client available and worktree has changes', async () => {
       vi.mocked(clientModule.getAIClient).mockReturnValue(null);
+
+      mockGit.status.mockResolvedValue({
+        modified: ['src/test.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
 

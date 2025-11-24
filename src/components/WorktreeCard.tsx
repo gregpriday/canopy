@@ -242,22 +242,27 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   const hasChanges = changes.changedFileCount > 0;
   let SummaryComponent: React.ReactNode;
 
-  if (worktree.summary && hasChanges) {
-    SummaryComponent = (
-      <Text color={palette.text.secondary}>
-        {worktree.summary}
-      </Text>
-    );
+  if (worktree.summary) {
+    if (hasChanges) {
+      // Case A: AI Summary (Active changes)
+      SummaryComponent = (
+        <Text color={palette.text.secondary}>
+          {worktree.summary}
+        </Text>
+      );
+    } else {
+      // Case B: Last Commit (Clean working tree)
+      SummaryComponent = (
+        <Text color={palette.text.tertiary}>
+          <Text bold>Last commit: </Text>
+          {worktree.summary}
+        </Text>
+      );
+    }
   } else if (worktree.summaryLoading) {
     SummaryComponent = (
       <Text color={palette.text.tertiary}>
         Generating summary...
-      </Text>
-    );
-  } else if (hasChanges) {
-    SummaryComponent = (
-      <Text color={palette.text.tertiary}>
-        No summary available
       </Text>
     );
   } else {

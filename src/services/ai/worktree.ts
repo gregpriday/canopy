@@ -98,9 +98,6 @@ export async function generateWorktreeSummary(
   branchName: string | undefined,
   mainBranch: string = 'main'
 ): Promise<WorktreeSummary | null> {
-  const client = getAIClient();
-  if (!client) return null;
-
   const git = simpleGit(worktreePath);
   let modifiedCount = 0;
   let promptContext = '';
@@ -142,6 +139,14 @@ export async function generateWorktreeSummary(
         summary: branchName ? `Clean: ${branchName}` : 'No changes',
         modifiedCount: 0
       };
+    }
+
+    // --- AI GENERATION SECTION STARTS HERE ---
+    // Check for AI client before attempting generation
+    const client = getAIClient();
+    if (!client) {
+      // If we have changes but no AI, return null so UI shows "No summary available"
+      return null;
     }
 
     // Start with deleted files (minimal info)
