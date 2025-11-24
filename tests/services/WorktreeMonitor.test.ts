@@ -3,12 +3,33 @@ import { WorktreeMonitor } from '../../src/services/monitor/WorktreeMonitor.js';
 import type { Worktree, FileChangeEvent } from '../../src/types/index.js';
 import { events } from '../../src/services/events.js';
 import * as gitStatus from '../../src/utils/git.js';
+import * as fileTree from '../../src/utils/fileTree.js';
+import * as fileWatcher from '../../src/utils/fileWatcher.js';
 
 // Mock the git utilities
 vi.mock('../../src/utils/git.js', () => ({
   getWorktreeChangesWithStats: vi.fn(),
   invalidateGitStatusCache: vi.fn(),
 }));
+
+// Mock fileTree utilities
+vi.mock('../../src/utils/fileTree.js', async () => {
+  const actual = await vi.importActual<typeof fileTree>('../../src/utils/fileTree.js');
+  return {
+    ...actual,
+    loadGitignorePatterns: vi.fn(),
+  };
+});
+
+// Spy on fileWatcher utilities (don't fully mock, just spy)
+vi.mock('../../src/utils/fileWatcher.js', async () => {
+  const actual = await vi.importActual<typeof fileWatcher>('../../src/utils/fileWatcher.js');
+  return {
+    ...actual,
+    createFileWatcher: vi.fn(actual.createFileWatcher),
+    buildIgnorePatterns: vi.fn(actual.buildIgnorePatterns),
+  };
+});
 
 // Mock simple-git
 vi.mock('simple-git', () => ({
@@ -506,6 +527,122 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
       expect(emittedStates[0]).toHaveProperty('worktreeId', baseWorktree.id);
 
       events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+  });
+
+  describe('Ignore Pattern Application (Issue #186)', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Default: mock loadGitignorePatterns to return empty array
+      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([]);
+    });
+
+    it('loads gitignore patterns when starting file watcher', async () => {
+      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
+        'node_modules/',
+        '*.log',
+      ]);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Should have called loadGitignorePatterns with worktree path
+      expect(fileTree.loadGitignorePatterns).toHaveBeenCalledWith(baseWorktree.path);
+
+      await monitor.stop();
+    });
+
+    it('passes ignore patterns to createFileWatcher', async () => {
+      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
+        'node_modules/',
+        'dist/',
+      ]);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Should have called buildIgnorePatterns with gitignore patterns
+      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([
+        'node_modules/',
+        'dist/',
+      ]);
+
+      // Should have called createFileWatcher with ignored patterns
+      expect(fileWatcher.createFileWatcher).toHaveBeenCalledWith(
+        baseWorktree.path,
+        expect.objectContaining({
+          ignored: expect.arrayContaining([
+            '**/node_modules/**',
+            '**/.git/**',
+          ]),
+        })
+      );
+
+      await monitor.stop();
+    });
+
+    it('combines standard ignores with gitignore patterns', async () => {
+      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
+        'custom-build/',
+        '*.secret',
+      ]);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // buildIgnorePatterns should be called with gitignore patterns
+      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([
+        'custom-build/',
+        '*.secret',
+      ]);
+
+      // Result should include both standard and custom patterns
+      const call = vi.mocked(fileWatcher.createFileWatcher).mock.calls[0];
+      const ignoredPatterns = call[1].ignored as string[];
+
+      expect(ignoredPatterns).toContain('**/node_modules/**');
+      expect(ignoredPatterns).toContain('**/.git/**');
+      expect(ignoredPatterns).toContain('custom-build/');
+      expect(ignoredPatterns).toContain('*.secret');
+
+      await monitor.stop();
+    });
+
+    it('handles missing .gitignore file gracefully', async () => {
+      // loadGitignorePatterns returns empty array when .gitignore doesn't exist
+      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([]);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Should still work with just standard ignores
+      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([]);
+
+      const call = vi.mocked(fileWatcher.createFileWatcher).mock.calls[0];
+      const ignoredPatterns = call[1].ignored as string[];
+
+      // Should still have standard ignores
+      expect(ignoredPatterns).toContain('**/node_modules/**');
+      expect(ignoredPatterns).toContain('**/.git/**');
+
+      await monitor.stop();
+    });
+
+    it('continues with polling if file watcher creation fails', async () => {
+      // Simulate failure creating file watcher (more realistic than gitignore failure)
+      vi.mocked(fileWatcher.createFileWatcher).mockImplementation(() => {
+        throw new Error('ENOSPC: no space left on device');
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+
+      // Should not throw - should continue with polling fallback
+      await expect(monitor.start()).resolves.not.toThrow();
+
+      // Verify that loadGitignorePatterns was still called
+      expect(fileTree.loadGitignorePatterns).toHaveBeenCalled();
+
       await monitor.stop();
     });
   });
