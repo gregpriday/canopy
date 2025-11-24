@@ -40,9 +40,14 @@ export function useTrafficLight(lastChangeTimestamp: number | undefined): Traffi
   const [color, setColor] = useState<TrafficColor>(getColor);
 
   useEffect(() => {
-    // Update immediately on prop change
+    // Update immediately on prop change or state transition
     const newColor = getColor();
-    setColor(newColor);
+
+    // Only update state if it's actually different to prevent infinite loops
+    // (though React bails out of same-value updates automatically)
+    if (newColor !== color) {
+      setColor(newColor);
+    }
 
     // If we are already gray, no need to set timers
     if (newColor === 'gray') return;
@@ -66,7 +71,7 @@ export function useTrafficLight(lastChangeTimestamp: number | undefined): Traffi
     }, Math.max(0, timeToNextState));
 
     return () => clearTimeout(timer);
-  }, [lastChangeTimestamp]); // Re-run when the actual file system timestamp changes
+  }, [lastChangeTimestamp, color]); // Added color to dependencies
 
   return color;
 }
