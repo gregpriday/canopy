@@ -1,6 +1,7 @@
-import React, { useLayoutEffect, useMemo } from 'react';
+import React, { useLayoutEffect, useMemo, useState, useCallback } from 'react';
 import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
+import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { getBorderColorForMood } from '../utils/moodColors.js';
@@ -11,6 +12,7 @@ export interface WorktreeCardProps {
   mood: WorktreeMood;
   isFocused: boolean;
   isExpanded: boolean;
+  activeRootPath: string;
   onToggleExpand: () => void;
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
@@ -49,10 +51,20 @@ function truncateMiddle(value: string, maxLength = 42): string {
 
 function formatRelativePath(targetPath: string, rootPath: string): string {
   try {
-    const relativePath = path.isAbsolute(targetPath)
+    const home = homedir();
+    let displayPath = path.isAbsolute(targetPath)
       ? path.relative(rootPath, targetPath)
       : targetPath;
-    return relativePath || path.basename(targetPath);
+
+    if (!displayPath) {
+      displayPath = path.basename(targetPath);
+    }
+
+    if (displayPath.startsWith(home)) {
+      displayPath = displayPath.replace(home, '~');
+    }
+
+    return displayPath;
   } catch {
     return targetPath;
   }
@@ -111,8 +123,20 @@ const ActionButton: React.FC<{
   ) => void;
 }> = ({ id, label, color, onPress, registerRegion }) => {
   const ref = React.useRef<import('ink').DOMElement | null>(null);
+  const [isPressed, setIsPressed] = useState(false);
 
-  // Map terminal mouse coordinates to this button's region using measured layout.
+  // Wrapper to handle visual flash + action
+  const handlePress = useCallback(() => {
+    if (isPressed) return;
+
+    setIsPressed(true);
+    onPress?.();
+
+    setTimeout(() => {
+      setIsPressed(false);
+    }, 150);
+  }, [onPress, isPressed]);
+
   useLayoutEffect(() => {
     if (!registerRegion || !ref.current || !onPress) {
       return;
@@ -142,23 +166,20 @@ const ActionButton: React.FC<{
     const { x, y } = getAbsolutePosition(yogaNode);
     const bounds = { x, y, width: measured.width, height: measured.height };
 
-    registerRegion(id, bounds, onPress);
+    registerRegion(id, bounds, handlePress);
 
-    return () => registerRegion(id, undefined, onPress);
-    // Re-run when layout-affecting inputs change
-  }, [registerRegion, id, label, color, onPress]);
+    return () => registerRegion(id, undefined, handlePress);
+  }, [registerRegion, id, label, color, onPress, handlePress]);
 
   return (
     <Box
       ref={ref}
-      borderStyle="single"
-      borderColor={color}
-      paddingX={1}
-      // @ts-ignore Ink runtime may support onClick even if types don't expose it
-      onClick={onPress}
+      backgroundColor={isPressed ? 'white' : undefined}
+      // @ts-ignore
+      onClick={handlePress}
     >
-      <Text color={color} bold>
-        {label}
+      <Text color={isPressed ? 'black' : color} bold>
+        [{label}]
       </Text>
     </Box>
   );
@@ -170,6 +191,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   mood,
   isFocused,
   isExpanded,
+  activeRootPath,
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
@@ -204,10 +226,9 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
     ? Math.max(0, sortedChanges.length - visibleChanges.length)
     : 0;
 
-  const fileCountLabel =
-    changes.changedFileCount === 1
-      ? '1 file'
-      : `${changes.changedFileCount} files`;
+  const fileCountLabel = `${changes.changedFileCount} ${
+    changes.changedFileCount === 1 ? 'file' : 'files'
+  }`;
 
   const totalInsertions =
     changes.totalInsertions ??
@@ -254,8 +275,12 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
     muted: palette.text.tertiary,
   };
   const branchLabel = worktree.branch ?? worktree.name;
-  const locationLabel = truncateMiddle(worktree.path, 54);
   const isActive = worktree.isCurrent;
+  const isPrimaryWorktree = worktree.branch === 'main' || worktree.branch === 'master';
+  const relativeWorktreePath = path.relative(activeRootPath, worktree.path) || '.';
+  const locationLabel = isPrimaryWorktree
+    ? worktree.path
+    : truncateMiddle(relativeWorktreePath, 50);
 
   return (
     <Box
@@ -264,39 +289,50 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       borderColor={borderColor}
       paddingX={1}
       paddingY={0}
-      marginBottom={1}
+      marginBottom={0}
     >
-      <Box justifyContent="space-between" alignItems="flex-start">
+      {/* Row 1: Identity (Branch | Path) */}
+      <Box justifyContent="space-between" alignItems="center" marginBottom={0}>
         <Box>
           <Text bold color={headerColor}>
+            {isActive && <Text color={palette.accent.primary}>● </Text>}
             {branchLabel}
           </Text>
-          <Text dimColor> • </Text>
-          <Text color={palette.text.secondary}>{locationLabel}</Text>
-          {isActive && (
-            <>
-              <Text dimColor> </Text>
-              <Text color={palette.accent.primary}>[ACTIVE]</Text>
-            </>
-          )}
           {!worktree.branch && (
             <Text color={palette.alert.warning}> (detached)</Text>
           )}
         </Box>
-        <Text color={palette.text.tertiary}>{fileCountLabel}</Text>
-      </Box>
-
-      <Box justifyContent="space-between" marginTop={1}>
-        {SummaryComponent}
-        <Box gap={1}>
-          <Text>📊</Text>
-          <Text color={palette.git.added}>+{totalInsertions}</Text>
-          <Text color={palette.git.deleted}>-{totalDeletions}</Text>
+        <Box>
+          <Text color={palette.text.tertiary}>
+            {locationLabel}
+          </Text>
         </Box>
       </Box>
 
+      {/* Row 2: Statistics Bar */}
+      <Box marginTop={0} marginBottom={0}>
+        <Text>
+          <Text color={palette.text.secondary}>📝 {fileCountLabel}</Text>
+          <Text dimColor> • </Text>
+          <Text color={palette.git.added}>+{totalInsertions}</Text>
+          <Text dimColor> • </Text>
+          <Text color={palette.git.deleted}>-{totalDeletions}</Text>
+        </Text>
+      </Box>
+
+      {/* Row 3: AI Summary */}
+      <Box marginTop={1}>
+        {SummaryComponent}
+      </Box>
+
+      {/* Row 4: Expansion (File List) */}
       {isExpanded && (
-        <Box flexDirection="column" marginTop={1}>
+        <Box
+          flexDirection="column"
+          marginTop={1}
+          borderStyle="single"
+          borderColor={palette.chrome.separator}
+        >
           {visibleChanges.map(change => (
             <FileChangeRow
               key={`${change.path}-${change.status}`}
@@ -311,21 +347,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
         </Box>
       )}
 
-      <Box marginTop={1} gap={1}>
-        <ActionButton
-          id={`${worktree.id}-copytree`}
-          label="CopyTree"
-          color={palette.accent.primary}
-          onPress={onCopyTree}
-          registerRegion={registerClickRegion}
-        />
-        <ActionButton
-          id={`${worktree.id}-vscode`}
-          label="VS Code"
-          color={palette.accent.secondary}
-          onPress={onOpenEditor}
-          registerRegion={registerClickRegion}
-        />
+      <Box marginTop={1} justifyContent="space-between" alignItems="center">
         <ActionButton
           id={`${worktree.id}-expand`}
           label={isExpanded ? 'Collapse' : 'Expand'}
@@ -333,6 +355,22 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
           onPress={onToggleExpand}
           registerRegion={registerClickRegion}
         />
+        <Box gap={1}>
+          <ActionButton
+            id={`${worktree.id}-copytree`}
+            label="CopyTree"
+            color={palette.text.secondary}
+            onPress={onCopyTree}
+            registerRegion={registerClickRegion}
+          />
+          <ActionButton
+            id={`${worktree.id}-vscode`}
+            label="VS Code"
+            color={palette.text.secondary}
+            onPress={onOpenEditor}
+            registerRegion={registerClickRegion}
+          />
+        </Box>
       </Box>
     </Box>
   );

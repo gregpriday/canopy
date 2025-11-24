@@ -46,6 +46,7 @@ describe('WorktreeCard', () => {
         mood="stable"
         isFocused={false}
         isExpanded={false}
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
@@ -59,6 +60,48 @@ describe('WorktreeCard', () => {
     expect(output).toContain('-2');
   });
 
+  it('shows relative path for non-current worktrees only', () => {
+    const secondaryWorktree: Worktree = {
+      ...baseWorktree,
+      id: 'wt-2',
+      path: '/repo/feature',
+      name: 'feature',
+      branch: 'feature',
+      isCurrent: false,
+    };
+
+    const { lastFrame: activeFrame } = renderWithTheme(
+      <WorktreeCard
+        worktree={baseWorktree}
+        changes={baseChanges}
+        mood="stable"
+        isFocused={false}
+        isExpanded={false}
+        activeRootPath="/repo/main"
+        onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
+      />,
+    );
+
+    const { lastFrame: secondaryFrame } = renderWithTheme(
+      <WorktreeCard
+        worktree={secondaryWorktree}
+        changes={{ ...baseChanges, worktreeId: secondaryWorktree.id, rootPath: secondaryWorktree.path }}
+        mood="stable"
+        isFocused={false}
+        isExpanded={false}
+        activeRootPath="/repo/main"
+        onToggleExpand={vi.fn()}
+        onCopyTree={vi.fn()}
+        onOpenEditor={vi.fn()}
+      />,
+    );
+
+    expect(activeFrame()).not.toContain('•');
+    expect(secondaryFrame()).toContain('../feature');
+  });
+
   it('shows change list when expanded', () => {
     const { lastFrame } = renderWithTheme(
       <WorktreeCard
@@ -67,6 +110,7 @@ describe('WorktreeCard', () => {
         mood="stable"
         isFocused={false}
         isExpanded
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
@@ -88,6 +132,7 @@ describe('WorktreeCard', () => {
         mood="stable"
         isFocused={false}
         isExpanded={false}
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
@@ -105,6 +150,7 @@ describe('WorktreeCard', () => {
         mood="stable"
         isFocused={false}
         isExpanded={false}
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
@@ -138,6 +184,7 @@ describe('WorktreeCard', () => {
         mood="active"
         isFocused={false}
         isExpanded
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
@@ -159,6 +206,7 @@ describe('WorktreeCard', () => {
         mood="error"
         isFocused={false}
         isExpanded={false}
+        activeRootPath="/repo/main"
         onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}

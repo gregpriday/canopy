@@ -3,7 +3,7 @@
  * Provides graceful degradation and automatic recovery strategies.
  */
 
-import type { Notification, NotificationType } from '../types/index.js';
+import type { NotificationPayload, NotificationType } from '../types/index.js';
 import { logError, logWarn, logDebug } from './logger.js';
 import {
   GitError,
@@ -245,7 +245,7 @@ export async function safeExecute<T>(
 export function createErrorNotification(
   error: unknown,
   defaultMessage: string = 'An error occurred'
-): Notification {
+): NotificationPayload {
   let message = getUserMessage(error);
   let type: NotificationType = 'error';
 

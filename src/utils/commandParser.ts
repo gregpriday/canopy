@@ -1,4 +1,4 @@
-import type { CanopyState, CanopyConfig, Notification } from '../types/index.js';
+import type { CanopyState, CanopyConfig, NotificationPayload } from '../types/index.js';
 
 // ============================================================================
 // Types
@@ -21,7 +21,7 @@ export interface CommandContext {
   state: CanopyState;
   setState: (updates: Partial<CanopyState>) => void;
   config: CanopyConfig;
-  notify: (notification: Notification) => void;
+  notify: (notification: NotificationPayload) => void;
 }
 
 export interface CommandResult {

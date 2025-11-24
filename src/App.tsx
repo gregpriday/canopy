@@ -1217,6 +1217,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
               worktrees={sortedWorktrees}
               worktreeChanges={worktreeChanges}
               activeWorktreeId={activeWorktreeId}
+              activeRootPath={activeRootPath}
               focusedWorktreeId={focusedWorktreeId}
               expandedWorktreeIds={expandedWorktreeIds}
               visibleStart={visibleStart}
@@ -1240,7 +1241,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           // Create CommandServices object for context menu
           const contextMenuServices: CommandServices = {
             ui: {
-              notify: (n: NotificationType) => events.emit('ui:notify', n),
+              notify: (n: NotificationPayload) => events.emit('ui:notify', n),
               refresh: refreshTree,
               exit: exitApp,
             },

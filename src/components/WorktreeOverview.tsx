@@ -8,6 +8,7 @@ export interface WorktreeOverviewProps {
   worktrees: Worktree[];
   worktreeChanges: Map<string, WorktreeChanges>;
   activeWorktreeId: string | null;
+  activeRootPath: string;
   focusedWorktreeId: string | null;
   expandedWorktreeIds: Set<string>;
   visibleStart?: number;
@@ -68,6 +69,7 @@ export function sortWorktrees(worktrees: Worktree[]): Worktree[] {
 export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   worktrees,
   worktreeChanges,
+  activeRootPath,
   focusedWorktreeId,
   expandedWorktreeIds,
   visibleStart,
@@ -135,6 +137,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             mood={worktree.mood ?? 'stable'}
             isFocused={worktree.id === focusedWorktreeId}
             isExpanded={expandedWorktreeIds.has(worktree.id)}
+            activeRootPath={activeRootPath}
             onToggleExpand={() => onToggleExpand(worktree.id)}
             // Future interactive actions
             onCopyTree={() => onCopyTree(worktree.id)}

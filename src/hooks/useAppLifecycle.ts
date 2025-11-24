@@ -314,10 +314,6 @@ export function useAppLifecycle({
             return prev;
           }
 
-          if (!activeStillExists && updatedWorktrees.length > 0) {
-            fallbackWorktree = updatedWorktrees[0];
-          }
-
           const nextState = {
             ...prev,
             worktrees: updatedWorktrees,
@@ -332,6 +328,10 @@ export function useAppLifecycle({
 
           return nextState;
         });
+
+        if (!activeStillExists && updatedWorktrees.length > 0) {
+          fallbackWorktree = updatedWorktrees[0];
+        }
 
         if (!listChanged && activeStillExists) {
           return;
