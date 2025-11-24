@@ -1,11 +1,12 @@
 import { EventEmitter } from 'events';
 import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.js';
-import { createFileWatcher, type FileWatcher, type FileChangeEvent } from '../../utils/fileWatcher.js';
+import { createFileWatcher, type FileWatcher, type FileChangeEvent, buildIgnorePatterns } from '../../utils/fileWatcher.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { debounce, type DebouncedFunction } from '../../utils/debounce.js';
 import { logWarn, logError, logInfo } from '../../utils/logger.js';
+import { loadGitignorePatterns } from '../../utils/fileTree.js';
 import { events } from '../events.js';
 
 const GIT_STATUS_DEBOUNCE_MS = 1000; // Update git status 1s after file changes
@@ -135,8 +136,14 @@ export class WorktreeMonitor extends EventEmitter {
 
     // Start file watcher if enabled
     if (this.watchingEnabled) {
+      // Load ignore patterns (Standard + .gitignore) to prevent noise
+      // Note: loadGitignorePatterns handles its own errors and returns [] on failure
+      const gitIgnores = await loadGitignorePatterns(this.path);
+      const ignoredPatterns = buildIgnorePatterns(gitIgnores);
+
       try {
         this.watcher = createFileWatcher(this.path, {
+          ignored: ignoredPatterns,
           onBatch: (events) => this.handleFileChanges(events),
           onError: (error) => this.handleWatcherError(error),
         });
