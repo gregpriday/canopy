@@ -148,8 +148,15 @@ export class WorktreeMonitor extends EventEmitter {
     // Start polling timer (works even if watching is enabled as a backup)
     this.startPolling();
 
-    // Initial fetch (Git status only - AI summary waits for changes)
-    await this.updateGitStatus();
+    // Initial fetch and AI summary generation
+    await this.updateGitStatus(true); // Initial force fetch
+
+    // Trigger initial AI summary generation for startup
+    // Unlike file-change triggers (which are debounced), initial load should be immediate
+    // so users see summaries right away when opening Canopy
+    if (this.state.worktreeChanges) {
+      await this.updateAISummary(true);
+    }
   }
 
   /**
@@ -235,6 +242,14 @@ export class WorktreeMonitor extends EventEmitter {
     // Set traffic light to green (active)
     this.setTrafficLight('green');
 
+    // UX: If we are currently showing a "Last commit" message (Clean state),
+    // but files just changed, immediately switch to a generic "Dirty" state
+    // so the user knows Canopy saw the change.
+    if (this.state.summary?.startsWith('✅')) {
+      this.state.summary = 'Unsaved changes...';
+      this.emitUpdate();
+    }
+
     // Emit change event for activity tracking
     for (const event of fileChanges) {
       events.emit('watcher:change', { type: event.type, path: event.path });
@@ -277,21 +292,34 @@ export class WorktreeMonitor extends EventEmitter {
         invalidateGitStatusCache(this.path);
       }
 
-      const worktreeChanges = await getWorktreeChangesWithStats(this.path, forceRefresh);
+      const newChanges = await getWorktreeChangesWithStats(this.path, forceRefresh);
 
       // Check if monitor was stopped while waiting for git status
       if (!this.isRunning) {
         return;
       }
 
-      // Update state (both the full worktreeChanges and the inherited changes array)
-      this.state.worktreeChanges = worktreeChanges;
-      this.state.changes = worktreeChanges.changes;
-      this.state.modifiedCount = worktreeChanges.changedFileCount;
+      // PERFORMANCE FIX: Deep equality check to prevent render loops
+      // The git util returns a new object every time, so strictly checking references fails.
+      const prevChanges = this.state.worktreeChanges;
+      const isUnchanged = prevChanges &&
+        prevChanges.changedFileCount === newChanges.changedFileCount &&
+        prevChanges.latestFileMtime === newChanges.latestFileMtime &&
+        prevChanges.totalInsertions === newChanges.totalInsertions &&
+        prevChanges.totalDeletions === newChanges.totalDeletions;
 
-      // Determine if worktree transitioned to clean
-      const wasClean = this.state.worktreeChanges?.changedFileCount === 0;
-      const isNowClean = worktreeChanges.changedFileCount === 0;
+      if (isUnchanged && !forceRefresh) {
+        return; // Stop propagation if data is effectively same
+      }
+
+      // Update state (both the full worktreeChanges and the inherited changes array)
+      this.state.worktreeChanges = newChanges;
+      this.state.changes = newChanges.changes;
+      this.state.modifiedCount = newChanges.changedFileCount;
+
+      // Logic: Transition from Dirty -> Clean
+      const wasClean = prevChanges?.changedFileCount === 0;
+      const isNowClean = newChanges.changedFileCount === 0;
 
       // If transitioned to clean, trigger immediate AI summary update
       if (!wasClean && isNowClean) {
@@ -322,13 +350,7 @@ export class WorktreeMonitor extends EventEmitter {
    * Update AI summary for this worktree.
    */
   private async updateAISummary(forceUpdate: boolean = false): Promise<void> {
-    if (!this.isRunning) {
-      return;
-    }
-
-    // Guard against concurrent AI calls
-    if (this.isGeneratingSummary) {
-      logWarn('AI summary already in progress', { id: this.id });
+    if (!this.isRunning || this.isGeneratingSummary) {
       return;
     }
 
@@ -340,77 +362,51 @@ export class WorktreeMonitor extends EventEmitter {
     const currentMtime = this.state.worktreeChanges.latestFileMtime ?? 0;
     const currentCount = this.state.worktreeChanges.changedFileCount;
 
-    // Skip if we already processed this exact state (unless forced)
+    // Dedup logic: don't run AI on exact same state unless forced
     if (!forceUpdate &&
         this.lastProcessedMtime === currentMtime &&
         this.lastProcessedChangeCount === currentCount) {
-      logInfo('AI summary skipped (state unchanged)', {
-        id: this.id,
-        mtime: currentMtime,
-        count: currentCount,
-      });
       return;
     }
 
-    // Hard throttle: Prevent rapid-fire updates even if debounce fails
-    // Ensures minimum interval between AI calls (unless forced)
+    // Throttle logic
     const now = Date.now();
-    const timeSinceLast = now - this.lastAIRequestTime;
-
-    if (!forceUpdate && timeSinceLast < AI_SUMMARY_MIN_INTERVAL_MS) {
-      logWarn('AI summary throttled (too soon)', {
-        id: this.id,
-        timeSinceLast: `${timeSinceLast}ms`,
-        minInterval: `${AI_SUMMARY_MIN_INTERVAL_MS}ms`,
-      });
+    if (!forceUpdate && (now - this.lastAIRequestTime < AI_SUMMARY_MIN_INTERVAL_MS)) {
       return;
     }
 
-    // Lock processing
     this.isGeneratingSummary = true;
 
     try {
-      // Update tracking state
       this.lastAIRequestTime = now;
       this.lastProcessedMtime = currentMtime;
       this.lastProcessedChangeCount = currentCount;
 
-      // Set loading state
       this.state.summaryLoading = true;
-      this.setTrafficLight('yellow'); // Yellow = "thinking"
+      this.setTrafficLight('yellow');
       this.emitUpdate();
 
-      const summary = await generateWorktreeSummary(
+      const result = await generateWorktreeSummary(
         this.path,
         this.branch,
         this.mainBranch,
         this.state.worktreeChanges
       );
 
-      // Check if monitor was stopped while waiting for AI summary
-      if (!this.isRunning) {
-        return;
-      }
+      if (!this.isRunning) return;
 
-      if (summary) {
-        this.state.summary = summary.summary;
-        this.state.modifiedCount = summary.modifiedCount;
+      if (result) {
+        this.state.summary = result.summary;
+        this.state.modifiedCount = result.modifiedCount;
       }
 
       this.state.summaryLoading = false;
-
-      // Transition traffic light to gray (idle) after AI finishes
-      if (this.state.worktreeChanges.changedFileCount === 0) {
-        this.setTrafficLight('gray');
-        this.state.isActive = false;
-      }
-
       this.emitUpdate();
+
     } catch (error) {
-      logError('Failed to generate AI summary', error as Error, { id: this.id });
+      logError('AI summary generation failed', error as Error, { id: this.id });
       this.state.summaryLoading = false;
       this.state.summary = 'Summary unavailable';
-      this.setTrafficLight('gray');
       this.emitUpdate();
     } finally {
       this.isGeneratingSummary = false;
