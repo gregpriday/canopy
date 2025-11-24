@@ -242,19 +242,29 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   const hasChanges = changes.changedFileCount > 0;
   let SummaryComponent: React.ReactNode;
 
+  // Detect if summary is a commit message (starts with ✅)
+  const isCommitMessage = worktree.summary?.startsWith('✅');
+
   if (worktree.summary) {
-    if (hasChanges) {
-      // Case A: AI Summary (Active changes)
+    if (isCommitMessage) {
+      // Case A: Last Commit (always show with prefix, even during dirty state)
+      SummaryComponent = (
+        <Text color={palette.text.tertiary}>
+          <Text bold>Last commit: </Text>
+          {worktree.summary}
+        </Text>
+      );
+    } else if (hasChanges) {
+      // Case B: AI Summary (Active changes)
       SummaryComponent = (
         <Text color={palette.text.secondary}>
           {worktree.summary}
         </Text>
       );
     } else {
-      // Case B: Last Commit (Clean working tree)
+      // Case C: Clean state without commit message
       SummaryComponent = (
         <Text color={palette.text.tertiary}>
-          <Text bold>Last commit: </Text>
           {worktree.summary}
         </Text>
       );

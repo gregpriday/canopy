@@ -3,7 +3,7 @@ import type { Worktree, WorktreeChanges } from '../types/index.js';
 import { enrichWorktreesWithSummaries } from '../services/ai/worktree.js';
 import { categorizeWorktree } from '../utils/worktreeMood.js';
 
-const AI_DEBOUNCE_MS = 30000;
+const AI_DEBOUNCE_MS = 10000;
 const DEBUG = process.env.CANOPY_DEBUG_SUMMARIES === '1';
 
 export function useWorktreeSummaries(

@@ -130,7 +130,7 @@ export async function generateWorktreeSummary(
           const firstLine = lastCommitMsg.split('\n')[0].trim();
           // Add a distinct icon so we know this is a commit message
           return {
-            summary: `💾 ${firstLine}`,
+            summary: `✅ ${firstLine}`,
             modifiedCount: 0
           };
         }
