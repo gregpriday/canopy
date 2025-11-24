@@ -20,6 +20,7 @@ function mapGitStatusMarker(status: GitStatus): string {
     modified: 'M',
     added: 'A',
     deleted: 'D',
+    renamed: 'R',
     untracked: 'U',
     ignored: 'I',
   };

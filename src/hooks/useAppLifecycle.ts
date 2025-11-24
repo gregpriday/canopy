@@ -4,7 +4,7 @@ import { getWorktrees, getCurrentWorktree } from '../utils/worktree.js';
 import { loadInitialState } from '../utils/state.js';
 import { logDebug, logWarn, logError } from '../utils/logger.js';
 import { events } from '../services/events.js';
-import type { CanopyConfig, Worktree, Notification } from '../types/index.js';
+import type { CanopyConfig, Worktree, Notification, NotificationPayload } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
 export type LifecycleStatus = 'idle' | 'initializing' | 'ready' | 'error';
@@ -69,6 +69,11 @@ export function useAppLifecycle({
   const [notification, setNotification] = useState<Notification | null>(null);
   const isMountedRef = useRef(true);
   const initializingRef = useRef(false);
+  const createNotification = (payload: NotificationPayload): Notification => ({
+    id: payload.id ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    message: payload.message,
+    type: payload.type,
+  });
 
   const initialize = useCallback(async () => {
     // Prevent concurrent initializations
@@ -110,10 +115,10 @@ export function useAppLifecycle({
         } catch (error) {
           logWarn('Failed to load config, using defaults:', { error });
           if (isMountedRef.current) {
-            setNotification({
+            setNotification(createNotification({
               type: 'warning',
               message: `Config error: ${(error as Error).message}. Using defaults.`,
-            });
+            }));
           }
           config = DEFAULT_CONFIG;
         }
@@ -195,10 +200,10 @@ export function useAppLifecycle({
           status: 'error',
           error: error as Error,
         }));
-        setNotification({
+        setNotification(createNotification({
           type: 'error',
           message: `Initialization failed: ${(error as Error).message}`,
-        });
+        }));
       }
     } finally {
       initializingRef.current = false;

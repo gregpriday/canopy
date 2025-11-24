@@ -27,22 +27,25 @@ export function buildCopyTreeRequest({
     return null;
   }
 
-  const changeSet = changes.get(worktreeId);
   const resolvedProfile = profile || lastCopyProfile || 'default';
+  const changeSet = changes.get(worktreeId);
+  const targetRoot = changeSet?.rootPath || target.path;
+
   const changedFiles =
     changeSet?.changes
       ?.map(change => {
         const relativePath = path.isAbsolute(change.path)
-          ? path.relative(changeSet.rootPath || target.path, change.path)
+          ? path.relative(targetRoot, change.path)
           : change.path;
         return relativePath || change.path;
       })
       .filter(Boolean) ?? [];
 
   const payload: CopyTreePayload = {
-    rootPath: changeSet?.rootPath || target.path,
+    rootPath: targetRoot,
     profile: resolvedProfile,
-    files: changedFiles.length > 0 ? changedFiles : undefined,
+    // Run from the worktree root; include changed files if any, else "." to copy entire tree
+    files: changedFiles.length > 0 ? changedFiles : ['.'],
   };
 
   return { payload, profile: resolvedProfile };

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Box, Text } from 'ink';
+import React, { useLayoutEffect, useMemo } from 'react';
+import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
@@ -14,6 +14,11 @@ export interface WorktreeCardProps {
   onToggleExpand: () => void;
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
+  registerClickRegion?: (
+    id: string,
+    bounds?: { x: number; y: number; width: number; height: number },
+    handler?: () => void
+  ) => void;
 }
 
 const MAX_VISIBLE_CHANGES = 10;
@@ -95,19 +100,69 @@ const FileChangeRow: React.FC<{
 };
 
 const ActionButton: React.FC<{
+  id: string;
   label: string;
   color: string;
   onPress?: () => void;
-}> = ({ label, color, onPress }) => (
-  <Text
-    color={color}
-    bold
-    // @ts-ignore Ink's types do not always include onClick
-    onClick={onPress}
-  >
-    [ {label} ]
-  </Text>
-);
+  registerRegion?: (
+    id: string,
+    bounds?: { x: number; y: number; width: number; height: number },
+    handler?: () => void
+  ) => void;
+}> = ({ id, label, color, onPress, registerRegion }) => {
+  const ref = React.useRef<import('ink').DOMElement | null>(null);
+
+  // Map terminal mouse coordinates to this button's region using measured layout.
+  useLayoutEffect(() => {
+    if (!registerRegion || !ref.current || !onPress) {
+      return;
+    }
+
+    const measured = measureElement(ref.current) as {
+      width: number;
+      height: number;
+    };
+    const yogaNode = ref.current.yogaNode;
+    if (!yogaNode) {
+      return;
+    }
+
+    const getAbsolutePosition = (node: any): { x: number; y: number } => {
+      let x = 0;
+      let y = 0;
+      let current = node;
+      while (current) {
+        x += current.getComputedLeft?.() ?? 0;
+        y += current.getComputedTop?.() ?? 0;
+        current = current.getParent?.();
+      }
+      return { x, y };
+    };
+
+    const { x, y } = getAbsolutePosition(yogaNode);
+    const bounds = { x, y, width: measured.width, height: measured.height };
+
+    registerRegion(id, bounds, onPress);
+
+    return () => registerRegion(id, undefined, onPress);
+    // Re-run when layout-affecting inputs change
+  }, [registerRegion, id, label, color, onPress]);
+
+  return (
+    <Box
+      ref={ref}
+      borderStyle="single"
+      borderColor={color}
+      paddingX={1}
+      // @ts-ignore Ink runtime may support onClick even if types don't expose it
+      onClick={onPress}
+    >
+      <Text color={color} bold>
+        {label}
+      </Text>
+    </Box>
+  );
+};
 
 export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   worktree,
@@ -118,6 +173,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
+  registerClickRegion,
 }) => {
   const { palette } = useTheme();
 
@@ -208,7 +264,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       borderStyle={borderStyle}
       borderColor={borderColor}
       paddingX={1}
-      paddingY={1}
+      paddingY={0}
       marginBottom={1}
     >
       <Box justifyContent="space-between" alignItems="flex-start">
@@ -256,13 +312,27 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
         </Box>
       )}
 
-      <Box marginTop={1} gap={2}>
-        <ActionButton label="CopyTree" color={palette.accent.primary} onPress={onCopyTree} />
-        <ActionButton label="VS Code" color={palette.accent.secondary} onPress={onOpenEditor} />
+      <Box marginTop={1} gap={1}>
         <ActionButton
+          id={`${worktree.id}-copytree`}
+          label="CopyTree"
+          color={palette.accent.primary}
+          onPress={onCopyTree}
+          registerRegion={registerClickRegion}
+        />
+        <ActionButton
+          id={`${worktree.id}-vscode`}
+          label="VS Code"
+          color={palette.accent.secondary}
+          onPress={onOpenEditor}
+          registerRegion={registerClickRegion}
+        />
+        <ActionButton
+          id={`${worktree.id}-expand`}
           label={isExpanded ? 'Collapse' : 'Expand'}
           color={palette.text.secondary}
           onPress={onToggleExpand}
+          registerRegion={registerClickRegion}
         />
       </Box>
     </Box>

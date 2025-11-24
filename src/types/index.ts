@@ -45,9 +45,12 @@ export interface TreeNode {
 }
 
 export interface Notification {
+  id: string;
   message: string;
   type: NotificationType;
 }
+
+export type NotificationPayload = Omit<Notification, 'id'> & { id?: string };
 
 /**
  * Represents a single git worktree.

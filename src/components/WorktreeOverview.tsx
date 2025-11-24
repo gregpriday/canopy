@@ -81,10 +81,41 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   const end = visibleEnd ?? sorted.length;
   const sliced = sorted.slice(start, end);
 
-  // Enable mouse reporting for dashboard actions so Ink onClick handlers fire.
+  const clickRegionsRef = React.useRef(
+    new Map<
+      string,
+      { bounds: { x: number; y: number; width: number; height: number }; handler: () => void }
+    >()
+  );
+
+  const registerClickRegion = React.useCallback((
+    id: string,
+    bounds?: { x: number; y: number; width: number; height: number },
+    handler?: () => void
+  ) => {
+    if (!bounds || !handler) {
+      clickRegionsRef.current.delete(id);
+      return;
+    }
+    clickRegionsRef.current.set(id, { bounds, handler });
+  }, []);
+
   useTerminalMouse({
     enabled: sliced.length > 0,
-    onMouse: () => {},
+    onMouse: event => {
+      if (event.button !== 'left' || event.action !== 'down') {
+        return;
+      }
+
+      for (const { bounds, handler } of clickRegionsRef.current.values()) {
+        const withinX = event.x >= bounds.x && event.x < bounds.x + bounds.width;
+        const withinY = event.y >= bounds.y && event.y < bounds.y + bounds.height;
+        if (withinX && withinY) {
+          handler();
+          break;
+        }
+      }
+    },
   });
 
   return (
@@ -108,6 +139,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             // Future interactive actions
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
+            registerClickRegion={registerClickRegion}
           />
         );
       })}

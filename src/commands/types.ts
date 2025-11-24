@@ -1,4 +1,4 @@
-import type { Notification, TreeNode } from '../types/index.js';
+import type { NotificationPayload, TreeNode } from '../types/index.js';
 
 /**
  * Services exposed to commands.
@@ -7,7 +7,7 @@ import type { Notification, TreeNode } from '../types/index.js';
 export interface CommandServices {
   // UI Services
   ui: {
-    notify: (notification: Notification) => void;
+    notify: (notification: NotificationPayload) => void;
     refresh: () => void; // Changed from Promise<void>
     exit: () => void;
   };

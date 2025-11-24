@@ -1,64 +1,72 @@
 import React, { useEffect } from 'react';
 import { Box, Text, useInput } from 'ink';
 import type { Notification as NotificationType } from '../types/index.js';
+import { useTheme } from '../theme/ThemeProvider.js';
 
 interface NotificationProps {
-  notification: NotificationType | null;
-  onDismiss: () => void;
+  notification: NotificationType;
+  onDismiss: (id: string) => void;
+  isActive?: boolean;
 }
 
-export function Notification({ notification, onDismiss }: NotificationProps): React.JSX.Element | null {
-  // Auto-dismiss non-errors after 3 seconds
+export function Notification({ notification, onDismiss, isActive = false }: NotificationProps): React.JSX.Element | null {
+  const { palette } = useTheme();
+
+  // Auto-dismiss logic (longer for errors)
   useEffect(() => {
-    if (!notification) return;
+    const duration = notification.type === 'error' ? 6000 : 2000;
+    const timer = setTimeout(() => {
+      onDismiss(notification.id);
+    }, duration);
+    return () => clearTimeout(timer);
+  }, [notification.id, notification.type, onDismiss]);
 
-    // Only auto-dismiss success, info, and warning - NOT errors
-    if (notification.type !== 'error') {
-      const timer = setTimeout(() => {
-        onDismiss();
-      }, 3000);
-
-      // Cleanup timer if component unmounts or notification changes
-      return () => clearTimeout(timer);
-    }
-
-    // No cleanup needed for errors (they don't auto-dismiss)
-    return undefined;
-  }, [notification, onDismiss]);
-
-  // Allow manual dismiss with ESC or Enter only while a notification is visible
+  // Allow manual dismiss on the active toast
   useInput(
     (_input, key) => {
-      if (!notification) return;
       if (key.escape || key.return) {
-        onDismiss();
+        onDismiss(notification.id);
       }
     },
-    { isActive: Boolean(notification) },
+    { isActive },
   );
 
-  // Don't render anything if no notification
-  if (!notification) return null;
+  let borderColor = palette.text.secondary;
+  let title = '';
 
-  // Map notification type to colors
-  const colorMap: Record<string, string> = {
-    success: 'green',
-    info: 'blue',
-    warning: 'yellow',
-    error: 'red',
-  };
-
-  const color = colorMap[notification.type] || 'white';
+  switch (notification.type) {
+    case 'success':
+      borderColor = palette.git.added;
+      title = '✔ SUCCESS';
+      break;
+    case 'error':
+      borderColor = palette.alert.error;
+      title = '✘ ERROR';
+      break;
+    case 'warning':
+      borderColor = palette.alert.warning;
+      title = '⚠ WARNING';
+      break;
+    case 'info':
+    default:
+      borderColor = palette.accent.primary;
+      title = 'ℹ INFO';
+      break;
+  }
 
   return (
     <Box
-      borderStyle="round"
-      borderColor={color}
-      paddingX={2}
-      paddingY={0}
-      marginTop={1}
+      borderStyle="single"
+      borderColor={borderColor}
+      paddingX={1}
+      marginBottom={0}
+      width="100%"
+      flexDirection="row"
     >
-      <Text color={color} bold={notification.type === 'error'}>
+      <Text color={borderColor} bold>
+        {title}:{' '}
+      </Text>
+      <Text color={palette.text.primary}>
         {notification.message}
       </Text>
     </Box>

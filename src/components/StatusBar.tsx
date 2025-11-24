@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
-import type { Notification, GitStatus, WorktreeChanges, Worktree } from '../types/index.js';
+import type { GitStatus, WorktreeChanges, Worktree } from '../types/index.js';
 import { perfMonitor } from '../utils/perfMetrics.js';
 import { ActionButton } from './StatusBar/ActionButton.js';
 import { ActionGroup } from './StatusBar/ActionGroup.js';
@@ -11,13 +11,13 @@ import type { AIStatus } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 
 interface StatusBarProps {
-  notification: Notification | null;
   fileCount: number;
   modifiedCount: number;
   filterQuery?: string | null;
   filterGitStatus?: GitStatus | null;
   showPerformance?: boolean;
   activeRootPath?: string;
+  showCommandInput?: boolean;
 
   commandMode: boolean;
 
@@ -50,13 +50,13 @@ const IDLE_MESSAGES = [
 ];
 
 export const StatusBar: React.FC<StatusBarProps> = ({
-  notification,
   fileCount,
   modifiedCount,
   filterQuery,
   filterGitStatus,
   showPerformance = false,
   activeRootPath = '.',
+  showCommandInput = true,
   commandMode,
   aiStatus,
   isAnalyzing,
@@ -102,9 +102,9 @@ export const StatusBar: React.FC<StatusBarProps> = ({
 
   // Mouse handler - emit event instead of executing directly
   useTerminalMouse({
-    enabled: !commandMode && !notification && stdout !== undefined,
+    enabled: !commandMode && stdout !== undefined,
     onMouse: (event) => {
-      if (event.button === 'left' && stdout) {
+      if (event.button === 'left' && event.action === 'down' && stdout) {
         const buttonWidth = 16;
         const statusBarHeight = 5;
         const isBottom = event.y >= stdout.rows - statusBarHeight;
@@ -127,7 +127,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({
     events.emit('ui:modal:close', { id: 'command-bar' });
   };
 
-  if (commandMode) {
+  if (commandMode && showCommandInput) {
     return (
       <Box borderStyle="single" paddingX={1}>
         <InlineInput
@@ -136,23 +136,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({
           onSubmit={handleCommandSubmitInternal}
           onCancel={handleCommandCancel}
         />
-      </Box>
-    );
-  }
-
-  if (notification) {
-     const colorMap = {
-      success: palette.git.added,
-      info: palette.alert.info,
-      warning: palette.alert.warning,
-      error: palette.alert.error,
-    } as const;
-
-    return (
-      <Box borderStyle="single" paddingX={1}>
-        <Text color={colorMap[notification.type]} bold={notification.type === 'error'}>
-          {notification.message}
-        </Text>
       </Box>
     );
   }

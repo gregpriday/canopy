@@ -9,8 +9,9 @@ import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { Notification } from './components/Notification.js';
+import { StatusBar } from './components/StatusBar.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, Worktree, TreeNode, GitStatus } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus } from './types/index.js';
 import type { CommandServices } from './commands/types.js';
 import { useCommandExecutor } from './hooks/useCommandExecutor.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
@@ -21,7 +22,6 @@ import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
 import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
-import { buildCopyTreeRequest } from './utils/copyTreePayload.js';
 import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
@@ -97,23 +97,31 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   } = useAppLifecycle({ cwd, initialConfig, noWatch, noGit });
 
   // Local notification state (merged with lifecycle notifications)
-  const [notification, setNotification] = useState<NotificationType | null>(null);
+  const [notifications, setNotifications] = useState<NotificationType[]>([]);
+  const createNotification = useCallback(
+    (payload: NotificationPayload): NotificationType => ({
+      id: payload.id ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+      message: payload.message,
+      type: payload.type,
+    }),
+    []
+  );
 
   useEffect(() => {
     if (!lifecycleNotification) {
       return;
     }
 
-    setNotification(lifecycleNotification);
+    setNotifications(prev => [...prev, createNotification(lifecycleNotification)]);
     setLifecycleNotification(null);
-  }, [lifecycleNotification, setLifecycleNotification]);
+  }, [createNotification, lifecycleNotification, setLifecycleNotification]);
   
   // Subscribe to UI notifications from event bus
   useEffect(() => {
-      return events.on('ui:notify', (payload) => {
-          setNotification({ type: payload.type, message: payload.message });
-      });
-  }, []);
+    return events.on('ui:notify', (payload) => {
+      setNotifications(prev => [...prev, createNotification(payload)]);
+    });
+  }, [createNotification]);
 
   // Listen for view mode changes
   useEffect(() => {
@@ -286,10 +294,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isRecentActivityOpen = activeModals.has('recent-activity');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
+  const showStatusBar = config.ui?.showStatusBar ?? true;
 
   const headerRows = 3;
-  const overlayRows = (notification ? 2 : 0) + (commandMode ? 2 : 0);
-  const reservedRows = headerRows + overlayRows;
+  const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0) + (commandMode ? 2 : 0);
+  const footerRows = showStatusBar ? 3 : 0;
+  const reservedRows = headerRows + overlayRows + footerRows;
   const viewportHeight = useViewportHeight(reservedRows);
   const dashboardViewportSize = useMemo(() => {
     const available = Math.max(1, height - reservedRows);
@@ -437,6 +447,27 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     selectedPathRef.current = selectedPath;
   }, [selectedPath]);
 
+  const fileCount = useMemo(() => countTotalFiles(rawTree), [rawTree]);
+
+  const modifiedCount = useMemo(() => {
+    if (activeWorktreeChanges?.changedFileCount !== undefined) {
+      return activeWorktreeChanges.changedFileCount;
+    }
+
+    let changed = 0;
+    effectiveGitStatus.forEach((status) => {
+      if (status !== 'ignored') {
+        changed += 1;
+      }
+    });
+
+    return changed;
+  }, [activeWorktreeChanges, effectiveGitStatus]);
+
+  const handleDismissNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(notification => notification.id !== id));
+  }, []);
+
   const handleToggleExpandWorktree = useCallback((id: string) => {
     setExpandedWorktreeIds(prev => {
       const next = new Set(prev);
@@ -469,21 +500,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [effectiveConfig, sortedWorktrees]);
 
   const handleCopyTreeForWorktree = useCallback((id: string, profile?: string) => {
-    const request = buildCopyTreeRequest({
-      worktreeId: id,
-      worktrees: sortedWorktrees,
-      changes: worktreeChanges,
-      profile,
-      lastCopyProfile,
-    });
-
-    if (!request) {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
       return;
     }
 
-    events.emit('file:copy-tree', request.payload);
-    setLastCopyProfile(request.profile);
-  }, [lastCopyProfile, sortedWorktrees, worktreeChanges]);
+    const resolvedProfile = profile || lastCopyProfile || 'default';
+
+    events.emit('file:copy-tree', {
+      rootPath: target.path,
+      profile: resolvedProfile,
+    });
+
+    setLastCopyProfile(resolvedProfile);
+  }, [lastCopyProfile, sortedWorktrees]);
 
   const handleOpenProfileSelector = useCallback((id: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
@@ -612,15 +642,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       unsubscribeFilterClear();
     };
   }, [execute]);
-
-  useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 2000); // Auto-clear notifications after 2 seconds
-      return () => clearTimeout(timer);
-    }
-  }, [notification]);
 
   // Helper function to collect all folder paths from a tree
   const collectAllFolderPaths = useCallback((tree: TreeNode[]): string[] => {
@@ -1201,13 +1222,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitEnabled={gitEnabled}
           gitStatus={effectiveGitStatus}
         />
-        {notification && (
-          <Box marginTop={1}>
-            <Notification notification={notification} onDismiss={() => setNotification(null)} />
-          </Box>
-        )}
         {commandMode && (
-          <Box marginTop={notification ? 1 : 0} paddingX={1}>
+          <Box marginTop={1} paddingX={1}>
             <InlineInput
               input={commandInput}
               onChange={setCommandInput}
@@ -1250,85 +1266,111 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             />
           )}
         </Box>
-      {contextMenuOpen && (() => {
-        // Create CommandServices object for context menu
-        const contextMenuServices: CommandServices = {
-          ui: {
-            notify: (n: NotificationType) => events.emit('ui:notify', n),
-            refresh: refreshTree,
-            exit: exitApp,
-          },
-          system: {
-            cwd: activeRootPath,
-            openExternal: async (path) => { await open(path); },
-            copyToClipboard: async (text) => { await clipboardy.write(text); },
-            exec: async (cmd, cmdArgs, execCwd) => {
-              const { stdout } = await execa(cmd, cmdArgs || [], { cwd: execCwd || activeRootPath });
-              return stdout;
-            }
-          },
-          state: {
-            selectedPath,
-            fileTree: rawTree,
-            expandedPaths: expandedFolders
-          }
-        };
-
-        return (
-          <ContextMenu
-            path={contextMenuTarget}
-            rootPath={activeRootPath}
-            position={contextMenuPosition}
-            config={config}
-            services={contextMenuServices}
-            onClose={() => events.emit('ui:modal:close', { id: 'context-menu' })}
-            onAction={(actionType, result) => {
-              if (result.success) {
-                events.emit('ui:notify', {
-                  type: 'success',
-                  message: result.message || 'Action completed',
-                });
-              } else {
-                events.emit('ui:notify', {
-                  type: 'error',
-                  message: `Action failed: ${result.message || 'Unknown error'}`,
-                });
+        {contextMenuOpen && (() => {
+          // Create CommandServices object for context menu
+          const contextMenuServices: CommandServices = {
+            ui: {
+              notify: (n: NotificationType) => events.emit('ui:notify', n),
+              refresh: refreshTree,
+              exit: exitApp,
+            },
+            system: {
+              cwd: activeRootPath,
+              openExternal: async (path) => { await open(path); },
+              copyToClipboard: async (text) => { await clipboardy.write(text); },
+              exec: async (cmd, cmdArgs, execCwd) => {
+                const { stdout } = await execa(cmd, cmdArgs || [], { cwd: execCwd || activeRootPath });
+                return stdout;
               }
-              events.emit('ui:modal:close', { id: 'context-menu' });
-            }}
+            },
+            state: {
+              selectedPath,
+              fileTree: rawTree,
+              expandedPaths: expandedFolders
+            }
+          };
+
+          return (
+            <ContextMenu
+              path={contextMenuTarget}
+              rootPath={activeRootPath}
+              position={contextMenuPosition}
+              config={config}
+              services={contextMenuServices}
+              onClose={() => events.emit('ui:modal:close', { id: 'context-menu' })}
+              onAction={(actionType, result) => {
+                if (result.success) {
+                  events.emit('ui:notify', {
+                    type: 'success',
+                    message: result.message || 'Action completed',
+                  });
+                } else {
+                  events.emit('ui:notify', {
+                    type: 'error',
+                    message: `Action failed: ${result.message || 'Unknown error'}`,
+                  });
+                }
+                events.emit('ui:modal:close', { id: 'context-menu' });
+              }}
+            />
+          );
+        })()}
+        {isWorktreePanelOpen && (
+          <WorktreePanel
+            worktrees={worktreesWithStatus}
+            activeWorktreeId={activeWorktreeId}
+            onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
           />
-        );
-      })()}
-      {isWorktreePanelOpen && (
-        <WorktreePanel
+        )}
+        {isRecentActivityOpen && (
+          <RecentActivityPanel
+            visible={isRecentActivityOpen}
+            events={recentEvents}
+            onClose={() => events.emit('ui:modal:close', { id: 'recent-activity' })}
+            onSelectPath={handleSelectActivityPath}
+          />
+        )}
+        <HelpModal
+          visible={showHelpModal}
+          onClose={() => events.emit('ui:modal:close', { id: 'help' })}
+        />
+        <FuzzySearchModal
+          visible={isFuzzySearchOpen}
+          searchQuery={fuzzySearchQuery}
           worktrees={worktreesWithStatus}
-          activeWorktreeId={activeWorktreeId}
-          onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
+          focusedWorktreeId={focusedWorktreeId}
+          config={config}
+          onSelectResult={handleFuzzySearchResult}
+          onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
+          onQueryChange={setFuzzySearchQuery}
         />
-      )}
-      {isRecentActivityOpen && (
-        <RecentActivityPanel
-          visible={isRecentActivityOpen}
-          events={recentEvents}
-          onClose={() => events.emit('ui:modal:close', { id: 'recent-activity' })}
-          onSelectPath={handleSelectActivityPath}
-        />
-      )}
-      <HelpModal
-        visible={showHelpModal}
-        onClose={() => events.emit('ui:modal:close', { id: 'help' })}
-      />
-      <FuzzySearchModal
-        visible={isFuzzySearchOpen}
-        searchQuery={fuzzySearchQuery}
-        worktrees={worktreesWithStatus}
-        focusedWorktreeId={focusedWorktreeId}
-        config={config}
-        onSelectResult={handleFuzzySearchResult}
-        onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
-        onQueryChange={setFuzzySearchQuery}
-      />
-    </Box>
+        {notifications.length > 0 && (
+          <Box flexDirection="column" width="100%" marginBottom={1}>
+            {notifications.map((notification, index) => (
+              <Notification
+                key={notification.id}
+                notification={notification}
+                onDismiss={handleDismissNotification}
+                isActive={index === notifications.length - 1}
+              />
+            ))}
+          </Box>
+        )}
+        {showStatusBar && (
+          <StatusBar
+            fileCount={fileCount}
+            modifiedCount={modifiedCount}
+            filterQuery={filterActive ? filterQuery : null}
+            filterGitStatus={null}
+            activeRootPath={activeRootPath}
+            commandMode={commandMode}
+            worktreeChanges={worktreeChanges}
+            focusedWorktreeId={focusedWorktreeId}
+            worktrees={worktreesWithStatus}
+            showCommandInput={false}
+          />
+        )}
+      </Box>
     </ThemeProvider>
   );
 };

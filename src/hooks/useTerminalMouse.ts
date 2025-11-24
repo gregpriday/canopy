@@ -17,13 +17,28 @@ export function useTerminalMouse({ enabled, onMouse }: UseTerminalMouseProps) {
     setRawMode?.(true);
 
     // 2. Enable Mouse Reporting (Click events + SGR format)
-    process.stdout.write('\x1b[?1000h\x1b[?1006h');
+    // 1000: basic click reporting
+    // 1002: button-event tracking (drag/button move) - broader compatibility
+    // 1006: SGR extended coordinates
+    process.stdout.write('\x1b[?1000h\x1b[?1002h\x1b[?1006h');
 
     const handleData = (data: Buffer) => {
       const text = data.toString();
+
+      if (process.env.CANOPY_DEBUG_MOUSE) {
+        // eslint-disable-next-line no-console
+        console.log('[MOUSE DEBUG] Raw:', JSON.stringify(text));
+      }
+
       // Parse all events in the chunk (handles buffering/rapid inputs)
       const events = parseMouseSequences(text);
-      events.forEach(event => onMouse(event));
+      events.forEach(event => {
+        if (process.env.CANOPY_DEBUG_MOUSE) {
+          // eslint-disable-next-line no-console
+          console.log('[MOUSE DEBUG] Parsed:', event);
+        }
+        onMouse(event);
+      });
     };
 
     stdin.on('data', handleData);
@@ -32,7 +47,7 @@ export function useTerminalMouse({ enabled, onMouse }: UseTerminalMouseProps) {
       // Cleanup: Disable mouse reporting
       // We do NOT disable raw mode here, because other components (like useKeyboard)
       // still need it active to detect input (e.g., the second Ctrl+C).
-      process.stdout.write('\x1b[?1000l\x1b[?1006l');
+      process.stdout.write('\x1b[?1006l\x1b[?1002l\x1b[?1000l');
       stdin.off('data', handleData);
     };
   }, [enabled, stdin, setRawMode, onMouse]);

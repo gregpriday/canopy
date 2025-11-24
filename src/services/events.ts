@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { NotificationType } from '../types/index.js';
+import type { NotificationPayload } from '../types/index.js';
 
 export type ModalId =
   | 'help'
@@ -29,11 +29,6 @@ export interface CopyTreePayload {
 
 export interface CopyPathPayload {
   path: string;
-}
-
-export interface NotifyPayload {
-  type: NotificationType;
-  message: string;
 }
 
 // Navigation Payloads
@@ -96,7 +91,7 @@ export type CanopyEventMap = {
   'file:copy-tree': CopyTreePayload;
   'file:copy-path': CopyPathPayload;
 
-  'ui:notify': NotifyPayload;
+  'ui:notify': NotificationPayload;
   'ui:command:open': { initialInput?: string };
   'ui:command:submit': { input: string };
   'ui:filter:set': { query: string };

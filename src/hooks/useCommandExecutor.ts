@@ -4,7 +4,7 @@ import open from 'open';
 import clipboardy from 'clipboardy';
 import type { CommandServices } from '../commands/types.js';
 import { getCommand, loadCoreCommands } from '../commands/registry.js';
-import type { Notification, TreeNode } from '../types/index.js';
+import type { NotificationPayload, TreeNode } from '../types/index.js';
 import { events } from '../services/events.js'; // Import event bus
 
 // Ensure core commands are loaded
@@ -39,7 +39,7 @@ export function useCommandExecutor(params: ExecutorParams) {
     const services: CommandServices = {
       ui: {
         // Adapter: service calls events.emit
-        notify: (n: Notification) => events.emit('ui:notify', n),
+        notify: (n: NotificationPayload) => events.emit('ui:notify', n),
         refresh: refreshTree,
         exit: exitApp,
       },
