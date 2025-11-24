@@ -278,7 +278,55 @@ export async function getWorktreeChangesWithStats(
     const diffStats = parseNumstat(diffOutput, gitRoot);
     const changesMap = new Map<string, FileChangeDetail>();
 
-    const addChange = (pathFragment: string, statusValue: GitStatus) => {
+    /**
+     * Helper to count lines in a file by reading from filesystem.
+     * Used for untracked files where git diff doesn't provide stats.
+     * Counts newline characters to match git diff --numstat behavior.
+     */
+    const countFileLines = async (filePath: string): Promise<number | null> => {
+      try {
+        // Read as buffer first to detect binary files
+        const buffer = await fs.readFile(filePath);
+
+        // Check for binary content (presence of NUL bytes in first 8KB)
+        const sampleSize = Math.min(buffer.length, 8192);
+        for (let i = 0; i < sampleSize; i++) {
+          if (buffer[i] === 0) {
+            // Binary file detected - return null
+            return null;
+          }
+        }
+
+        // Convert to string and count newlines
+        const content = buffer.toString('utf-8');
+
+        // Empty file = 0 lines
+        if (content.length === 0) {
+          return 0;
+        }
+
+        // Count newline characters (matches git diff --numstat)
+        let lineCount = 0;
+        for (let i = 0; i < content.length; i++) {
+          if (content[i] === '\n') {
+            lineCount++;
+          }
+        }
+
+        // If file doesn't end with newline, add 1 for the final line
+        if (content[content.length - 1] !== '\n') {
+          lineCount++;
+        }
+
+        return lineCount;
+      } catch (error) {
+        // File may be unreadable, or deleted between status check and read
+        // Fall back to null to indicate we couldn't determine line count
+        return null;
+      }
+    };
+
+    const addChange = async (pathFragment: string, statusValue: GitStatus) => {
       const absolutePath = resolve(gitRoot, pathFragment);
       const existing = changesMap.get(absolutePath);
       if (existing) {
@@ -286,8 +334,17 @@ export async function getWorktreeChangesWithStats(
       }
 
       const statsForFile = diffStats.get(absolutePath);
-      const insertions = statsForFile?.insertions ?? (statusValue === 'untracked' ? null : 0);
-      const deletions = statsForFile?.deletions ?? (statusValue === 'untracked' ? null : 0);
+      let insertions: number | null;
+      let deletions: number | null;
+
+      // For untracked files without diff stats, read from filesystem to get line count
+      if (statusValue === 'untracked' && !statsForFile) {
+        insertions = await countFileLines(absolutePath);
+        deletions = null; // Untracked files have no deletions
+      } else {
+        insertions = statsForFile?.insertions ?? (statusValue === 'untracked' ? null : 0);
+        deletions = statsForFile?.deletions ?? (statusValue === 'untracked' ? null : 0);
+      }
 
       changesMap.set(absolutePath, {
         path: absolutePath,
@@ -297,38 +354,39 @@ export async function getWorktreeChangesWithStats(
       });
     };
 
-    // Modified files (staged or unstaged)
+    // Process tracked files sequentially (no filesystem reads needed)
     for (const file of status.modified) {
-      addChange(file, 'modified');
+      await addChange(file, 'modified');
     }
 
-    // Renamed files
     for (const file of status.renamed) {
       if (typeof file !== 'string' && file.to) {
-        addChange(file.to, 'renamed');
+        await addChange(file.to, 'renamed');
       }
     }
 
-    // Added files
     for (const file of status.created) {
-      addChange(file, 'added');
+      await addChange(file, 'added');
     }
 
-    // Deleted files
     for (const file of status.deleted) {
-      addChange(file, 'deleted');
+      await addChange(file, 'deleted');
     }
 
-    // Untracked files
-    for (const file of status.not_added) {
-      addChange(file, 'untracked');
-    }
-
-    // Conflicted files (treat as modified)
     if (status.conflicted) {
       for (const file of status.conflicted) {
-        addChange(file, 'modified');
+        await addChange(file, 'modified');
       }
+    }
+
+    // Process untracked files in parallel with bounded concurrency (max 10 at once)
+    // to avoid blocking on filesystem reads while preventing memory issues
+    const untrackedFiles = status.not_added;
+    const concurrencyLimit = 10;
+
+    for (let i = 0; i < untrackedFiles.length; i += concurrencyLimit) {
+      const batch = untrackedFiles.slice(i, i + concurrencyLimit);
+      await Promise.all(batch.map(file => addChange(file, 'untracked')));
     }
 
     // Backfill any files that appear in diff stats but not in status
