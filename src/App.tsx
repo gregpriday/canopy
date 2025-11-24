@@ -10,7 +10,7 @@ import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, SystemServices } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, SystemServices, WorktreeChanges } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
@@ -25,12 +25,12 @@ import { useWatcher } from './hooks/useWatcher.js';
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
-import { useWorktreeSummaries } from './hooks/useWorktreeSummaries.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { useRecentActivity } from './hooks/useRecentActivity.js';
-import { useMultiWorktreeStatus } from './hooks/useMultiWorktreeStatus.js';
 import { RecentActivityPanel } from './components/RecentActivityPanel.js';
 import { useActivity } from './hooks/useActivity.js';
+import { worktreeService } from './services/monitor/index.js';
+import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
@@ -164,21 +164,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setLastCopyProfile(initialCopyProfile || 'default');
   }, [initialCopyProfile]);
 
-  const {
-    worktreeChanges,
-    clear: clearWorktreeStatuses,
-  } = useMultiWorktreeStatus(
-    worktrees,
-    activeWorktreeId,
-    !noGit && config.showGitStatus
-  );
+  // Use the new WorktreeMonitor system
+  const worktreeStates = useWorktreeMonitor();
+  const enrichedWorktrees = worktreeStatesToArray(worktreeStates);
 
-  // Enrich worktrees with AI-generated summaries
-  const enrichedWorktrees = useWorktreeSummaries(
-    worktrees,
-    'main',
-    worktreeChanges
-  );
+  // Build worktreeChanges map for backward compatibility
+  const worktreeChanges = useMemo(() => {
+    const map = new Map<string, WorktreeChanges>();
+    for (const state of worktreeStates.values()) {
+      if (state.worktreeChanges) {
+        map.set(state.id, state.worktreeChanges);
+      }
+    }
+    return map;
+  }, [worktreeStates]);
 
   // Mutable initial selection state for session restoration during worktree switches
   const [initialSelection, setInitialSelection] = useState<{
@@ -336,12 +335,33 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [activeWorktreeId, focusedWorktreeId, sortedWorktrees]);
 
+  // Initialize WorktreeService when worktrees are ready
+  useEffect(() => {
+    if (lifecycleStatus !== 'ready' || worktrees.length === 0) {
+      return;
+    }
+
+    // Sync the service with current worktrees
+    void worktreeService.sync(
+      worktrees,
+      activeWorktreeId,
+      'main', // mainBranch - could be made configurable
+      !noWatch
+    );
+
+    // Clean up on unmount
+    return () => {
+      void worktreeService.stopAll();
+    };
+  }, [worktrees, activeWorktreeId, lifecycleStatus, noWatch]);
+
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
   // Listen for sys:refresh events
   useEffect(() => {
     return events.on('sys:refresh', () => {
       refreshGitStatus(); // Refresh git status
+      void worktreeService.refresh(); // Refresh all worktree monitors
       // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
     });
   }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
@@ -818,7 +838,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setFilterActive(false);
       setFilterQuery('');
       clearGitStatus();
-      clearWorktreeStatuses();
+      // Note: WorktreeService handles its own state refresh
       clearEvents(); // Clear activity buffer for new worktree
 
       // 6. Notify user of success
@@ -842,7 +862,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, clearEvents, clearGitStatus, clearWorktreeStatuses, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
+  }, [activeWorktreeId, clearEvents, clearGitStatus, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {

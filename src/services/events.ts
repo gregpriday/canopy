@@ -1,5 +1,6 @@
 import { EventEmitter } from 'events';
 import type { NotificationPayload } from '../types/index.js';
+import type { WorktreeState } from './monitor/index.js';
 
 export type ModalId =
   | 'help'
@@ -100,6 +101,7 @@ export type CanopyEventMap = {
   'sys:worktree:refresh': void;
   'sys:worktree:cycle': WorktreeCyclePayload;
   'sys:worktree:selectByName': WorktreeSelectByNamePayload;
+  'sys:worktree:update': WorktreeState;
 
   'watcher:change': WatcherChangePayload;
 };
@@ -109,6 +111,10 @@ class TypedEventBus {
   private bus = new EventEmitter();
 
   private debugEnabled = process.env.CANOPY_DEBUG_EVENTS === '1';
+
+  constructor() {
+    this.bus.setMaxListeners(50);
+  }
 
   // Subscribe
   on<K extends keyof CanopyEventMap>(

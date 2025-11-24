@@ -5,12 +5,12 @@ import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { getBorderColorForMood } from '../utils/moodColors.js';
-import { useTrafficLight } from '../hooks/useTrafficLight.js';
 
 export interface WorktreeCardProps {
   worktree: Worktree;
   changes: WorktreeChanges;
   mood: WorktreeMood;
+  trafficLight: 'green' | 'yellow' | 'gray';
   isFocused: boolean;
   isExpanded: boolean;
   activeRootPath: string;
@@ -190,6 +190,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   worktree,
   changes,
   mood,
+  trafficLight,
   isFocused,
   isExpanded,
   activeRootPath,
@@ -200,17 +201,14 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
 }) => {
   const { palette } = useTheme();
 
-  // Traffic Light System: Show worktree activity status
-  const trafficState = useTrafficLight(changes.latestFileMtime);
-
-  // Map traffic state to palette colors
+  // Map traffic light state to palette colors
   const trafficColor = useMemo(() => {
-    switch (trafficState) {
+    switch (trafficLight) {
       case 'green': return palette.git.added;      // Bright Green (active development)
       case 'yellow': return palette.git.modified;  // Gold/Yellow (agent thinking)
       case 'gray': return palette.text.tertiary;   // Dim Gray (idle/complete)
     }
-  }, [trafficState, palette]);
+  }, [trafficLight, palette]);
 
   const borderColor = getBorderColorForMood(mood);
   const borderStyle = isFocused ? 'double' : 'round';

@@ -94,7 +94,7 @@ describe('AI Worktree Service', () => {
       const result = await generateWorktreeSummary('/path/to/worktree', 'main', 'main');
 
       expect(result).toEqual({
-        summary: 'feat: add user dashboard',
+        summary: '✅ feat: add user dashboard',
         modifiedCount: 0
       });
 

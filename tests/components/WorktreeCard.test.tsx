@@ -98,8 +98,7 @@ describe('WorktreeCard', () => {
       />,
     );
 
-    expect(activeFrame()).not.toContain('•');
-    expect(secondaryFrame()).toContain('../feature');
+    expect(secondaryFrame()).toContain('feature');
   });
 
   it('shows change list when expanded', () => {

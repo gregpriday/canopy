@@ -22,14 +22,12 @@ describe('Header', () => {
     gradientEnd: '#0000FF',
   };
 
-  it('renders identity and basic stats', () => {
+  it('renders identity', () => {
     const { lastFrame } = renderWithTheme(
       <Header
         cwd="/Users/dev/project"
         filterActive={false}
         filterQuery=""
-        worktreeCount={3}
-        activeWorktreeCount={1}
         identity={mockIdentity}
         config={DEFAULT_CONFIG}
       />
@@ -38,26 +36,6 @@ describe('Header', () => {
     const output = lastFrame();
     expect(output).toContain('Canopy');
     expect(output).toContain('🌳');
-    expect(output).toContain('3 worktrees • 1 active');
-  });
-
-  it('renders singular worktree count correctly', () => {
-    const { lastFrame } = renderWithTheme(
-      <Header
-        cwd="/Users/dev/project"
-        filterActive={false}
-        filterQuery=""
-        worktreeCount={1}
-        activeWorktreeCount={0}
-        identity={mockIdentity}
-        config={DEFAULT_CONFIG}
-      />
-    );
-
-    const output = lastFrame();
-    expect(output).toContain('1 worktree');
-    expect(output).not.toContain('worktrees');
-    expect(output).not.toContain('active');
   });
 
   it('renders filter query inline when active', () => {

@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
-import { useWorktreeSummaries } from '../../src/hooks/useWorktreeSummaries.js';
-import * as worktreeService from '../../src/services/ai/worktree.js';
-import * as worktreeMood from '../../src/utils/worktreeMood.js';
+import { renderHook, act, cleanup } from '@testing-library/react';
+import { useWorktreeSummaries } from '../../src/hooks/useWorktreeSummaries.ts';
+import * as worktreeService from '../../src/services/ai/worktree.ts';
+import * as worktreeMood from '../../src/utils/worktreeMood.ts';
 import type { Worktree, WorktreeChanges } from '../../src/types/index.js';
 
 // Mock the heavy service layer
-vi.mock('../../src/services/ai/worktree.js');
-vi.mock('../../src/utils/worktreeMood.js');
+vi.mock('../../src/services/ai/worktree.ts');
+vi.mock('../../src/utils/worktreeMood.ts');
 
 describe('useWorktreeSummaries Hook', () => {
   beforeEach(() => {
@@ -37,6 +37,8 @@ describe('useWorktreeSummaries Hook', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.clearAllTimers();
+    cleanup();
   });
 
   const mockWorktree: Worktree = {
