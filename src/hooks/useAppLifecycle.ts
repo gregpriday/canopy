@@ -7,6 +7,32 @@ import { events } from '../services/events.js';
 import type { CanopyConfig, Worktree, Notification, NotificationPayload } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
+// Ensure we only update worktrees state when the underlying list actually changes
+const areWorktreesEqual = (a: Worktree[], b: Worktree[]): boolean => {
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  const mapA = new Map(a.map(wt => [wt.id, wt]));
+
+  for (const wt of b) {
+    const match = mapA.get(wt.id);
+    if (!match) {
+      return false;
+    }
+
+    if (
+      match.path !== wt.path ||
+      match.name !== wt.name ||
+      match.branch !== wt.branch
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 export type LifecycleStatus = 'idle' | 'initializing' | 'ready' | 'error';
 
 export interface LifecycleState {
@@ -271,12 +297,25 @@ export function useAppLifecycle({
           return;
         }
 
-        const activeId = state.activeWorktreeId;
-        const activeStillExists = activeId ? updatedWorktrees.some(wt => wt.id === activeId) : true;
+        let activeStillExists = true;
+        let listChanged = false;
+        let fallbackWorktree: Worktree | null = null;
 
         setState(prev => {
           if (prev.status !== 'ready') {
             return prev;
+          }
+
+          const activeId = prev.activeWorktreeId;
+          activeStillExists = activeId ? updatedWorktrees.some(wt => wt.id === activeId) : true;
+          listChanged = !areWorktreesEqual(prev.worktrees, updatedWorktrees);
+
+          if (!listChanged && activeStillExists) {
+            return prev;
+          }
+
+          if (!activeStillExists && updatedWorktrees.length > 0) {
+            fallbackWorktree = updatedWorktrees[0];
           }
 
           const nextState = {
@@ -294,13 +333,16 @@ export function useAppLifecycle({
           return nextState;
         });
 
+        if (!listChanged && activeStillExists) {
+          return;
+        }
+
         if (!activeStillExists) {
-          if (updatedWorktrees.length > 0) {
-            const fallback = updatedWorktrees[0];
-            events.emit('sys:worktree:switch', { worktreeId: fallback.id });
+          if (fallbackWorktree) {
+            events.emit('sys:worktree:switch', { worktreeId: fallbackWorktree.id });
             events.emit('ui:notify', {
               type: 'warning',
-              message: `Active worktree was deleted. Switching to ${fallback.branch || fallback.name}`,
+              message: `Active worktree was deleted. Switching to ${fallbackWorktree.branch || fallbackWorktree.name}`,
             });
           } else {
             events.emit('ui:notify', {
@@ -342,10 +384,20 @@ export function useAppLifecycle({
           return;
         }
 
-        setState(prev => ({
-          ...prev,
-          worktrees: updatedWorktrees,
-        }));
+        setState(prev => {
+          if (prev.status !== 'ready') {
+            return prev;
+          }
+
+          if (areWorktreesEqual(prev.worktrees, updatedWorktrees)) {
+            return prev;
+          }
+
+          return {
+            ...prev,
+            worktrees: updatedWorktrees,
+          };
+        });
         events.emit('ui:notify', {
           type: 'success',
           message: 'Worktree list refreshed',
