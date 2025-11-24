@@ -336,8 +336,8 @@ export function createFileWatcher(
  * Build ignore patterns from config.
  * Combines customIgnores with standard patterns like node_modules, .git, etc.
  *
- * @param customIgnores - User-defined ignore patterns
- * @returns Array of patterns for chokidar
+ * @param customIgnores - User-defined ignore patterns (may include gitignore negations)
+ * @returns Array of patterns for chokidar (with negations filtered out)
  */
 export function buildIgnorePatterns(customIgnores: string[] = []): string[] {
 	// Base ignored patterns for Chokidar
@@ -353,5 +353,10 @@ export function buildIgnorePatterns(customIgnores: string[] = []): string[] {
 		'**/__pycache__/**',
 	];
 
-	return [...standardIgnores, ...customIgnores];
+	// Filter out gitignore negations (patterns starting with '!')
+	// Chokidar treats '!foo' as "match everything except foo", which would suppress nearly all events
+	// Negations are used in .gitignore to un-ignore files, but we only want positive ignore patterns here
+	const positiveIgnores = customIgnores.filter(pattern => !pattern.startsWith('!'));
+
+	return [...standardIgnores, ...positiveIgnores];
 }
