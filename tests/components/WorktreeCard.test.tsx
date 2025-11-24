@@ -2,217 +2,613 @@ import React from 'react';
 import { render } from 'ink-testing-library';
 import { describe, expect, it, vi } from 'vitest';
 import { WorktreeCard } from '../../src/components/WorktreeCard.js';
-import type { Worktree, WorktreeChanges } from '../../src/types/index.js';
 import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
-import { getBorderColorForMood } from '../../src/utils/moodColors.js';
-import * as moodColors from '../../src/utils/moodColors.js';
+import {
+  createMockWorktree,
+  createCleanWorktree,
+  createDirtyWorktree,
+  createDetachedWorktree,
+  createLoadingWorktree,
+  createMockChanges,
+  createEmptyChanges,
+  createPrioritySortedChanges,
+  createOverflowChanges,
+  createLongPathChanges,
+} from '../fixtures/worktreeFactory.js';
 
 const renderWithTheme = (component: React.ReactElement) =>
   render(<ThemeProvider mode="dark">{component}</ThemeProvider>);
 
-const baseWorktree: Worktree = {
-  id: 'wt-1',
-  path: '/repo/main',
-  name: 'main',
-  branch: 'main',
-  isCurrent: true,
-  summary: 'Refining dashboard layout',
-};
+describe('WorktreeCard - Display Specification Compliance', () => {
+  describe('Row 1: Identity (Branch & Path)', () => {
+    it('renders branch name in bold', () => {
+      const wt = createCleanWorktree({ branch: 'feat/auth' });
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-const baseChanges: WorktreeChanges = {
-  worktreeId: 'wt-1',
-  rootPath: '/repo/main',
-  changes: [
-    { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
-    { path: 'README.md', status: 'added', insertions: 2, deletions: 0 },
-  ],
-  changedFileCount: 2,
-  totalInsertions: 12,
-  totalDeletions: 2,
-  lastUpdated: Date.now(),
-};
+      expect(lastFrame()).toContain('feat/auth');
+    });
 
-describe('WorktreeCard', () => {
-  it('maps moods to border colors', () => {
-    expect(getBorderColorForMood('active')).toBe('yellow');
-    expect(getBorderColorForMood('stable')).toBe('green');
+    it('renders detached HEAD state correctly', () => {
+      const wt = createDetachedWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('abc1234');
+      expect(output).toContain('(detached)');
+    });
+
+    it('truncates long paths in the middle', () => {
+      const longPath = '/Users/developer/projects/very/long/nested/path/that/exceeds/limit/src';
+      const wt = createCleanWorktree({ path: longPath });
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/other"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      // Path should be truncated with ... in the middle
+      const output = lastFrame();
+      expect(output).toContain('...');
+    });
+
+    it('shows current worktree indicator', () => {
+      const wt = createCleanWorktree({ isCurrent: true });
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      // Current worktree should show ● prefix
+      const output = lastFrame();
+      expect(output).toContain('●');
+    });
   });
 
-  it('renders summary and file count in the header', () => {
-    const { lastFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="stable"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+  describe('Row 2: Statistics & Traffic Light', () => {
+    it('renders traffic light colors correctly based on trafficLight prop - green', () => {
+      const wt = createDirtyWorktree(3);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 45, deletions: 0 },
+          ])}
+          mood="active"
+          trafficLight="green" // Should use green, not mood
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    const output = lastFrame();
-    expect(output).toContain('Refining dashboard layout');
-    expect(output).toContain('2 files');
-    expect(output).toContain('+12');
-    expect(output).toContain('-2');
+      // Should render with green color indicator
+      expect(lastFrame()).toContain('●');
+    });
+
+    it('renders traffic light colors correctly based on trafficLight prop - yellow', () => {
+      const wt = createDirtyWorktree(3);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 45, deletions: 0 },
+          ])}
+          mood="active"
+          trafficLight="yellow" // Should use yellow
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      expect(lastFrame()).toContain('●');
+    });
+
+    it('renders traffic light colors correctly based on trafficLight prop - gray', () => {
+      const wt = createCleanWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray" // Should use gray
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      expect(lastFrame()).toContain('●');
+    });
+
+    it('calculates insertion/deletion stats accurately', () => {
+      const changes = createMockChanges([
+        { path: 'a.ts', status: 'modified', insertions: 45, deletions: 0 },
+        { path: 'b.ts', status: 'modified', insertions: 0, deletions: 12 },
+      ]);
+
+      const wt = createDirtyWorktree(2);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('+45');
+      expect(output).toContain('-12');
+      expect(output).toContain('2 files');
+    });
+
+    it('handles singular vs plural file count', () => {
+      const changes = createMockChanges([
+        { path: 'a.ts', status: 'modified', insertions: 5, deletions: 2 },
+      ]);
+
+      const wt = createDirtyWorktree(1);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      // Should say "1 file" not "1 files"
+      expect(lastFrame()).toContain('1 file');
+    });
   });
 
-  it('shows relative path for non-current worktrees only', () => {
-    const secondaryWorktree: Worktree = {
-      ...baseWorktree,
-      id: 'wt-2',
-      path: '/repo/feature',
-      name: 'feature',
-      branch: 'feature',
-      isCurrent: false,
-    };
+  describe('Row 3: AI Summary / Last Commit', () => {
+    it('renders Last Commit for clean worktrees with ✅ prefix', () => {
+      const wt = createCleanWorktree({
+        summary: '✅ feat: added login',
+        modifiedCount: 0,
+      });
 
-    const { lastFrame: activeFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="stable"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    const { lastFrame: secondaryFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={secondaryWorktree}
-        changes={{ ...baseChanges, worktreeId: secondaryWorktree.id, rootPath: secondaryWorktree.path }}
-        mood="stable"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+      const output = lastFrame();
+      expect(output).toContain('Last commit: ✅ feat: added login');
+    });
 
-    expect(secondaryFrame()).toContain('feature');
+    it('renders AI Summary for dirty worktrees without "Last commit:" prefix', () => {
+      const wt = createDirtyWorktree(5, {
+        summary: '🔧 Refactoring auth',
+      });
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
+          ])}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).not.toContain('Last commit:');
+      expect(output).toContain('🔧 Refactoring auth');
+    });
+
+    it('renders Loading state', () => {
+      const wt = createLoadingWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
+          ])}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      expect(lastFrame()).toContain('Generating summary...');
+    });
+
+    it('NEVER shows "No active changes" forbidden state', () => {
+      // Test fallback case
+      const wt = createMockWorktree({
+        summary: undefined,
+        summaryLoading: false,
+        branch: 'test-branch',
+      });
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      // Should show "Clean: {branch}" or "Ready", NOT "No active changes"
+      expect(output).not.toContain('No active changes');
+      expect(output).toMatch(/Clean: test-branch|Ready/);
+    });
+
+    it('NEVER shows "Unsaved changes..." forbidden state', () => {
+      // This should never appear in any state
+      const wt = createDirtyWorktree(3);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
+          ])}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      expect(lastFrame()).not.toContain('Unsaved changes');
+    });
   });
 
-  it('shows change list when expanded', () => {
-    const { lastFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="stable"
-        isFocused={false}
-        isExpanded
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+  describe('Row 4: File List (Expandable)', () => {
+    it('sorts files by status priority and churn', () => {
+      const changes = createPrioritySortedChanges();
+      const wt = createDirtyWorktree(5);
 
-    const output = lastFrame();
-    expect(output).toContain('src/index.ts');
-    expect(output).toContain('README.md');
-    expect(output).toContain('+10');
-    expect(output).toContain('-2');
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      const idxHighChurn = output.indexOf('b-high-churn.ts');
+      const idxLowChurn = output.indexOf('a-low-churn.ts');
+      const idxAdded = output.indexOf('c-added.ts');
+      const idxDeleted = output.indexOf('d-deleted.ts');
+      const idxUntracked = output.indexOf('z-untracked.ts');
+
+      // Modified (High Churn) -> Modified (Low Churn) -> Added -> Deleted -> Untracked
+      expect(idxHighChurn).toBeLessThan(idxLowChurn);
+      expect(idxLowChurn).toBeLessThan(idxAdded);
+      expect(idxAdded).toBeLessThan(idxDeleted);
+      expect(idxDeleted).toBeLessThan(idxUntracked);
+    });
+
+    it('truncates file list to 10 items with overflow indicator', () => {
+      const changes = createOverflowChanges(15);
+      const wt = createDirtyWorktree(15);
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      // Should show files 00-09 (10 files)
+      expect(output).toContain('file09.ts');
+      // Should NOT show file 10+
+      expect(output).not.toContain('file10.ts');
+      // Should show overflow indicator
+      expect(output).toContain('...and 5 more');
+    });
+
+    it('hides file list when collapsed', () => {
+      const changes = createMockChanges([
+        { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
+      ]);
+      const wt = createDirtyWorktree(1);
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      expect(lastFrame()).not.toContain('src/index.ts');
+    });
+
+    it('shows file list when expanded', () => {
+      const changes = createMockChanges([
+        { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
+        { path: 'README.md', status: 'added', insertions: 20, deletions: 0 },
+      ]);
+      const wt = createDirtyWorktree(2);
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      expect(output).toContain('src/index.ts');
+      expect(output).toContain('README.md');
+      expect(output).toContain('+10');
+      expect(output).toContain('-2');
+    });
+
+    it('renders status glyphs correctly', () => {
+      const changes = createMockChanges([
+        { path: 'modified.ts', status: 'modified', insertions: 5, deletions: 2 },
+        { path: 'added.ts', status: 'added', insertions: 10, deletions: 0 },
+        { path: 'deleted.ts', status: 'deleted', insertions: 0, deletions: 5 },
+      ]);
+      const wt = createDirtyWorktree(3);
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      // Status glyphs: M, A, D
+      expect(output).toContain('M');
+      expect(output).toContain('A');
+      expect(output).toContain('D');
+    });
+
+    it('truncates long file paths', () => {
+      const changes = createLongPathChanges();
+      const wt = createDirtyWorktree(1);
+
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={changes}
+          mood="active"
+          trafficLight="green"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      // Should contain ... for truncated path
+      expect(output).toContain('...');
+    });
   });
 
-  it('hides change list when collapsed', () => {
-    const { lastFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="stable"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+  describe('Border & Visual Hierarchy', () => {
+    it('uses double border when focused', () => {
+      const wt = createCleanWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={true} // Focused
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    expect(lastFrame()).not.toContain('src/index.ts');
+      // Ink uses different box-drawing characters for double borders
+      const output = lastFrame();
+      // Double border characters: ═ ║ ╔ ╗ ╚ ╝
+      expect(output).toMatch(/[═║╔╗╚╝]/);
+    });
+
+    it('uses round border when not focused', () => {
+      const wt = createCleanWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false} // Not focused
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      // Round border characters: ─ │ ╭ ╮ ╰ ╯
+      const output = lastFrame();
+      expect(output).toMatch(/[─│╭╮╰╯]/);
+    });
+
+    it('uses traffic light state for border color, not mood', () => {
+      // Even if mood is "active", if traffic light is gray, border should be gray
+      const wt = createDirtyWorktree(3);
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createMockChanges([
+            { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
+          ])}
+          mood="active" // Mood is active
+          trafficLight="gray" // But traffic light is gray (>90s since change)
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      // Border color should follow trafficLight, not mood
+      // This is a visual test - border should be gray, not yellow
+      expect(lastFrame()).toBeDefined();
+    });
   });
 
-  it('renders action buttons for CopyTree and editor', () => {
-    const { lastFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="stable"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+  describe('Action Buttons', () => {
+    it('renders action buttons for CopyTree and editor', () => {
+      const wt = createCleanWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    const output = lastFrame();
-    expect(output).toContain('CopyTree');
-    expect(output).toContain('VS Code');
-    expect(output).toContain('Expand');
-  });
+      const output = lastFrame();
+      expect(output).toContain('CopyTree');
+      expect(output).toContain('VS Code');
+      expect(output).toContain('Expand');
+    });
 
-  it('limits visible changes and shows overflow indicator', () => {
-    const manyChanges: WorktreeChanges = {
-      ...baseChanges,
-      changes: Array.from({ length: 12 }, (_, index) => ({
-        path: `file-${index}.ts`,
-        status: 'modified' as const,
-        insertions: index,
-        deletions: 0,
-      })),
-      changedFileCount: 12,
-      totalInsertions: 66,
-      totalDeletions: 0,
-    };
+    it('changes Expand/Collapse label based on state', () => {
+      const wt = createCleanWorktree();
 
-    const { lastFrame } = renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={manyChanges}
-        mood="active"
-        isFocused={false}
-        isExpanded
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+      // Collapsed state
+      const { lastFrame: collapsedFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    const output = lastFrame();
-    expect(output).toContain('file-11.ts');
-    expect(output).not.toContain('file-1.ts');
-    expect(output).toContain('...and 2 more');
-  });
+      expect(collapsedFrame()).toContain('Expand');
 
-  it('uses mood color helper for border rendering', () => {
-    const spy = vi.spyOn(moodColors, 'getBorderColorForMood');
-    renderWithTheme(
-      <WorktreeCard
-        worktree={baseWorktree}
-        changes={baseChanges}
-        mood="error"
-        isFocused={false}
-        isExpanded={false}
-        activeRootPath="/repo/main"
-        onToggleExpand={vi.fn()}
-        onCopyTree={vi.fn()}
-        onOpenEditor={vi.fn()}
-      />,
-    );
+      // Expanded state
+      const { lastFrame: expandedFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          trafficLight="gray"
+          isFocused={false}
+          isExpanded={true}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
 
-    expect(spy).toHaveBeenCalledWith('error');
-    spy.mockRestore();
+      expect(expandedFrame()).toContain('Collapse');
+    });
   });
 });

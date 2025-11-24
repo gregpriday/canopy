@@ -298,9 +298,14 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       </Text>
     );
   } else {
+    // Fallback for edge cases (initialization, etc.)
+    // Per spec: "No active changes" should NEVER appear
+    const fallbackText = worktree.branch
+      ? `Clean: ${worktree.branch}`
+      : 'Ready';
     SummaryComponent = (
       <Text color={palette.text.tertiary}>
-        No active changes
+        {fallbackText}
       </Text>
     );
   }

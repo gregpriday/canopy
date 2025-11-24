@@ -246,8 +246,15 @@ export class WorktreeMonitor extends EventEmitter {
     this.state.lastActivityTimestamp = Date.now();
     this.state.isActive = true;
 
-    // Set traffic light to green (active)
-    this.setTrafficLight('green');
+    // Set traffic light to green (active) ONLY if batch contains non-deletion events
+    // Per spec: "File deletions currently do NOT trigger traffic light changes"
+    const hasNonDeletionEvents = fileChanges.some(
+      event => event.type !== 'unlink' && event.type !== 'unlinkDir'
+    );
+
+    if (hasNonDeletionEvents) {
+      this.setTrafficLight('green');
+    }
 
     // Emit change event for activity tracking
     for (const event of fileChanges) {
