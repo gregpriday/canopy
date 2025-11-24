@@ -34,8 +34,8 @@ export function useMultiWorktreeStatus(
   const inflightRef = useRef<Map<string, Promise<void>>>(new Map());
   const mountedRef = useRef(true);
 
-  const activeMs = process.env.NODE_ENV === 'test' ? 0 : ACTIVE_WORKTREE_INTERVAL_MS;
-  const backgroundMs = process.env.NODE_ENV === 'test' ? 0 : BACKGROUND_WORKTREE_INTERVAL_MS;
+  const activeMs = ACTIVE_WORKTREE_INTERVAL_MS;
+  const backgroundMs = BACKGROUND_WORKTREE_INTERVAL_MS;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearInterval(timer));

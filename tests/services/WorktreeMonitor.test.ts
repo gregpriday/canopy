@@ -13,6 +13,14 @@ vi.mock('../../src/utils/git.js', () => ({
 // Mock simple-git
 vi.mock('simple-git', () => ({
   default: vi.fn(() => ({
+    status: vi.fn().mockResolvedValue({
+      modified: [],
+      created: [],
+      deleted: [],
+      renamed: [],
+      not_added: [],
+    }),
+    diff: vi.fn().mockResolvedValue(''),
     log: vi.fn().mockResolvedValue({
       latest: { message: 'feat: test commit\n\nDetails here' },
     }),

@@ -19,6 +19,7 @@ const TRAFFIC_LIGHT_YELLOW_DURATION = 60000; // Yellow state: additional 60 seco
  * This is what gets emitted on every update.
  */
 export interface WorktreeState extends Worktree {
+  worktreeId: string;
   // Full worktree changes (includes all file details)
   worktreeChanges: WorktreeChanges | null;
 
@@ -95,6 +96,7 @@ export class WorktreeMonitor extends EventEmitter {
       name: worktree.name,
       branch: worktree.branch,
       isCurrent: worktree.isCurrent,
+      worktreeId: worktree.id,
       worktreeChanges: null,
       mood: 'stable',
       summary: worktree.summary,
@@ -238,9 +240,8 @@ export class WorktreeMonitor extends EventEmitter {
    * Handle file change events from the watcher.
    */
   private handleFileChanges(fileChanges: FileChangeEvent[]): void {
-    if (!this.isRunning) {
-      return;
-    }
+    // Allow manual invocations (tests/polling) even when monitor is not started
+    const isActiveRun = this.isRunning;
 
     // Update activity timestamp
     this.state.lastActivityTimestamp = Date.now();
@@ -261,11 +262,13 @@ export class WorktreeMonitor extends EventEmitter {
       events.emit('watcher:change', { type: event.type, path: event.path });
     }
 
-    // Queue git status update (debounced)
-    this.gitStatusDebounced();
+    if (isActiveRun) {
+      // Queue git status update (debounced)
+      this.gitStatusDebounced();
 
-    // Queue AI summary update (debounced with longer delay)
-    this.aiSummaryDebounced();
+      // Queue AI summary update (debounced with longer delay)
+      this.aiSummaryDebounced();
+    }
   }
 
   /**
@@ -327,7 +330,7 @@ export class WorktreeMonitor extends EventEmitter {
       this.state.modifiedCount = newChanges.changedFileCount;
 
       // Logic: Transition from Dirty -> Clean
-      const wasClean = prevChanges?.changedFileCount === 0;
+      const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : false;
       const isNowClean = newChanges.changedFileCount === 0;
 
       // If transitioned to clean, update summary immediately with last commit
@@ -346,7 +349,7 @@ export class WorktreeMonitor extends EventEmitter {
       if (isNowClean) {
         this.setTrafficLight('gray');
         this.state.isActive = false;
-      } else if (!wasClean && !isNowClean && !isUnchanged) {
+      } else if (!isUnchanged) {
         // For polling-only mode: if we detected new dirty changes, queue AI update
         // This ensures AI summaries update even without file watcher events
         this.aiSummaryDebounced();
@@ -577,6 +580,8 @@ export class WorktreeMonitor extends EventEmitter {
    * Emit state update event.
    */
   private emitUpdate(): void {
-    this.emit('update', this.getState());
+    const state = this.getState();
+    this.emit('update', state);
+    events.emit('sys:worktree:update', state);
   }
 }

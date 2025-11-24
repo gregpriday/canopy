@@ -130,6 +130,15 @@ class TypedEventBus {
     };
   }
 
+  off<K extends keyof CanopyEventMap>(
+    event: K,
+    listener: CanopyEventMap[K] extends void
+      ? () => void
+      : (payload: CanopyEventMap[K]) => void
+  ) {
+    this.bus.off(event, listener as (...args: any[]) => void);
+  }
+
   // Publish
   emit<K extends keyof CanopyEventMap>(
     event: K,

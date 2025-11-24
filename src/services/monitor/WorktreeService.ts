@@ -1,6 +1,5 @@
 import { WorktreeMonitor, type WorktreeState } from './WorktreeMonitor.js';
 import type { Worktree } from '../../types/index.js';
-import { events } from '../events.js';
 import { logInfo, logWarn } from '../../utils/logger.js';
 
 const ACTIVE_WORKTREE_INTERVAL_MS = 1500; // 1.5s for active worktree
@@ -80,12 +79,6 @@ class WorktreeService {
           : BACKGROUND_WORKTREE_INTERVAL_MS;
 
         monitor.setPollingInterval(interval);
-
-        // Wire up event forwarding to global event bus
-        monitor.on('update', (state: WorktreeState) => {
-          // Re-emit as a global system event that React can listen to
-          events.emit('sys:worktree:update', state);
-        });
 
         // Start monitoring
         await monitor.start();
