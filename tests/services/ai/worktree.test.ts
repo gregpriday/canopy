@@ -38,7 +38,7 @@ describe('generateWorktreeSummary', () => {
 
     // Assertions
     expect(result).toEqual({
-      summary: '💾 feat: implementing critical fix',
+      summary: '✅ feat: implementing critical fix',
       modifiedCount: 0,
     });
 

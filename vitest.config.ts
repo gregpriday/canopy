@@ -5,5 +5,11 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     globals: true,
+    poolOptions: {
+      threads: {
+        minThreads: 1,
+        maxThreads: 1,
+      },
+    },
   },
 });

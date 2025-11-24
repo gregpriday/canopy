@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
-import { useMultiWorktreeStatus } from '../../src/hooks/useMultiWorktreeStatus.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { renderHook, act, waitFor, cleanup } from '@testing-library/react';
+import { useMultiWorktreeStatus } from '../../src/hooks/useMultiWorktreeStatus.ts';
 import * as gitUtils from '../../src/utils/git.js';
 import type { Worktree } from '../../src/types/index.js';
 
@@ -10,6 +10,11 @@ vi.mock('../../src/utils/git.js');
 describe('useMultiWorktreeStatus Stability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    cleanup();
   });
 
   const mockWorktree: Worktree = {

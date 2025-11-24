@@ -52,7 +52,7 @@ describe('buildCopyTreeRequest', () => {
     expect(result?.profile).toBe('minimal');
     expect(result?.payload.rootPath).toBe('/repo/main');
     expect(result?.payload.profile).toBe('minimal');
-    expect(result?.payload.files).toBeUndefined();
+    expect(result?.payload.files).toEqual(['.']);
   });
 
   it('returns null when worktree cannot be resolved', () => {

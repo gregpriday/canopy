@@ -153,24 +153,9 @@ export async function generateWorktreeSummary(
       return null;
     }
 
-    // Skip trivial changes (1 file with < 5 total changes) - only if we have detailed change stats
-    if (changesForThisWorktree && modifiedCount === 1) {
-      const totalChanges = (changesForThisWorktree.totalInsertions ?? 0) + (changesForThisWorktree.totalDeletions ?? 0);
-      if (totalChanges > 0 && totalChanges < 5) {
-        const singleFile = [...createdFiles, ...modifiedFiles, ...deletedFiles][0];
-        const ext = singleFile ? path.extname(singleFile) : '';
-        let summaryText = '📝 Minor tweak';
-        if (ext === '.json' || ext === '.yaml' || ext === '.yml' || ext === '.toml') {
-          summaryText = '⚙️ Small config edit';
-        } else if (ext === '.md' || ext === '.txt') {
-          summaryText = '📄 Trivial doc change';
-        }
-        return {
-          summary: summaryText,
-          modifiedCount
-        };
-      }
-    }
+    // Note: We used to skip "trivial" single-file changes, but users want AI summaries
+    // for ALL non-empty file changes, regardless of size. The mechanical summary
+    // logic below (for truly empty diffs) still applies.
 
     // Expanded noise filtering
     const IGNORED_PATTERNS = [

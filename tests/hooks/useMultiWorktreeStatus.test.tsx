@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
-import { useMultiWorktreeStatus } from '../../src/hooks/useMultiWorktreeStatus.js';
+import { renderHook, waitFor, cleanup } from '@testing-library/react';
+import { useMultiWorktreeStatus } from '../../src/hooks/useMultiWorktreeStatus.ts';
 import type { Worktree } from '../../src/types/index.js';
 import * as gitUtils from '../../src/utils/git.js';
 
@@ -27,6 +27,8 @@ describe('useMultiWorktreeStatus', () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+		vi.clearAllTimers();
+		cleanup();
 	});
 
 	it('polls active worktree faster than background and aggregates changes', async () => {

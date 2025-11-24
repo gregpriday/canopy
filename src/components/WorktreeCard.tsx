@@ -4,13 +4,12 @@ import path from 'node:path';
 import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
-import { getBorderColorForMood } from '../utils/moodColors.js';
-import { useTrafficLight } from '../hooks/useTrafficLight.js';
 
 export interface WorktreeCardProps {
   worktree: Worktree;
   changes: WorktreeChanges;
   mood: WorktreeMood;
+  trafficLight: 'green' | 'yellow' | 'gray';
   isFocused: boolean;
   isExpanded: boolean;
   activeRootPath: string;
@@ -190,6 +189,7 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   worktree,
   changes,
   mood,
+  trafficLight,
   isFocused,
   isExpanded,
   activeRootPath,
@@ -200,19 +200,28 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
 }) => {
   const { palette } = useTheme();
 
-  // Traffic Light System: Show worktree activity status
-  const trafficState = useTrafficLight(changes.latestFileMtime);
-
-  // Map traffic state to palette colors
+  // Map traffic light state to palette colors
   const trafficColor = useMemo(() => {
-    switch (trafficState) {
+    switch (trafficLight) {
       case 'green': return palette.git.added;      // Bright Green (active development)
       case 'yellow': return palette.git.modified;  // Gold/Yellow (agent thinking)
       case 'gray': return palette.text.tertiary;   // Dim Gray (idle/complete)
     }
-  }, [trafficState, palette]);
+  }, [trafficLight, palette]);
 
-  const borderColor = getBorderColorForMood(mood);
+  // Use traffic light for border color (spec requirement)
+  const borderColor = useMemo(() => {
+    switch (trafficLight) {
+      case 'green':
+        return palette.git.added; // Green for recent activity (0-30s)
+      case 'yellow':
+        return palette.git.modified; // Yellow for cooling down (30-90s)
+      case 'gray':
+      default:
+        return palette.chrome.border; // Gray for idle (>90s)
+    }
+  }, [trafficLight, palette]);
+
   const borderStyle = isFocused ? 'double' : 'round';
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
@@ -289,9 +298,14 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
       </Text>
     );
   } else {
+    // Fallback for edge cases (initialization, etc.)
+    // Per spec: "No active changes" should NEVER appear
+    const fallbackText = worktree.branch
+      ? `Clean: ${worktree.branch}`
+      : 'Ready';
     SummaryComponent = (
       <Text color={palette.text.tertiary}>
-        No active changes
+        {fallbackText}
       </Text>
     );
   }

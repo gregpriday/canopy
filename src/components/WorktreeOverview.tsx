@@ -135,6 +135,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             worktree={worktree}
             changes={changes}
             mood={worktree.mood ?? 'stable'}
+            trafficLight={worktree.trafficLight ?? 'gray'}
             isFocused={worktree.id === focusedWorktreeId}
             isExpanded={expandedWorktreeIds.has(worktree.id)}
             activeRootPath={activeRootPath}
