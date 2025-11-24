@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
+import { getExplorerLabel } from './components/WorktreeCard.js';
 import { TreeView } from './components/TreeView.js';
 import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
@@ -476,6 +477,22 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       events.emit('ui:notify', { type: 'error', message });
     }
   }, [effectiveConfig, sortedWorktrees]);
+
+  const handleOpenWorktreeExplorer = useCallback(async (id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
+      return;
+    }
+
+    try {
+      await open(target.path);
+      const label = getExplorerLabel();
+      events.emit('ui:notify', { type: 'success', message: `Opened in ${label}` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open folder';
+      events.emit('ui:notify', { type: 'error', message });
+    }
+  }, [sortedWorktrees]);
 
   const handleOpenGitFox = useCallback(async () => {
     try {
@@ -1227,6 +1244,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
               onToggleExpand={handleToggleExpandWorktree}
               onCopyTree={handleCopyTreeForWorktree}
               onOpenEditor={handleOpenWorktreeEditor}
+              onOpenExplorer={handleOpenWorktreeExplorer}
             />
           ) : (
             <TreeView

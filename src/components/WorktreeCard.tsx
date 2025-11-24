@@ -5,6 +5,17 @@ import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 
+/**
+ * Get OS-specific file manager label
+ * @returns Label for the current platform's file manager
+ */
+export function getExplorerLabel(): string {
+  const platform = process.platform;
+  if (platform === 'darwin') return 'Finder';
+  if (platform === 'win32') return 'Explorer';
+  return 'Folder'; // Linux/Unix fallback
+}
+
 export interface WorktreeCardProps {
   worktree: Worktree;
   changes: WorktreeChanges;
@@ -16,6 +27,7 @@ export interface WorktreeCardProps {
   onToggleExpand: () => void;
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
+  onOpenExplorer?: () => void;
   registerClickRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
@@ -196,9 +208,13 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
+  onOpenExplorer,
   registerClickRegion,
 }) => {
   const { palette } = useTheme();
+
+  // Memoize explorer label for performance
+  const explorerLabel = useMemo(() => getExplorerLabel(), []);
 
   // Map traffic light state to palette colors
   const trafficColor = useMemo(() => {
@@ -399,6 +415,13 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
           registerRegion={registerClickRegion}
         />
         <Box gap={1}>
+          <ActionButton
+            id={`${worktree.id}-explorer`}
+            label={explorerLabel}
+            color={palette.text.secondary}
+            onPress={onOpenExplorer}
+            registerRegion={registerClickRegion}
+          />
           <ActionButton
             id={`${worktree.id}-copytree`}
             label="CopyTree"

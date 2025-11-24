@@ -16,6 +16,7 @@ export interface WorktreeOverviewProps {
   onToggleExpand: (id: string) => void;
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
+  onOpenExplorer: (id: string) => void;
 }
 
 const MOOD_PRIORITY: Record<WorktreeMood, number> = {
@@ -77,6 +78,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
+  onOpenExplorer,
 }) => {
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
   const start = Math.max(0, visibleStart ?? 0);
@@ -140,9 +142,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             isExpanded={expandedWorktreeIds.has(worktree.id)}
             activeRootPath={activeRootPath}
             onToggleExpand={() => onToggleExpand(worktree.id)}
-            // Future interactive actions
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
+            onOpenExplorer={() => onOpenExplorer(worktree.id)}
             registerClickRegion={registerClickRegion}
           />
         );
