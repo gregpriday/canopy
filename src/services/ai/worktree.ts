@@ -91,12 +91,14 @@ function normalizeSummary(text: string): string {
  * @param worktreePath - Absolute path to worktree
  * @param branchName - Branch name (used for context)
  * @param mainBranch - Main branch to compare against (typically 'main' or 'master')
+ * @param changesForThisWorktree - Optional WorktreeChanges with file-level details for smarter prioritization
  * @returns Summary and modified file count, or null if AI client is unavailable
  */
 export async function generateWorktreeSummary(
   worktreePath: string,
   branchName: string | undefined,
-  mainBranch: string = 'main'
+  mainBranch: string = 'main',
+  changesForThisWorktree?: import('../../types/index.js').WorktreeChanges
 ): Promise<WorktreeSummary | null> {
   const git = simpleGit(worktreePath);
   let modifiedCount = 0;
@@ -149,79 +151,213 @@ export async function generateWorktreeSummary(
       return null;
     }
 
-    // Start with deleted files (minimal info)
-    if (deletedFiles.length > 0) {
-      promptContext += deletedFiles.map(f => `Deleted: ${f}`).join('\n') + '\n\n';
+    // Skip trivial changes (1 file with < 5 total changes) - only if we have detailed change stats
+    if (changesForThisWorktree && modifiedCount === 1) {
+      const totalChanges = (changesForThisWorktree.totalInsertions ?? 0) + (changesForThisWorktree.totalDeletions ?? 0);
+      if (totalChanges > 0 && totalChanges < 5) {
+        const singleFile = [...createdFiles, ...modifiedFiles, ...deletedFiles][0];
+        const ext = singleFile ? path.extname(singleFile) : '';
+        let summaryText = '📝 Minor tweak';
+        if (ext === '.json' || ext === '.yaml' || ext === '.yml' || ext === '.toml') {
+          summaryText = '⚙️ Small config edit';
+        } else if (ext === '.md' || ext === '.txt') {
+          summaryText = '📄 Trivial doc change';
+        }
+        return {
+          summary: summaryText,
+          modifiedCount
+        };
+      }
     }
 
-    if (renamedFiles.length > 0) {
-      promptContext += renamedFiles.map(r => `Renamed: ${r}`).join('\n') + '\n\n';
-    }
-
-    // Step 1: Aggressive noise filtering
+    // Expanded noise filtering
     const IGNORED_PATTERNS = [
       /package-lock\.json$/,
       /yarn\.lock$/,
       /pnpm-lock\.yaml$/,
       /\.map$/,
       /\.svg$/, /\.png$/, /\.ico$/, /\.jpg$/, /\.jpeg$/,
-      /^dist\//, /^build\//, /^\.next\//
+      /^dist\//, /^build\//, /^\.next\//,
+      /\.log$/, /\.tmp$/,
+      /^coverage\//, /^\.nyc_output\//,
+      /__snapshots__\//, /\.snap$/,
+      /^vendor\//, /^generated\//,
+      /\.lock\.db$/, /\.sqlite$/
     ];
 
     const isHighValue = (file: string) => !IGNORED_PATTERNS.some(p => p.test(file));
-    const filesForDiff = Array.from(new Set([...createdFiles, ...modifiedFiles, ...renamedTargets]))
-      .filter(isHighValue);
 
-    // Step 4: Smart context budgeting - sort by importance
-    filesForDiff.sort((a, b) => {
-      const aScore = (a.startsWith('src/') ? 0 : 1) + a.length * 0.01;
-      const bScore = (b.startsWith('src/') ? 0 : 1) + b.length * 0.01;
-      return aScore - bScore;
-    });
+    // Build scored file list from changesForThisWorktree if available
+    interface ScoredFile {
+      path: string;
+      relPath: string;
+      score: number;
+      isNew: boolean;
+      status: string;
+      insertions: number;
+      deletions: number;
+      mtimeMs: number;
+    }
 
-    const CHAR_LIMIT = 1500; // Strict token budget
-    let currentLength = 0;
+    const scoredFiles: ScoredFile[] = [];
+    const now = Date.now();
 
-    for (const file of filesForDiff) {
-      if (currentLength >= CHAR_LIMIT) break;
+    if (changesForThisWorktree) {
+      // Use detailed change data with scoring
+      for (const change of changesForThisWorktree.changes) {
+        const relPath = path.relative(worktreePath, change.path);
+        if (!isHighValue(relPath)) continue;
+
+        const isSrc = relPath.startsWith('src/');
+        const isTest = /(__tests__|\.test\.|\.spec\.)/.test(relPath);
+        const isDoc = /README|docs?\//i.test(relPath);
+
+        const typeWeight =
+          isSrc ? 1.0 :
+          isTest ? 0.9 :
+          isDoc ? 0.8 :
+          0.7;
+
+        const absChanges = (change.insertions ?? 0) + (change.deletions ?? 0);
+        const magnitudeScore = Math.log2(1 + absChanges); // saturates
+
+        const ageMs = change.mtimeMs ? now - change.mtimeMs : Number.MAX_SAFE_INTEGER;
+        const recencyScore =
+          ageMs < 5 * 60_000 ? 2.0 :      // < 5 min
+          ageMs < 60 * 60_000 ? 1.0 :     // < 1 hour
+          ageMs < 24 * 60 * 60_000 ? 0.5  // < 1 day
+          : 0.25;
+
+        const score = 3 * recencyScore + 2 * magnitudeScore + 1 * typeWeight;
+
+        scoredFiles.push({
+          path: change.path,
+          relPath,
+          score,
+          isNew: change.status === 'added' || change.status === 'untracked',
+          status: change.status,
+          insertions: change.insertions ?? 0,
+          deletions: change.deletions ?? 0,
+          mtimeMs: change.mtimeMs ?? 0
+        });
+      }
+    } else {
+      // Fallback to simple git status (no detailed stats)
+      const allFiles = Array.from(new Set([...createdFiles, ...modifiedFiles, ...renamedTargets]));
+      for (const file of allFiles) {
+        if (!isHighValue(file)) continue;
+        const isSrc = file.startsWith('src/');
+        const typeWeight = isSrc ? 1.0 : 0.7;
+        scoredFiles.push({
+          path: path.join(worktreePath, file),
+          relPath: file,
+          score: typeWeight,
+          isNew: createdFiles.includes(file),
+          status: createdFiles.includes(file) ? 'added' : 'modified',
+          insertions: 0,
+          deletions: 0,
+          mtimeMs: 0
+        });
+      }
+    }
+
+    // Sort by score descending
+    scoredFiles.sort((a, b) => b.score - a.score);
+
+    // Tiered context: Tier 1 (top 3-5 files with rich diffs), Tier 2 (next 5-10 with light summaries)
+    const TIER_1_COUNT = scoredFiles.length <= 3 ? scoredFiles.length : Math.min(5, scoredFiles.length);
+    const TIER_2_COUNT = Math.min(10, scoredFiles.length - TIER_1_COUNT);
+    const tier1Files = scoredFiles.slice(0, TIER_1_COUNT);
+    const tier2Files = scoredFiles.slice(TIER_1_COUNT, TIER_1_COUNT + TIER_2_COUNT);
+
+    // Budgets
+    const META_BUDGET = 500;
+    const DIFF_BUDGET = 1000;
+    let metaLength = 0;
+    let diffLength = 0;
+
+    // Start with deleted files (metadata)
+    if (deletedFiles.length > 0) {
+      const deletedLines = deletedFiles.map(f => `deleted: ${f}`).join('\n') + '\n';
+      if (metaLength + deletedLines.length <= META_BUDGET) {
+        promptContext += deletedLines;
+        metaLength += deletedLines.length;
+      }
+    }
+
+    if (renamedFiles.length > 0) {
+      const renamedLines = renamedFiles.map(r => `renamed: ${r}`).join('\n') + '\n';
+      if (metaLength + renamedLines.length <= META_BUDGET) {
+        promptContext += renamedLines;
+        metaLength += renamedLines.length;
+      }
+    }
+
+    // Tier 2: Light summaries (metadata budget)
+    for (const file of tier2Files) {
+      if (metaLength >= META_BUDGET) break;
+      const ins = file.insertions > 0 ? `+${file.insertions}` : '';
+      const del = file.deletions > 0 ? `-${file.deletions}` : '';
+      const changes = ins && del ? `${ins}/${del}` : ins || del || '';
+      const line = `${file.status}: ${file.relPath}${changes ? ` (${changes})` : ''}\n`;
+      if (metaLength + line.length <= META_BUDGET) {
+        promptContext += line;
+        metaLength += line.length;
+      }
+    }
+
+    // Tier 1: Rich diffs (diff budget)
+    for (const file of tier1Files) {
+      if (diffLength >= DIFF_BUDGET) break;
 
       try {
-        const isNewFile = createdFiles.includes(file);
         let diff = '';
 
-        if (isNewFile) {
-          // Step 3: Skeletonize new files - only extract structural definitions
-          const content = await fs.readFile(path.join(worktreePath, file), 'utf8');
+        if (file.isNew) {
+          // Skeletonize new files
+          const content = await fs.readFile(file.path, 'utf8');
           const lines = content.split('\n');
 
           const skeleton = lines
             .filter(line => /^(import|export|class|function|interface|type|const|let|var)\s/.test(line.trim()))
-            .slice(0, 15)
+            .slice(0, 10)
             .join('\n');
 
-          diff = skeleton ? `NEW FILE STRUCTURE:\n${skeleton}` : `NEW FILE: ${file}`;
+          if (!skeleton) continue;
+          diff = `NEW FILE STRUCTURE:\n${skeleton}`;
         } else {
-          // Step 2: Zero-context diffs - only the changed lines
+          // Zero-context diffs with aggressive line filtering
           diff = await git.diff([
-            '--unified=0',           // 0 lines of context (crucial for token savings)
-            '--minimal',             // Smallest diff possible
-            '--ignore-all-space',    // Ignore whitespace-only changes
-            '--ignore-blank-lines',  // Ignore blank line changes
+            '--unified=0',
+            '--minimal',
+            '--ignore-all-space',
+            '--ignore-blank-lines',
             'HEAD',
             '--',
-            file
+            file.relPath
           ]);
         }
 
         const cleanDiff = diff
           .split('\n')
-          .filter(line => !line.startsWith('index ') && !line.startsWith('diff --git'))
+          .filter(line =>
+            !line.startsWith('index ') &&
+            !line.startsWith('diff --git') &&
+            !line.startsWith('@@') &&              // drop hunk headers
+            !/^[+-]\s*(import|from\s+['"])/.test(line) && // drop imports
+            !/^[+-]\s*\/\//.test(line) &&          // drop single-line comments
+            line.trim() !== '+' && line.trim() !== '-' &&
+            line.trim() !== '+{' && line.trim() !== '+}' &&
+            line.trim() !== '-{' && line.trim() !== '-}'
+          )
           .join('\n');
 
         if (cleanDiff.trim()) {
-          const diffBlock = `\nFile: ${file}\n${cleanDiff}\n`;
-          promptContext += diffBlock;
-          currentLength += diffBlock.length;
+          const diffBlock = `\nFile: ${file.relPath}\n${cleanDiff}\n`;
+          if (diffLength + diffBlock.length <= DIFF_BUDGET) {
+            promptContext += diffBlock;
+            diffLength += diffBlock.length;
+          }
         }
       } catch {
         // Skip unreadable files
@@ -236,6 +372,7 @@ export async function generateWorktreeSummary(
       const response = await client.responses.create({
         model: 'gpt-5-nano',
         instructions: `Summarize the git diffs into a single active-tense sentence (max 10 words).
+Pay most attention to files listed first and with diffs shown.
 Ignore imports, formatting, and minor refactors.
 Focus on the feature being added or the bug being fixed.
 Start with an emoji.
@@ -330,11 +467,13 @@ Examples:
  *
  * @param worktrees - Worktrees to enrich
  * @param mainBranch - Main branch name for comparison
+ * @param worktreeChangesMap - Map of worktree IDs to change details for smarter prioritization
  * @param onUpdate - Callback when a worktree summary is generated
  */
 export async function enrichWorktreesWithSummaries(
   worktrees: Worktree[],
   mainBranch: string = 'main',
+  worktreeChangesMap?: Map<string, import('../../types/index.js').WorktreeChanges>,
   onUpdate?: (worktree: Worktree) => void
 ): Promise<void> {
   // Mark all as loading
@@ -346,7 +485,8 @@ export async function enrichWorktreesWithSummaries(
   // Generate summaries in parallel (but don't await - let them complete in background)
   const promises = worktrees.map(async (wt) => {
     try {
-      const summary = await generateWorktreeSummary(wt.path, wt.branch, mainBranch);
+      const changesForThisWorktree = worktreeChangesMap?.get(wt.id);
+      const summary = await generateWorktreeSummary(wt.path, wt.branch, mainBranch, changesForThisWorktree);
       if (summary) {
         wt.summary = summary.summary;
         wt.modifiedCount = summary.modifiedCount;

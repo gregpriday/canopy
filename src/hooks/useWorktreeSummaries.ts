@@ -77,6 +77,10 @@ export function useWorktreeSummaries(
         (a, b) => getChangedCount(b.id) - getChangedCount(a.id)
       );
 
+      // Cap the number of worktrees enriched per cycle to control costs
+      const MAX_WORKTREES_PER_CYCLE = 3;
+      const batch = prioritizedWorktrees.slice(0, MAX_WORKTREES_PER_CYCLE);
+
       // Helper to apply updates to state in original order
       const applyUpdate = (updated: Worktree) => {
         setEnrichedWorktrees(prev =>
@@ -101,8 +105,9 @@ export function useWorktreeSummaries(
 
       if (hasApiKey) {
         await enrichWorktreesWithSummaries(
-          prioritizedWorktrees,
+          batch,
           mainBranch,
+          worktreeChanges,
           (updatedWorktree) => {
             // Async mood update; fire-and-forget to avoid blocking summary flow
             void (async () => {
@@ -117,7 +122,7 @@ export function useWorktreeSummaries(
         );
       } else {
         // No API key: still categorize mood so UI can reflect state
-        for (const wt of prioritizedWorktrees) {
+        for (const wt of batch) {
           const mood = await categorizeWorktree(
             wt,
             worktreeChanges?.get(wt.id),

@@ -14,6 +14,7 @@ export interface FileChangeDetail {
   status: GitStatus;
   insertions: number | null;
   deletions: number | null;
+  mtimeMs?: number; // File modification time in milliseconds (for recency scoring)
 }
 
 export interface WorktreeChanges {

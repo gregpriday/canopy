@@ -344,6 +344,7 @@ export async function getWorktreeChangesWithStats(
 
     // Calculate the latest modification time across all changed files so we can
     // throttle AI refreshes based on real file activity instead of hash churn.
+    // Also store mtimeMs on each change for recency scoring in AI summaries.
     const mtimes = await Promise.all(
       Array.from(changesMap.values()).map(async (change) => {
         const targetPath = change.status === 'deleted'
@@ -352,8 +353,10 @@ export async function getWorktreeChangesWithStats(
 
         try {
           const stat = await fs.stat(targetPath);
+          change.mtimeMs = stat.mtimeMs; // Store mtime on the change object
           return stat.mtimeMs;
         } catch {
+          change.mtimeMs = 0;
           return 0;
         }
       })

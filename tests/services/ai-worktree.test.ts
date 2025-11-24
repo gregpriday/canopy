@@ -328,7 +328,7 @@ describe('AI Worktree Service', () => {
 
       const updateCallback = vi.fn();
 
-      await enrichWorktreesWithSummaries(worktrees, 'main', updateCallback);
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
 
       // Should call onUpdate for each worktree (once for loading, once for complete)
       expect(updateCallback).toHaveBeenCalled();
