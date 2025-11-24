@@ -15,7 +15,7 @@ Canopy is a **Worktree Context Dashboard** built with Ink (React for CLIs). It's
 - Activity mood indicator (active/stable/stale/error)
 - One-keystroke actions: CopyTree, profile selector, editor launch
 
-**Traditional file browsing is available via fuzzy search** (press `/` to search for files across all worktrees).
+**Traditional file browsing is available via fuzzy search** (press `Ctrl+F` to search for files across all worktrees).
 
 ## AI Model Conventions
 This project utilizes the **GPT-5** model family for AI-driven features. The following model identifiers are valid and actively used in this codebase:
@@ -113,20 +113,34 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
    - Sessions expire after 30 days
    - Worktree ID is normalized absolute path
 
-6. **Command System**: Extensible command architecture:
-   - Command bar accessible via `/` key
-   - Commands defined in `src/commands/` with type-safe interfaces
-   - Built-in commands: `/filter`, `/worktree`
-   - Free text defaults to filter (typing "component" = `/filter component`)
-   - Command history persisted in memory
+6. **Event-Driven Architecture**: Centralized event bus in `src/services/events.ts`:
+   - Type-safe event publishing and subscription using EventEmitter
+   - Event categories: `sys:*`, `nav:*`, `file:*`, `ui:*`, `watcher:*`, `sys:worktree:*`
+   - Enables decoupled communication between components and services
+   - Debug mode via `CANOPY_DEBUG_EVENTS=1` environment variable
+   - Returns unsubscribe function for React useEffect cleanup
 
-7. **Navigation**: Centralized navigation logic in `src/utils/treeNavigation.ts`:
+7. **Multi-Worktree Status Tracking**: Real-time git status polling across all worktrees:
+   - Active worktree refreshes every 1.5 seconds
+   - Background worktrees refresh every 10 seconds
+   - File-level change details with insertions/deletions counts
+   - Isolated error handling per worktree (one failure doesn't affect others)
+
+8. **AI-Powered Summaries**: Intelligent worktree activity summaries using GPT models:
+   - Zero-cost mode for clean worktrees (displays last commit message)
+   - Zero-context diffs for token efficiency (1500 character budget)
+   - 30-second debounce with immediate updates on dirty→clean transitions
+   - File skeletonization for new files (structure without full content)
+   - Resilient JSON parsing with multiple fallback strategies
+   - Worktree mood categorization: stable, active, stale, or error
+
+9. **Navigation**: Centralized navigation logic in `src/utils/treeNavigation.ts`:
    - Flattened tree representation for efficient up/down navigation
    - Smart left/right arrow behavior (collapse parent vs expand folder)
    - Page up/down, Home/End support
    - Viewport-aware scrolling (via `useViewportHeight`)
 
-8. **Performance Optimizations**:
+10. **Performance Optimizations**:
    - Directory listing cache (`src/utils/cache.ts`) with TTL and LRU eviction
    - Git status caching with configurable debounce
    - Change batching and deduplication
@@ -143,6 +157,16 @@ All types centralized in `src/types/index.ts`:
 - `Notification` - User notifications: `info | success | error | warning`
 - `Worktree` - Git worktree metadata (id, path, name, branch, isCurrent)
 - `OpenerConfig` / `OpenersConfig` - File opener configuration by extension/glob pattern
+- `WorktreeChanges` - File-level change details for a worktree
+  - Maps file paths to `FileChangeDetail` with insertions/deletions counts
+  - Includes modification time tracking for prioritization
+- `FileChangeDetail` - Individual file change metadata (status, insertions, deletions, mtime)
+- `WorktreeMood` - Worktree categorization: `'stable' | 'active' | 'stale' | 'error'`
+- `RepositoryMood` - Repository state: `'clean' | 'additions' | 'modifications' | 'mixed' | 'deletions' | 'conflict'`
+
+Additional type modules in `src/types/`:
+- `keymap.ts` - Keyboard mapping types and shortcut definitions
+- `contextMenu.ts` - Context menu item types and action definitions
 
 ### Component Architecture
 
@@ -161,12 +185,13 @@ Components in `src/components/` follow Ink's React-based model:
 - `TreeNode.tsx` / `FileNode.tsx` / `FolderNode.tsx` - Node rendering with git status icons
 
 **Interactive Elements**:
-- `FuzzySearchModal.tsx` - Fuzzy search across all worktrees (press `/` key)
-- `ProfileSelectorModal.tsx` - CopyTree profile picker (press `p` key)
-- `CommandBar.tsx` - Command input with history navigation
+- `FuzzySearchModal.tsx` - Fuzzy search across all worktrees (press `Ctrl+F`)
+- `ProfileSelector.tsx` - CopyTree profile picker (press `p` key)
 - `ContextMenu.tsx` - Right-click/keyboard-triggered context menu for file actions
 - `WorktreePanel.tsx` - Worktree switcher modal (press `W` key)
 - `HelpModal.tsx` - Keyboard shortcuts help overlay (press `?` key)
+- `Notification.tsx` - Toast-style notifications (info/success/error/warning)
+- `RecentActivityPanel.tsx` - Recent file activity panel
 
 **Design Principles**:
 - **Dashboard-first**: WorktreeOverview is the primary view, TreeView is fallback
@@ -181,18 +206,52 @@ Located in `src/hooks/`:
 
 **Dashboard Hooks** (primary):
 - `useDashboardNav.ts` - Dashboard navigation (arrow keys, Home/End, page up/down), expansion toggles, CopyTree shortcuts, profile selector, and editor launch
-- `useWorktreeSummaries.ts` - AI summary generation and mood categorization for worktrees
+- `useWorktreeSummaries.ts` - AI summary generation and mood categorization
+  - 30-second debounce for AI calls to reduce costs
+  - Immediate update when worktree transitions dirty→clean (shows last commit)
+  - Prioritizes worktrees by change count (most changed summarized first)
+  - Integrates with `useMultiWorktreeStatus` for change detection
 - `useCopyTree.ts` - CopyTree profile execution, event bus integration, success/error feedback
+
+**AI & Summary Hooks**:
+- `useProjectIdentity.ts` - Project identity with AI generation and caching
+  - Fetches/generates emoji, title, and gradient colors
+  - Caches results by project hash in `~/.config/canopy/identities/`
+  - Falls back to default identity if `OPENAI_API_KEY` not set
+- `useAIStatus.ts` - Debounced AI status updates from git diffs
+  - Subscribes to git status changes
+  - Generates human-readable status descriptions
+  - Debug logging via `DEBUG_AI_STATUS=1`
+
+**Multi-Worktree Management**:
+- `useMultiWorktreeStatus.ts` - Git status polling for all worktrees
+  - Active worktree: 1.5-second refresh interval
+  - Background worktrees: 10-second refresh interval
+  - Returns `Map<string, WorktreeChanges>` with file-level details (insertions/deletions)
+  - Isolated error handling per worktree (one failure doesn't affect others)
+  - Tracks modification times for intelligent change prioritization
+
+**Activity Tracking**:
+- `useActivity.ts` - Real-time file activity tracking based on watcher events
+  - "The Flash" state: 0-2 seconds after change
+  - "The Cooldown" state: 2-10 seconds after change
+  - "Idle" state: >60 seconds after change
+  - Subscribes to `watcher:change` events from event bus
+- `useRecentActivity.ts` - Recent file activity history tracking
 
 **Core Infrastructure Hooks**:
 - `useAppLifecycle.ts` - Application initialization and lifecycle management
 - `useGitStatus.ts` - Git status fetching with caching and debouncing
 - `useViewportHeight.ts` - Terminal viewport height calculation for pagination
+- `useWatcher.ts` - Chokidar file system watching with event bus integration
+
+**Input Handling**:
+- `useTerminalMouse.ts` - Terminal mouse event handling (clicks, drags, scrolls)
+- `useKeyboard.ts` - Centralized keyboard shortcut handling (Ink's `useInput` wrapper)
+- `useMouse.ts` - Mouse click handling for tree interaction (legacy tree mode)
 
 **Legacy Tree Mode Hooks**:
 - `useFileTree.ts` - File tree state, expansion, filtering, and refresh
-- `useKeyboard.ts` - Centralized keyboard shortcut handling (Ink's `useInput` wrapper) for tree mode
-- `useMouse.ts` - Mouse click handling for tree interaction
 
 ### Utilities
 
@@ -216,11 +275,62 @@ Located in `src/utils/`:
 **Navigation & UI**:
 - `treeNavigation.ts` - Tree navigation algorithms (flatten, move selection, arrow actions)
 - `treeViewVirtualization.ts` - Viewport slicing for large trees
-- `commandParser.ts` - Command string parsing
+- `keySequences.ts` - Terminal escape sequences for Home/End keys (multi-terminal support)
+- `keyMatcher.ts` - Keyboard shortcut matching logic
+- `mouseInput.ts` - Mouse input handling utilities
 
 **File Operations**:
 - `fileOpener.ts` - Open files in configured editor with extension-based overrides
 - `clipboard.ts` - Copy file paths (absolute/relative) to clipboard
+- `fileSearch.ts` - File search utilities for fuzzy search modal
+- `fileIcons.ts` - File type to icon mapping (visual file identification)
+
+**Worktree & Mood**:
+- `worktreeMood.ts` - Categorize worktrees as `stable`, `active`, `stale`, or `error`
+  - Checks last commit age and current change count
+  - Stable: Clean with recent commits
+  - Active: Has changes
+  - Stale: No recent commits (>7 days)
+  - Error: Git operation failures
+- `repositoryMood.ts` - Analyze git status for repository mood
+  - Moods: `clean`, `additions`, `modifications`, `mixed`, `deletions`, `conflict`
+  - Used for visual gradients and UI coloring
+- `moodColors.ts` - Map `WorktreeMood` to terminal border colors
+  - Stable: green, Active: yellow, Error: red, Stale: gray
+
+**AI Context**:
+- `aiContext.ts` - Gather git diff context for AI analysis
+  - Sorts files by modification time (most recent first)
+  - Limits to last 5 changed files for token efficiency
+  - Provides structured context for GPT model consumption
+
+**Visual & UI**:
+- `folderHeatMap.ts` - Folder heat colors based on change intensity
+  - Cyan → Yellow → Orange → Red gradient
+  - Configurable intensity levels: subtle, normal, intense
+  - Helps visualize "hot spots" in file tree
+- `treeGuides.ts` - Tree line characters (├─, └─, │, etc.)
+  - ASCII art for hierarchical tree display
+- `nodeStyling.ts` - Tree node visual styling (colors, formatting)
+- `pathAncestry.ts` - Path ancestry utilities (find common parents, etc.)
+- `time.ts` - Time formatting utilities (relative times, durations)
+
+**Search & Matching**:
+- `fuzzyMatch.ts` - Fuzzy matching algorithm for file search
+  - Flexible substring matching with scoring
+  - Case-insensitive with preference for case matches
+
+**Environment & System**:
+- `envLoader.ts` - Manual .env file loading (no `dotenv` dependency)
+  - Loads from current working directory
+  - System environment variables take precedence
+  - Lightweight alternative to external dependencies
+- `terminal.ts` - Terminal utilities (clear screen, cursor control, etc.)
+
+**CopyTree Integration**:
+- `copyTreePayload.ts` - Build CopyTree payload from file selections
+  - Formats file lists for CopyTree profile execution
+  - Handles multiple file formats and contexts
 
 **Performance**:
 - `debounce.ts` - Debouncing utility
@@ -232,18 +342,46 @@ Located in `src/utils/`:
 - `errorTypes.ts` - Custom error classes
 - `logger.ts` - Structured logging
 
-### Command System
+### Services
 
-Commands in `src/commands/`:
-- `types.ts` - Command type definitions (`CommandDefinition`, `CommandContext`, `CommandResult`)
-- `index.ts` - Command registry and execution engine
-- `filter.ts` - `/filter` command for name and git status filtering
-- `worktree.ts` - `/worktree` command for worktree operations
+Located in `src/services/`:
 
-**Adding New Commands**:
-1. Create file in `src/commands/` implementing `CommandDefinition`
-2. Register in `allCommands` array in `src/commands/index.ts`
-3. Commands automatically get help text and alias support
+**Event Bus** (`events.ts`):
+- Centralized typed event bus using Node.js EventEmitter
+- Type-safe event publishing and subscription
+- Event categories:
+  - `sys:*` - System-level events (init, shutdown, errors)
+  - `nav:*` - Navigation events (move, select, open)
+  - `file:*` - File operation events (open, copy, reveal)
+  - `ui:*` - UI state events (modal open/close, notifications)
+  - `watcher:*` - File watcher events (change, error)
+  - `sys:worktree:*` - Worktree switching events
+- Debug mode: Set `CANOPY_DEBUG_EVENTS=1` to log all events to stderr
+- Returns unsubscribe function for cleanup in React useEffect hooks
+
+**AI Services** (`services/ai/`):
+- `client.ts` - OpenAI client singleton (requires `OPENAI_API_KEY` environment variable)
+- `worktree.ts` - AI-powered worktree activity summaries
+  - Uses `gpt-5-nano` model for fast, cost-effective summarization
+  - Zero-context diffs (`git diff --unified=0`) for token efficiency
+  - 1500 character budget with file skeletonization for new files
+  - Zero-cost mode: Shows last commit message when worktree is clean
+  - Resilient JSON parsing with regex fallback and manual extraction
+  - Returns summary text and categorized mood (stable/active/stale/error)
+- `identity.ts` - Project visual identity generation
+  - Uses `gpt-5-mini` model for creative tasks
+  - Generates emoji, title, and gradient colors for project branding
+  - Results cached by project hash in `~/.config/canopy/identities/`
+- `status.ts` - Git diff summarization
+  - Uses `gpt-5-nano` for fast status updates
+  - Analyzes diffs to provide human-readable change descriptions
+- `cache.ts` - Project identity caching system with filesystem persistence
+- `utils.ts` - OpenAI response extraction utilities (robust text parsing)
+
+**Theme System** (`theme/`):
+- `ThemeProvider.tsx` - React context provider for app-wide theming
+- `colorPalette.ts` - Color palette with terminal theme detection
+- `bundled/` - Bundled theme JSON files (copied to `dist/` during build)
 
 ### Configuration
 
@@ -263,6 +401,26 @@ Users configure Canopy via:
 - `refreshDebounce` - File watcher debounce in ms (default: 100)
 - `ui.leftClickAction` - Mouse left click behavior: `open` or `select`
 - `ui.compactMode` - Compact display mode (default: true)
+
+**Environment Variables**:
+
+Canopy automatically loads `.env` files from the target directory (system environment variables take precedence):
+
+- `OPENAI_API_KEY` - **Required for AI features**
+  - Enables AI-powered worktree summaries, project identity generation, and status updates
+  - Without this key, Canopy falls back to default/non-AI behavior
+  - Uses OpenAI API with GPT-5 model family (gpt-5-nano, gpt-5-mini)
+
+- `CANOPY_DEBUG_EVENTS=1` - Enable event bus debugging
+  - Logs all event bus activity to stderr
+  - Useful for troubleshooting event flow and component communication
+
+- `DEBUG_AI_STATUS=1` - Enable AI status debug logging
+  - Shows detailed AI status generation logs
+  - Helps debug AI summarization issues
+
+- `DEBUG_IDENTITY=1` - Enable project identity debug logging
+  - Shows project identity generation and caching details
 
 ### CLI Arguments
 
@@ -316,13 +474,12 @@ npm run test:watch
 - `W` - Open worktree panel (full list)
 - `g` - Toggle git status visibility
 
-**Search & Commands**:
-- `/` - Open fuzzy search (find files across all worktrees)
-- `Ctrl+F` - Open filter command
-- `Esc` - Close modals/search (priority: help → profile selector → fuzzy search → worktree panel → command bar)
+**Search & Help**:
+- `Ctrl+F` - Open fuzzy search (find files across all worktrees)
+- `Esc` - Close modals/search (priority: help → profile selector → fuzzy search → worktree panel)
 - `?` - Toggle help modal
 
-**Legacy Tree Mode** (via `/tree` command):
+**Legacy Tree Mode**:
 - `←/→` - Collapse folder / expand folder or open file
 - `Space` - Toggle folder expansion
 - `Enter` - Open file or toggle folder

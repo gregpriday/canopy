@@ -291,6 +291,54 @@ describe('AI Worktree Service', () => {
         modifiedCount: 1
       });
     });
+
+    it('should return mechanical summary for empty files without calling AI', async () => {
+      mockGit.status.mockResolvedValue({
+        modified: [],
+        created: ['empty-file.txt'],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      // Empty file returns empty diff
+      mockGit.diff.mockResolvedValue('');
+      mockReadFile.mockResolvedValue('');
+
+      const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
+
+      expect(result).toEqual({
+        summary: '📝 Created empty-file.txt',
+        modifiedCount: 1
+      });
+
+      // Should NOT call AI for empty files
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
+
+    it('should return mechanical summary for binary files without calling AI', async () => {
+      mockGit.status.mockResolvedValue({
+        modified: [],
+        created: ['image.png'],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      // Binary file returns empty diff (ignored by filter)
+      mockGit.diff.mockResolvedValue('');
+      mockReadFile.mockResolvedValue('binary content');
+
+      const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
+
+      expect(result).toEqual({
+        summary: '📝 Created image.png',
+        modifiedCount: 1
+      });
+
+      // Should NOT call AI for filtered-out files
+      expect(mockCreate).not.toHaveBeenCalled();
+    });
   });
 
   describe('enrichWorktreesWithSummaries', () => {

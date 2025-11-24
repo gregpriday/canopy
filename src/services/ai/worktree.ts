@@ -323,7 +323,10 @@ export async function generateWorktreeSummary(
             .slice(0, 10)
             .join('\n');
 
-          if (!skeleton) continue;
+          // For empty files (no structural content), skip - don't add to prompt
+          if (!skeleton) {
+            continue;
+          }
           diff = `NEW FILE STRUCTURE:\n${skeleton}`;
         } else {
           // Zero-context diffs with aggressive line filtering
@@ -364,8 +367,24 @@ export async function generateWorktreeSummary(
       }
     }
 
+    // If we have changes (modifiedCount > 0) but promptContext is empty
+    // (e.g. empty files, binaries, or all noise), DO NOT call the AI.
+    // Return a mechanical summary instead to prevent hallucinations.
     if (!promptContext.trim()) {
-      promptContext = 'Worktree changes';
+      let manualSummary = 'Changed files (no text diff)';
+
+      if (createdFiles.length > 0) {
+        manualSummary = `Created ${createdFiles[0]}${createdFiles.length > 1 ? '...' : ''}`;
+      } else if (modifiedFiles.length > 0) {
+        manualSummary = `Modified ${modifiedFiles[0]}${modifiedFiles.length > 1 ? '...' : ''}`;
+      } else if (deletedFiles.length > 0) {
+        manualSummary = `Deleted ${deletedFiles[0]}${deletedFiles.length > 1 ? '...' : ''}`;
+      }
+
+      return {
+        summary: `📝 ${manualSummary}`,
+        modifiedCount
+      };
     }
 
     const callModel = async (): Promise<WorktreeSummary> => {

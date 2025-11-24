@@ -168,9 +168,20 @@ export function useWorktreeSummaries(
       debounceTimerRef.current = null;
     }
 
+    // Check if any worktree just became clean (0 changes).
+    // If so, update immediately to show "Last commit" message
+    // instead of waiting 30 seconds with stale AI summary.
+    const shouldUpdateImmediately = worktrees.some(wt => {
+      const changes = worktreeChanges?.get(wt.id);
+      const changedCount = changes?.changedFileCount ?? 0;
+      return changedCount === 0;
+    });
+
+    const delay = shouldUpdateImmediately ? 0 : AI_DEBOUNCE_MS;
+
     debounceTimerRef.current = setTimeout(() => {
       enrichWorktrees();
-    }, AI_DEBOUNCE_MS);
+    }, delay);
 
     // Cleanup on unmount or when changes arrive before the timer fires
     return () => {
@@ -179,7 +190,7 @@ export function useWorktreeSummaries(
         debounceTimerRef.current = null;
       }
     };
-  }, [worktreeChanges, enrichWorktrees]);
+  }, [worktreeChanges, enrichWorktrees, worktrees]);
 
   return enrichedWorktrees;
 }
