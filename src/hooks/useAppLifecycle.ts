@@ -7,6 +7,8 @@ import { events } from '../services/events.js';
 import type { CanopyConfig, Worktree, Notification, NotificationPayload } from '../types/index.js';
 import { DEFAULT_CONFIG } from '../types/index.js';
 
+const WORKTREE_REFRESH_INTERVAL_MS = 5000;
+
 // Ensure we only update worktrees state when the underlying list actually changes
 const areWorktreesEqual = (a: Worktree[], b: Worktree[]): boolean => {
   if (a.length !== b.length) {
@@ -278,11 +280,6 @@ export function useAppLifecycle({
       return;
     }
 
-    const intervalMs = state.config.worktrees.refreshIntervalMs ?? 0;
-    if (intervalMs <= 0) {
-      return;
-    }
-
     let refreshInFlight = false;
     const intervalId = setInterval(async () => {
       if (refreshInFlight) {
@@ -356,7 +353,7 @@ export function useAppLifecycle({
       } finally {
         refreshInFlight = false;
       }
-    }, intervalMs);
+    }, WORKTREE_REFRESH_INTERVAL_MS);
 
     return () => {
       clearInterval(intervalId);
@@ -364,7 +361,6 @@ export function useAppLifecycle({
   }, [
     state.status,
     state.config.worktrees?.enable,
-    state.config.worktrees?.refreshIntervalMs,
     state.activeRootPath,
     state.activeWorktreeId,
     noGit,

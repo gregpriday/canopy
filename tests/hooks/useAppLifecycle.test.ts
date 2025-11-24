@@ -327,7 +327,6 @@ describe('useAppLifecycle', () => {
       worktrees: {
         enable: false,
         showInHeader: true,
-        refreshIntervalMs: 10000,
       },
     };
     const mockWorktrees = [

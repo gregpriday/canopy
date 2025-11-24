@@ -59,7 +59,7 @@ describe('useMultiWorktreeStatus', () => {
 		});
 
 		const { result } = renderHook(() =>
-			useMultiWorktreeStatus(worktrees, 'wt-1', { activeMs: 1000, backgroundMs: 20000 }, true),
+			useMultiWorktreeStatus(worktrees, 'wt-1', true),
 		);
 
 		await waitFor(() => {
@@ -68,14 +68,14 @@ describe('useMultiWorktreeStatus', () => {
 			expect(callCounts).toEqual({ active: 1, background: 1 });
 		});
 
-		vi.advanceTimersByTime(1000);
+		vi.advanceTimersByTime(2000);
 
 		// Active worktree should refresh again before background interval elapses
 		await waitFor(() => {
 			expect(callCounts.active).toBeGreaterThan(callCounts.background);
 		});
 
-		vi.advanceTimersByTime(19000);
+		vi.advanceTimersByTime(9000);
 
 		await waitFor(() => {
 			expect(callCounts.background).toBeGreaterThan(1);
@@ -101,7 +101,7 @@ describe('useMultiWorktreeStatus', () => {
 		});
 
 		const { result } = renderHook(() =>
-			useMultiWorktreeStatus(worktrees, 'wt-1', { activeMs: 1000, backgroundMs: 15000 }, true),
+			useMultiWorktreeStatus(worktrees, 'wt-1', true),
 		);
 
 		await waitFor(() => {

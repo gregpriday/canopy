@@ -481,7 +481,6 @@ The following subsections mirror the canonical Canopy PRD to ensure this documen
   "sortDirection": "asc",
   "worktrees": {
     "enable": true,
-    "refreshIntervalMs": 10000,
     "showInHeader": true
   },
   "openers": {

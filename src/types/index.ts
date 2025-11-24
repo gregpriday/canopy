@@ -173,7 +173,6 @@ export interface CanopyConfig {
   worktrees?: {
     enable: boolean;           // Master toggle for worktree features
     showInHeader: boolean;     // Show/hide worktree indicator in header
-    refreshIntervalMs?: number; // Optional: auto-refresh interval (0 = disabled)
   };
   recentActivity?: RecentActivityConfig;
   contextMenu?: ContextMenuConfig;
@@ -257,7 +256,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   worktrees: {
     enable: true,              // Enabled by default for backwards compatibility
     showInHeader: true,        // Show indicator by default
-    refreshIntervalMs: 5000,   // 5 second refresh by default for snappier updates
   },
   copytreeProfiles: {
     default: {

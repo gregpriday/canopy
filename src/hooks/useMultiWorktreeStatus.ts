@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Worktree, WorktreeChanges } from '../types/index.js';
 import {
   getWorktreeChangesWithStats,
@@ -8,22 +8,14 @@ import {
 import { logWarn } from '../utils/logger.js';
 import { events } from '../services/events.js';
 
-export interface MultiWorktreeRefreshConfig {
-  activeMs?: number;
-  backgroundMs?: number;
-}
-
 export interface UseMultiWorktreeStatusReturn {
   worktreeChanges: Map<string, WorktreeChanges>;
   refresh: (worktreeId?: string, force?: boolean) => void;
   clear: () => void;
 }
 
-const clamp = (value: number, min: number, max: number): number =>
-  Math.min(max, Math.max(min, value));
-
-const DEFAULT_ACTIVE_MS = 1500; // 1.5s for active worktree
-const DEFAULT_BACKGROUND_MS = 10000; // 10s for background worktrees
+const ACTIVE_WORKTREE_INTERVAL_MS = 1500; // 1.5s for active worktree
+const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
 
 /**
  * Poll git status for all detected worktrees with smarter intervals.
@@ -35,7 +27,6 @@ const DEFAULT_BACKGROUND_MS = 10000; // 10s for background worktrees
 export function useMultiWorktreeStatus(
   worktrees: Worktree[],
   activeWorktreeId: string | null,
-  refreshConfig: MultiWorktreeRefreshConfig = {},
   enabled: boolean = true
 ): UseMultiWorktreeStatusReturn {
   const [worktreeChanges, setWorktreeChanges] = useState<
@@ -45,20 +36,8 @@ export function useMultiWorktreeStatus(
   const timersRef = useRef<Map<string, NodeJS.Timeout>>(new Map());
   const inflightRef = useRef<Map<string, Promise<void>>>(new Map());
   const mountedRef = useRef<boolean>(true);
-
-  const { activeMs, backgroundMs } = useMemo(() => {
-    const active = clamp(
-      refreshConfig.activeMs ?? DEFAULT_ACTIVE_MS,
-      1000,
-      2000,
-    );
-    const background = clamp(
-      refreshConfig.backgroundMs ?? DEFAULT_BACKGROUND_MS,
-      10000,
-      30000,
-    );
-    return { activeMs: active, backgroundMs: background };
-  }, [refreshConfig.activeMs, refreshConfig.backgroundMs]);
+  const activeMs = ACTIVE_WORKTREE_INTERVAL_MS;
+  const backgroundMs = BACKGROUND_WORKTREE_INTERVAL_MS;
 
   const clearTimers = useCallback(() => {
     timersRef.current.forEach(timer => clearInterval(timer));
@@ -201,16 +180,7 @@ export function useMultiWorktreeStatus(
     return () => {
       clearTimers();
     };
-  }, [
-    activeMs,
-    activeWorktreeId,
-    backgroundMs,
-    clear,
-    clearTimers,
-    enabled,
-    fetchStatusForWorktree,
-    worktrees,
-  ]);
+  }, [activeWorktreeId, clear, clearTimers, enabled, fetchStatusForWorktree, worktrees]);
 
   // React to global refresh events
   useEffect(() => {

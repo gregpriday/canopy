@@ -11,13 +11,11 @@ const AI_DEBOUNCE_MS = 30000;
  *
  * @param worktrees - Array of worktrees to enrich
  * @param mainBranch - Main branch to compare against (default: 'main')
- * @param refreshIntervalMs - Optional auto-refresh interval (0 = disabled)
  * @returns Enriched worktrees with summaries, loading states, and counts
  */
 export function useWorktreeSummaries(
   worktrees: Worktree[],
   mainBranch: string = 'main',
-  refreshIntervalMs: number = 0,
   worktreeChanges?: Map<string, WorktreeChanges>
 ): Worktree[] {
   const [enrichedWorktrees, setEnrichedWorktrees] = useState<Worktree[]>(worktrees);

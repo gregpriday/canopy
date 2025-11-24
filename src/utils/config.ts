@@ -474,11 +474,6 @@ function validateConfig(config: unknown): CanopyConfig {
       if (typeof c.worktrees.showInHeader !== 'boolean') {
         errors.push('config.worktrees.showInHeader must be a boolean');
       }
-      if (c.worktrees.refreshIntervalMs !== undefined) {
-        if (typeof c.worktrees.refreshIntervalMs !== 'number' || c.worktrees.refreshIntervalMs < 0) {
-          errors.push('config.worktrees.refreshIntervalMs must be a non-negative number');
-        }
-      }
     }
   }
 

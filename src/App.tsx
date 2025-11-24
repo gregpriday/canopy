@@ -174,10 +174,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   } = useMultiWorktreeStatus(
     worktrees,
     activeWorktreeId,
-    {
-      activeMs: 1500,
-      backgroundMs: config.worktrees?.refreshIntervalMs ?? 10000,
-    },
     !noGit && config.showGitStatus
   );
 
@@ -185,7 +181,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const enrichedWorktrees = useWorktreeSummaries(
     worktrees,
     'main',
-    config.worktrees?.refreshIntervalMs || 0,
     worktreeChanges
   );
 

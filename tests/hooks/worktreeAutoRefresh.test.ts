@@ -327,7 +327,6 @@ describe('useAppLifecycle', () => {
       worktrees: {
         enable: false,
         showInHeader: true,
-        refreshIntervalMs: 10000,
       },
     };
     const mockWorktrees = [
@@ -355,7 +354,7 @@ describe('useAppLifecycle', () => {
   describe('Worktree Auto-Refresh', () => {
     // Don't use fake timers in beforeEach - only use them in specific tests that need them
 
-    it('sets up interval with default 10s refresh', async () => {
+    it('sets up interval with the fixed refresh cadence', async () => {
       const mockWorktrees = [
         { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
       ];
@@ -379,48 +378,10 @@ describe('useAppLifecycle', () => {
         expect(result.current.status).toBe('ready');
       });
 
-      // Verify setInterval was called with 10000ms (default)
+      // Verify setInterval was called with the fixed interval (currently 5s)
       await waitFor(() => {
-        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 10000);
+        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
       });
-    });
-
-    it('does not set up interval when refreshIntervalMs is 0', async () => {
-      const configWithNoRefresh = {
-        ...DEFAULT_CONFIG,
-        worktrees: {
-          enable: true,
-          showInHeader: true,
-          refreshIntervalMs: 0,
-        },
-      };
-
-      const mockWorktrees = [
-        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
-      ];
-
-      vi.mocked(config.loadConfig).mockResolvedValue(configWithNoRefresh);
-      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
-      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
-      vi.mocked(state.loadInitialState).mockResolvedValue({
-        worktree: mockWorktrees[0],
-        selectedPath: null,
-        expandedFolders: new Set<string>(),
-      });
-
-      const setIntervalSpy = vi.spyOn(global, 'setInterval');
-
-      const { result } = renderHook(() =>
-        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false, initialConfig: configWithNoRefresh })
-      );
-
-      await waitFor(() => {
-        expect(result.current.status).toBe('ready');
-      });
-
-      // Should not set up worktree refresh interval (checking for intervals >= 1000ms)
-      const calls = setIntervalSpy.mock.calls.filter(call => typeof call[1] === 'number' && call[1] >= 1000);
-      expect(calls.length).toBe(0);
     });
 
     it('does not set up interval when noGit flag is set', async () => {
@@ -439,45 +400,6 @@ describe('useAppLifecycle', () => {
       // Should not set up worktree refresh interval (checking for intervals >= 1000ms)
       const calls = setIntervalSpy.mock.calls.filter(call => typeof call[1] === 'number' && call[1] >= 1000);
       expect(calls.length).toBe(0);
-    });
-
-    it('supports custom refresh intervals', async () => {
-      const configWithFastRefresh = {
-        ...DEFAULT_CONFIG,
-        worktrees: {
-          enable: true,
-          showInHeader: true,
-          refreshIntervalMs: 5000, // 5 seconds
-        },
-      };
-
-      const mockWorktrees = [
-        { id: 'wt1', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true },
-      ];
-
-      vi.mocked(config.loadConfig).mockResolvedValue(configWithFastRefresh);
-      vi.mocked(worktree.getWorktrees).mockResolvedValue(mockWorktrees);
-      vi.mocked(worktree.getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
-      vi.mocked(state.loadInitialState).mockResolvedValue({
-        worktree: mockWorktrees[0],
-        selectedPath: null,
-        expandedFolders: new Set<string>(),
-      });
-
-      const setIntervalSpy = vi.spyOn(global, 'setInterval');
-
-      const { result } = renderHook(() =>
-        useAppLifecycle({ cwd: '/repo/main', noWatch: true, noGit: false, initialConfig: configWithFastRefresh })
-      );
-
-      await waitFor(() => {
-        expect(result.current.status).toBe('ready');
-      });
-
-      // Should have set up interval with 5000ms
-      await waitFor(() => {
-        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5000);
-      });
     });
 
     it('cleans up interval on unmount', async () => {
