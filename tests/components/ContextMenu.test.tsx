@@ -3,8 +3,7 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ContextMenu } from '../../src/components/ContextMenu.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
-import type { CanopyConfig } from '../../src/types/index.js';
-import type { CommandServices } from '../../src/commands/types.js';
+import type { CanopyConfig, SystemServices } from '../../src/types/index.js';
 import * as fileOpener from '../../src/utils/fileOpener.js';
 import * as clipboard from '../../src/utils/clipboard.js';
 import { execa } from 'execa';
@@ -20,7 +19,7 @@ describe('ContextMenu', () => {
 	const mockOnClose = vi.fn();
 	const mockOnAction = vi.fn();
 
-	const mockServices: CommandServices = {
+	const mockServices: SystemServices = {
 		ui: {
 			notify: vi.fn(),
 			refresh: vi.fn(),
@@ -41,7 +40,6 @@ describe('ContextMenu', () => {
 
 	const defaultProps = {
 		path: '/Users/foo/project/src/App.tsx',
-		rootPath: '/Users/foo/project',
 		position: { x: 10, y: 5 },
 		config: DEFAULT_CONFIG,
 		services: mockServices,

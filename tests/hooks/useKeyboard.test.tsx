@@ -141,26 +141,14 @@ describe('useKeyboard', () => {
   });
 
   describe('command/filter actions', () => {
-    it('emits modal open for fuzzy search when / is pressed', async () => {
-      const { spy, unsubscribe } = listen('ui:modal:open');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '/');
-
-      expect(spy).toHaveBeenCalledWith({ id: 'fuzzy-search', context: { initialQuery: '' } });
-      unsubscribe();
-    });
-
-    it('emits modal open with filter context when Ctrl+F is pressed', async () => {
-      const { spy, unsubscribe } = listen('ui:modal:open');
-      const { stdin } = render(<TestComponent handlers={{}} />);
+    it('calls onOpenFilter when Ctrl+F is pressed', async () => {
+      const onOpenFilter = vi.fn();
+      const { stdin } = render(<TestComponent handlers={{ onOpenFilter }} />);
       await waitForInk(stdin);
 
       await writeKey(stdin, '\x06'); // Ctrl+F
 
-      expect(spy).toHaveBeenCalledWith({ id: 'command-bar', context: { initialInput: '/filter ' } });
-      unsubscribe();
+      expect(onOpenFilter).toHaveBeenCalledTimes(1);
     });
 
     it('calls onClearFilter when ESC is pressed', async () => {

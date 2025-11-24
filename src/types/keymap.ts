@@ -28,7 +28,6 @@ export type KeyAction =
 	| 'ui.refresh'
 	| 'ui.help'
 	| 'ui.contextMenu'
-	| 'ui.command'
 	| 'ui.filter'
 	| 'ui.escape'
 

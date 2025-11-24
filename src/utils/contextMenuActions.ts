@@ -245,13 +245,15 @@ export function getDefaultFileActions(
 export function getDefaultFolderActions(): ContextMenuItem[] {
 	return [
 		{
-			type: 'command',
+			type: 'action',
 			id: 'copytree',
 			label: 'Run CopyTree',
 			scope: 'folder',
 			icon: '🌲',
-			commandName: 'copytree',
-			args: [],
+			execute: async (dirPath, services) => {
+				const { events } = await import('../services/events.js');
+				events.emit('file:copy-tree', { rootPath: dirPath });
+			},
 		},
 		{
 			type: 'action',

@@ -61,7 +61,6 @@ describe('HelpModal', () => {
     expect(frame).toContain('Navigation:');
     expect(frame).toContain('Opening/Toggling:');
     expect(frame).toContain('Worktrees:');
-    expect(frame).toContain('Commands:');
     expect(frame).toContain('Git:');
     expect(frame).toContain('Copy/CopyTree:');
     expect(frame).toContain('Misc:');
@@ -103,18 +102,6 @@ describe('HelpModal', () => {
     expect(frame).toContain('w');
     expect(frame).toContain('W');
     expect(frame).toContain('Worktree Panel');
-  });
-
-  it('displays command shortcuts', () => {
-    const onClose = vi.fn();
-    const { lastFrame } = renderWithTheme(
-      <HelpModal visible={true} onClose={onClose} />
-    );
-
-    const frame = lastFrame();
-    expect(frame).toContain('/');
-    expect(frame).toContain('Ctrl+F');
-    expect(frame).toContain('command bar');
   });
 
   it('displays git shortcuts', () => {
@@ -281,17 +268,6 @@ describe('HelpModal', () => {
     const frame = lastFrame();
     expect(frame).toContain('Cycle to next worktree');
     expect(frame).toContain('Open Worktree Panel overlay');
-  });
-
-  it('includes command shortcut descriptions', () => {
-    const onClose = vi.fn();
-    const { lastFrame } = renderWithTheme(
-      <HelpModal visible={true} onClose={onClose} />
-    );
-
-    const frame = lastFrame();
-    expect(frame).toContain('Open command bar');
-    expect(frame).toContain('Open filter command');
   });
 
   it('includes git shortcut description', () => {

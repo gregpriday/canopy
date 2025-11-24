@@ -2,22 +2,19 @@ import React, { useState, useMemo } from 'react';
 import { Box, Text, useInput } from 'ink';
 import SelectInput from 'ink-select-input';
 import fs from 'fs-extra';
-import type { CanopyConfig } from '../types/index.js';
+import type { CanopyConfig, SystemServices } from '../types/index.js';
 import type { ContextMenuItem } from '../types/contextMenu.js';
-import type { CommandServices } from '../commands/types.js';
 import {
 	getDefaultFileActions,
 	getDefaultFolderActions,
 	mergeContextMenuItems,
 } from '../utils/contextMenuActions.js';
-import { getCommand } from '../commands/registry.js';
 
 interface ContextMenuProps {
 	path: string;
-	rootPath: string;
 	position: { x: number; y: number };
 	config: CanopyConfig;
-	services: CommandServices;
+	services: SystemServices;
 	onClose: () => void;
 	onAction: (actionType: string, result: ActionResult) => void;
 }
@@ -41,12 +38,10 @@ interface MenuItem {
  * - File-specific actions: Open, Open with..., Copy paths
  * - Folder-specific actions: Run CopyTree, Open Terminal, Reveal in file manager
  * - Configurable custom actions via config.contextMenu
- * - Integration with slash command system
  * - Stack-based submenu navigation
  */
 export const ContextMenu: React.FC<ContextMenuProps> = ({
 	path: filePath,
-	rootPath,
 	position,
 	config,
 	services,
@@ -146,22 +141,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 					success: true,
 					message: `Executed ${menuItem.label}`,
 				};
-			} else if (menuItem.type === 'command') {
-				// Execute slash command
-				const command = getCommand(menuItem.commandName);
-				if (command) {
-					const args = [...(menuItem.args || []), filePath];
-					const commandResult = await command.execute(args, services);
-					result = {
-						success: commandResult.success,
-						message: commandResult.message || `Executed ${menuItem.label}`,
-					};
-				} else {
-					result = {
-						success: false,
-						message: `Command '${menuItem.commandName}' not found`,
-					};
-				}
 			} else {
 				result = {
 					success: false,

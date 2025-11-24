@@ -59,13 +59,6 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
         <Text>  <Text color={palette.semantic.srcFolder}>W</Text>           Open Worktree Panel overlay</Text>
       </Box>
 
-      {/* Commands */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Text bold color={palette.accent.primary}>Commands:</Text>
-        <Text>  <Text color={palette.semantic.srcFolder}>/</Text>           Open command bar</Text>
-        <Text>  <Text color={palette.semantic.srcFolder}>Ctrl+F</Text>      Open filter command (/filter)</Text>
-      </Box>
-
       {/* Git */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold color={palette.accent.primary}>Git:</Text>

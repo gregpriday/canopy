@@ -28,12 +28,11 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 | `w` | Cycle to next worktree (switches active worktree) |
 | `W` (Shift+w) | Open worktree panel (shows full list with selection) |
 
-### Search & Commands
+### Search
 
 | Key | Action |
 |-----|--------|
-| `/` | Open fuzzy search modal (search files across all worktrees) |
-| `Ctrl+F` | Open filter command (pre-fills `/filter` in command bar) |
+| `Ctrl+F` | Open fuzzy search modal (search files across all worktrees) |
 | `Esc` | Close modals and overlays (see priority below) |
 | `?` | Toggle help modal (keyboard shortcuts reference) |
 
@@ -41,9 +40,8 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 1. Help modal → closes if open
 2. Context menu → closes if open
 3. Worktree panel → closes if open
-4. Command bar → closes if open
-5. Profile selector modal → closes if open
-6. Recent activity modal → closes if open
+4. Profile selector modal → closes if open
+5. Recent activity modal → closes if open
 
 ### Display & Settings
 
@@ -61,7 +59,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 
 ## Legacy Tree Mode
 
-Available via `/tree` command. Displays traditional hierarchical file browser.
+Displays traditional hierarchical file browser.
 
 ### Navigation
 
@@ -123,16 +121,6 @@ Same as Dashboard mode.
 | `?` | Toggle help on/off |
 | `Esc` | Close help |
 | `q` | Close help |
-
-### Command Bar
-
-| Key | Action |
-|-----|--------|
-| Type text | Enter command or filter text |
-| `↑` / `↓` | Navigate command history |
-| `Enter` | Execute command |
-| `Esc` | Close command bar |
-| `Tab` | Autocomplete (if available) |
 
 ## Global Keys
 

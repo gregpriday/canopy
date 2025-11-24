@@ -24,7 +24,6 @@ describe('STANDARD_PRESET', () => {
 			'ui.refresh',
 			'ui.help',
 			'ui.contextMenu',
-			'ui.command',
 			'ui.filter',
 			'ui.escape',
 			'git.toggle',
@@ -49,7 +48,6 @@ describe('STANDARD_PRESET', () => {
 	});
 
 	it('includes standard keybindings', () => {
-		expect(STANDARD_PRESET['ui.command']).toEqual(['/']);
 		expect(STANDARD_PRESET['ui.filter']).toEqual(['ctrl+f']);
 		expect(STANDARD_PRESET['app.quit']).toEqual(['q']);
 		expect(STANDARD_PRESET['ui.help']).toEqual(['?']);
@@ -59,7 +57,6 @@ describe('STANDARD_PRESET', () => {
 describe('VIM_PRESET', () => {
 	it('inherits from standard preset', () => {
 		// Non-nav keys should be same as standard
-		expect(VIM_PRESET['ui.command']).toEqual(STANDARD_PRESET['ui.command']);
 		expect(VIM_PRESET['app.quit']).toEqual(STANDARD_PRESET['app.quit']);
 		expect(VIM_PRESET['ui.help']).toEqual(STANDARD_PRESET['ui.help']);
 	});

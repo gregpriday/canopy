@@ -51,6 +51,24 @@ export interface Notification {
 }
 
 export type NotificationPayload = Omit<Notification, 'id'> & { id?: string };
+export interface SystemServices {
+  ui: {
+    notify: (notification: NotificationPayload) => void;
+    refresh: () => void;
+    exit: () => void;
+  };
+  system: {
+    cwd: string;
+    openExternal: (path: string) => Promise<void>;
+    copyToClipboard: (text: string) => Promise<void>;
+    exec: (command: string, args?: string[], cwd?: string) => Promise<string>;
+  };
+  state: {
+    selectedPath: string | null;
+    fileTree: TreeNode[];
+    expandedPaths: Set<string>;
+  };
+}
 
 /**
  * Represents a single git worktree.
@@ -204,9 +222,6 @@ export interface CanopyState {
   gitStatus: Map<string, GitStatus>;
   gitEnabled: boolean;
   notification: Notification | null;
-  commandBarActive: boolean;
-  commandBarInput: string;
-  commandHistory: string[];
   config: CanopyConfig;
   worktrees: Worktree[];
   activeWorktreeId: string | null;

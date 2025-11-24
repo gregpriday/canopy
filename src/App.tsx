@@ -10,9 +10,7 @@ import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus } from './types/index.js';
-import type { CommandServices } from './commands/types.js';
-import { useCommandExecutor } from './hooks/useCommandExecutor.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, SystemServices } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
@@ -40,7 +38,6 @@ import { detectTerminalTheme } from './theme/colorPalette.js';
 import { execa } from 'execa';
 import open from 'open';
 import clipboardy from 'clipboardy';
-import { InlineInput } from './components/InlineInput.js';
 
 interface AppProps {
   cwd: string;
@@ -54,7 +51,6 @@ const MODAL_CLOSE_PRIORITY: ModalId[] = [
   'help',
   'context-menu',
   'worktree',
-  'command-bar',
   'profile-selector',
   'recent-activity',
 ];
@@ -145,7 +141,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Listen for ui:modal:open events
   const [activeModals, setActiveModals] = useState<Set<ModalId>>(new Set());
   const [modalContext, setModalContext] = useState<Partial<ModalContextMap>>({});
-  const [commandInput, setCommandInput] = useState<string>('');
 
   // Filter state - initialize from CLI if provided
   const [filterActive, setFilterActive] = useState(!!initialFilter);
@@ -281,7 +276,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     return gitStatus;
   }, [activeWorktreeChanges, gitStatus]);
 
-  const commandMode = activeModals.has('command-bar');
   const isWorktreePanelOpen = activeModals.has('worktree');
   const showHelpModal = activeModals.has('help');
   const contextMenuOpen = activeModals.has('context-menu');
@@ -290,25 +284,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
 
   const headerRows = 3;
-  const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0) + (commandMode ? 2 : 0);
+  const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0);
   const reservedRows = headerRows + overlayRows;
   const viewportHeight = useViewportHeight(reservedRows);
   const dashboardViewportSize = useMemo(() => {
     const available = Math.max(1, height - reservedRows);
     return Math.max(3, Math.floor(available / 5));
   }, [height, reservedRows]);
-
-  useEffect(() => {
-    if (commandMode) {
-      const initialInput =
-        (modalContext['command-bar'] as ModalContextMap['command-bar'] | undefined)
-          ?.initialInput ?? '';
-      const cleaned = initialInput.startsWith('/') ? initialInput.slice(1) : initialInput;
-      setCommandInput(cleaned);
-    } else {
-      setCommandInput('');
-    }
-  }, [commandMode, modalContext]);
 
   // Reset fuzzy search query when modal closes
   useEffect(() => {
@@ -568,15 +550,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     exit();
   }, [exit]);
 
-  const { execute } = useCommandExecutor({
-    cwd: activeRootPath,
-    selectedPath,
-    fileTree: rawTree,
-    expandedPaths: expandedFolders,
-    refreshTree,
-    exitApp,
-  });
-
 
   useEffect(() => {
     return () => {
@@ -596,11 +569,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [activeWorktreeId, expandedFolders, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
-    const unsubscribeSubmit = events.on('ui:command:submit', async ({ input }) => {
-      await execute(input);
-      events.emit('ui:modal:close', { id: 'command-bar' });
-    });
-
     const unsubscribeFilterSet = events.on('ui:filter:set', ({ query }) => {
       setFilterActive(true);
       setFilterQuery(query);
@@ -612,11 +580,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
 
     return () => {
-      unsubscribeSubmit();
       unsubscribeFilterSet();
       unsubscribeFilterClear();
     };
-  }, [execute]);
+  }, []);
 
   // Helper function to collect all folder paths from a tree
   const collectAllFolderPaths = useCallback((tree: TreeNode[]): string[] => {
@@ -1065,7 +1032,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   };
 
   const handleOpenFilter = () => {
-    events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
+    events.emit('ui:modal:open', { id: 'fuzzy-search', context: { initialQuery: '' } });
   };
 
   const handleOpenProfileSelectorForFocused = useCallback(() => {
@@ -1078,16 +1045,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
     handleOpenProfileSelector(targetId);
   }, [activeWorktreeId, focusedWorktreeId, handleOpenProfileSelector, sortedWorktrees]);
-
-  const handleCommandSubmit = useCallback((value: string) => {
-    const fullCommand = value.startsWith('/') ? value : `/${value}`;
-    events.emit('ui:command:submit', { input: fullCommand });
-    events.emit('ui:modal:close', { id: 'command-bar' });
-  }, []);
-
-  const handleCommandCancel = useCallback(() => {
-    events.emit('ui:modal:close', { id: 'command-bar' });
-  }, []);
 
   const anyModalOpen = activeModals.size > 0;
 
@@ -1119,7 +1076,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   useKeyboard({
     navigationEnabled: viewMode === 'tree',
 
-    onOpenCommandBar: undefined,
     onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
     // Don't clear filter when fuzzy search is open (let it handle Escape itself)
     onClearFilter: isFuzzySearchOpen ? undefined : handleClearFilter,
@@ -1233,8 +1189,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           )}
         </Box>
         {contextMenuOpen && (() => {
-          // Create CommandServices object for context menu
-          const contextMenuServices: CommandServices = {
+          // Create SystemServices object for context menu
+          const contextMenuServices: SystemServices = {
             ui: {
               notify: (n: NotificationPayload) => events.emit('ui:notify', n),
               refresh: refreshTree,
@@ -1259,7 +1215,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           return (
             <ContextMenu
               path={contextMenuTarget}
-              rootPath={activeRootPath}
               position={contextMenuPosition}
               config={config}
               services={contextMenuServices}
@@ -1310,16 +1265,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
           onQueryChange={setFuzzySearchQuery}
         />
-        {commandMode && (
-          <Box borderStyle="single" borderColor="cyan" paddingX={1} marginTop={0}>
-            <InlineInput
-              input={commandInput}
-              onChange={setCommandInput}
-              onSubmit={handleCommandSubmit}
-              onCancel={handleCommandCancel}
-            />
-          </Box>
-        )}
         {notifications.length > 0 && (
           <Box flexDirection="column" width="100%">
             {notifications.map((notification, index) => (

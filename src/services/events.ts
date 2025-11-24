@@ -5,7 +5,6 @@ export type ModalId =
   | 'help'
   | 'worktree'
   | 'context-menu'
-  | 'command-bar'
   | 'recent-activity'
   | 'profile-selector'
   | 'fuzzy-search';
@@ -13,7 +12,6 @@ export interface ModalContextMap {
   help: undefined;
   worktree: undefined;
   'context-menu': { path: string; position?: { x: number; y: number } };
-  'command-bar': { initialInput?: string };
   'recent-activity': undefined;
   'profile-selector': { worktreeId?: string };
   'fuzzy-search': { initialQuery?: string };
@@ -92,8 +90,6 @@ export type CanopyEventMap = {
   'file:copy-path': CopyPathPayload;
 
   'ui:notify': NotificationPayload;
-  'ui:command:open': { initialInput?: string };
-  'ui:command:submit': { input: string };
   'ui:filter:set': { query: string };
   'ui:filter:clear': void;
   'ui:modal:open': UIModalOpenPayload;

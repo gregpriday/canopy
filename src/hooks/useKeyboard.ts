@@ -23,7 +23,6 @@ export interface KeyboardHandlers {
   onOpenProfileSelector?: () => void; // p key
 
   // Command/Filter Actions
-  onOpenCommandBar?: () => void;  // / key
   onOpenFilter?: () => void;      // Ctrl+F
   onClearFilter?: () => void;     // Escape when filter active
 
@@ -192,14 +191,12 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
       return;
     }
 
-    // Command/Filter Actions
-    if (isAction(input, key, 'ui.command', keyMap)) {
-      events.emit('ui:modal:open', { id: 'fuzzy-search', context: { initialQuery: '' } });
-      return;
-    }
-
+    // Filter Actions
     if (isAction(input, key, 'ui.filter', keyMap)) {
-      events.emit('ui:modal:open', { id: 'command-bar', context: { initialInput: '/filter ' } });
+      if (handlers.onOpenFilter) {
+        handlers.onOpenFilter();
+        return;
+      }
       return;
     }
 

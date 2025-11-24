@@ -25,7 +25,6 @@ export const STANDARD_PRESET: Record<KeyAction, string[]> = {
 	'ui.refresh': ['r'],
 	'ui.help': ['?'],
 	'ui.contextMenu': ['m'],
-	'ui.command': ['/'],
 	'ui.filter': ['ctrl+f'],
 	'ui.escape': ['escape'],
 	'git.toggle': ['g'],
