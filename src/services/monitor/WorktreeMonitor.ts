@@ -9,10 +9,10 @@ import { logWarn, logError, logInfo } from '../../utils/logger.js';
 import { events } from '../events.js';
 
 const GIT_STATUS_DEBOUNCE_MS = 1000; // Update git status 1s after file changes
-const AI_SUMMARY_DEBOUNCE_MS = 10000; // Update AI summary 10s after file changes (Reduced from 30s)
+const AI_SUMMARY_DEBOUNCE_MS = 10000; // Update AI summary 10s after file changes
 const AI_SUMMARY_MIN_INTERVAL_MS = AI_SUMMARY_DEBOUNCE_MS / 2; // Hard throttle: minimum 5s between AI calls
-const TRAFFIC_LIGHT_FLASH_DURATION = 2000; // "Flash" state lasts 2 seconds
-const TRAFFIC_LIGHT_COOLDOWN_DURATION = 10000; // "Cooldown" state lasts 10 seconds
+const TRAFFIC_LIGHT_GREEN_DURATION = 30000; // Green state: 0-30 seconds after file change
+const TRAFFIC_LIGHT_YELLOW_DURATION = 60000; // Yellow state: additional 60 seconds (30-90s total)
 
 /**
  * Represents the complete state of a monitored worktree.
@@ -152,10 +152,17 @@ export class WorktreeMonitor extends EventEmitter {
     await this.updateGitStatus(true); // Initial force fetch
 
     // Trigger initial AI summary generation for startup
-    // Unlike file-change triggers (which are debounced), initial load should be immediate
-    // so users see summaries right away when opening Canopy
     if (this.state.worktreeChanges) {
-      await this.updateAISummary(true);
+      const isClean = this.state.worktreeChanges.changedFileCount === 0;
+
+      if (isClean) {
+        // Clean worktrees: Generate immediately (fast git log, no AI)
+        await this.updateCleanSummary();
+      } else {
+        // Dirty worktrees: Use debounced generation to prevent API burst on startup
+        // This gives user time to review the UI before generating all summaries
+        this.aiSummaryDebounced();
+      }
     }
   }
 
@@ -242,14 +249,6 @@ export class WorktreeMonitor extends EventEmitter {
     // Set traffic light to green (active)
     this.setTrafficLight('green');
 
-    // UX: If we are currently showing a "Last commit" message (Clean state),
-    // but files just changed, immediately switch to a generic "Dirty" state
-    // so the user knows Canopy saw the change.
-    if (this.state.summary?.startsWith('✅')) {
-      this.state.summary = 'Unsaved changes...';
-      this.emitUpdate();
-    }
-
     // Emit change event for activity tracking
     for (const event of fileChanges) {
       events.emit('watcher:change', { type: event.type, path: event.path });
@@ -302,11 +301,14 @@ export class WorktreeMonitor extends EventEmitter {
       // PERFORMANCE FIX: Deep equality check to prevent render loops
       // The git util returns a new object every time, so strictly checking references fails.
       const prevChanges = this.state.worktreeChanges;
+
+      // Compare both aggregate stats AND the actual change list to catch renames, mode changes, etc.
       const isUnchanged = prevChanges &&
         prevChanges.changedFileCount === newChanges.changedFileCount &&
         prevChanges.latestFileMtime === newChanges.latestFileMtime &&
         prevChanges.totalInsertions === newChanges.totalInsertions &&
-        prevChanges.totalDeletions === newChanges.totalDeletions;
+        prevChanges.totalDeletions === newChanges.totalDeletions &&
+        this.areChangeListsEqual(prevChanges.changes, newChanges.changes);
 
       if (isUnchanged && !forceRefresh) {
         return; // Stop propagation if data is effectively same
@@ -321,12 +323,13 @@ export class WorktreeMonitor extends EventEmitter {
       const wasClean = prevChanges?.changedFileCount === 0;
       const isNowClean = newChanges.changedFileCount === 0;
 
-      // If transitioned to clean, trigger immediate AI summary update
+      // If transitioned to clean, update summary immediately with last commit
+      // Don't use updateAISummary because it might be blocked by isGeneratingSummary
       if (!wasClean && isNowClean) {
         // Cancel pending debounced AI update
         this.aiSummaryDebounced.cancel();
-        // Trigger immediate update
-        await this.updateAISummary(true);
+        // Get clean summary directly (fast git log call, no AI)
+        await this.updateCleanSummary();
       }
 
       // Update mood based on changes
@@ -336,6 +339,10 @@ export class WorktreeMonitor extends EventEmitter {
       if (isNowClean) {
         this.setTrafficLight('gray');
         this.state.isActive = false;
+      } else if (!wasClean && !isNowClean && !isUnchanged) {
+        // For polling-only mode: if we detected new dirty changes, queue AI update
+        // This ensures AI summaries update even without file watcher events
+        this.aiSummaryDebounced();
       }
 
       this.emitUpdate();
@@ -343,6 +350,44 @@ export class WorktreeMonitor extends EventEmitter {
       logError('Failed to update git status', error as Error, { id: this.id });
       this.state.mood = 'error';
       this.emitUpdate();
+    }
+  }
+
+  /**
+   * Update summary for clean worktree (show last commit).
+   * This bypasses the AI generation and isGeneratingSummary lock.
+   */
+  private async updateCleanSummary(): Promise<void> {
+    if (!this.isRunning) {
+      return;
+    }
+
+    try {
+      // Use simple-git to get last commit message
+      const simpleGit = (await import('simple-git')).default;
+      const git = simpleGit(this.path);
+
+      try {
+        const log = await git.log({ maxCount: 1 });
+        const lastCommitMsg = log.latest?.message ?? '';
+
+        if (lastCommitMsg) {
+          const firstLine = lastCommitMsg.split('\n')[0].trim();
+          this.state.summary = `✅ ${firstLine}`;
+          this.state.modifiedCount = 0;
+          this.emitUpdate();
+          return;
+        }
+      } catch (e) {
+        // Git log failed (empty repo?)
+      }
+
+      // Edge case: no commits exist yet
+      this.state.summary = this.branch ? `Clean: ${this.branch}` : 'No changes';
+      this.state.modifiedCount = 0;
+      this.emitUpdate();
+    } catch (error) {
+      logError('Failed to fetch clean summary', error as Error, { id: this.id });
     }
   }
 
@@ -379,8 +424,6 @@ export class WorktreeMonitor extends EventEmitter {
 
     try {
       this.lastAIRequestTime = now;
-      this.lastProcessedMtime = currentMtime;
-      this.lastProcessedChangeCount = currentCount;
 
       this.state.summaryLoading = true;
       this.setTrafficLight('yellow');
@@ -398,6 +441,11 @@ export class WorktreeMonitor extends EventEmitter {
       if (result) {
         this.state.summary = result.summary;
         this.state.modifiedCount = result.modifiedCount;
+
+        // Only mark as processed AFTER successful generation
+        // This allows retry if generation fails
+        this.lastProcessedMtime = currentMtime;
+        this.lastProcessedChangeCount = currentCount;
       }
 
       this.state.summaryLoading = false;
@@ -411,6 +459,30 @@ export class WorktreeMonitor extends EventEmitter {
     } finally {
       this.isGeneratingSummary = false;
     }
+  }
+
+  /**
+   * Compare two change lists for equality.
+   * Checks if both lists contain the same files with the same statuses.
+   */
+  private areChangeListsEqual(
+    list1: Array<{ path: string; status: string }> | undefined,
+    list2: Array<{ path: string; status: string }> | undefined
+  ): boolean {
+    if (!list1 || !list2) return list1 === list2;
+    if (list1.length !== list2.length) return false;
+
+    // Create a map of path -> status for quick lookup
+    const map1 = new Map(list1.map(c => [c.path, c.status]));
+
+    // Check if all entries in list2 match list1
+    for (const change of list2) {
+      if (map1.get(change.path) !== change.status) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -443,7 +515,7 @@ export class WorktreeMonitor extends EventEmitter {
   /**
    * Set traffic light state with automatic transitions.
    *
-   * Green (active) → Yellow (cooldown after 2s) → Gray (idle after 10s)
+   * Green (0-30s) → Yellow (30-90s) → Gray (>90s)
    */
   private setTrafficLight(color: 'green' | 'yellow' | 'gray'): void {
     // Clear existing timer
@@ -456,18 +528,18 @@ export class WorktreeMonitor extends EventEmitter {
 
     // Set up automatic transitions
     if (color === 'green') {
-      // Green → Yellow after 2s
+      // Green → Yellow after 30s
       this.trafficLightTimer = setTimeout(() => {
         this.setTrafficLight('yellow');
         this.emitUpdate();
-      }, TRAFFIC_LIGHT_FLASH_DURATION);
+      }, TRAFFIC_LIGHT_GREEN_DURATION);
     } else if (color === 'yellow') {
-      // Yellow → Gray after 10s
+      // Yellow → Gray after 60s more (90s total)
       this.trafficLightTimer = setTimeout(() => {
         this.setTrafficLight('gray');
         this.state.isActive = false;
         this.emitUpdate();
-      }, TRAFFIC_LIGHT_COOLDOWN_DURATION);
+      }, TRAFFIC_LIGHT_YELLOW_DURATION);
     }
   }
 
