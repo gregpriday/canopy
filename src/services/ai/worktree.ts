@@ -1,6 +1,7 @@
 import { getAIClient } from './client.js';
 import { extractOutputText } from './utils.js';
 import simpleGit from 'simple-git';
+import { withRetry } from '../../utils/errorHandling.js';
 import type { Worktree } from '../../types/index.js';
 
 export interface WorktreeSummary {
@@ -14,7 +15,7 @@ export interface WorktreeSummary {
  * @param worktreePath - Absolute path to worktree
  * @param branchName - Branch name (used for context)
  * @param mainBranch - Main branch to compare against (typically 'main' or 'master')
- * @returns Summary and modified file count, or null if generation fails
+ * @returns Summary and modified file count, or null if AI client is unavailable
  */
 export async function generateWorktreeSummary(
   worktreePath: string,
@@ -24,12 +25,14 @@ export async function generateWorktreeSummary(
   const client = getAIClient();
   if (!client) return null;
 
-  try {
-    const git = simpleGit(worktreePath);
+  const git = simpleGit(worktreePath);
+  let modifiedCount = 0;
+  let diff = '';
 
+  try {
     // Get modified file count
     const status = await git.status();
-    const modifiedCount =
+    modifiedCount =
       status.modified.length +
       status.created.length +
       status.deleted.length +
@@ -37,7 +40,6 @@ export async function generateWorktreeSummary(
       status.not_added.length;
 
     // Get diff between this branch and main (broadest context)
-    let diff = '';
     try {
       diff = await git.diff([`${mainBranch}...HEAD`, '--stat']);
     } catch {
@@ -79,53 +81,75 @@ export async function generateWorktreeSummary(
     const branchContext = branchName ? `Branch: ${branchName}\n` : '';
     const input = `${branchContext}Files changed:\n${diffSnippet}`;
 
-    // Call AI model
-    const response = await client.responses.create({
-      model: 'gpt-5-nano',
-      instructions: 'Summarize git changes in max 5 words. Be specific about what feature/fix is being worked on. Examples: "Adding user authentication", "Fixed API timeout bug", "Refactored database queries". Focus on the "what", not the "how".',
-      input,
-      text: {
-        format: {
-          type: 'json_schema',
-          name: 'worktree_summary',
-          strict: true,
-          schema: {
-            type: 'object',
-            properties: {
-              summary: {
-                type: 'string',
-                description: 'Maximum 5 words describing the work',
-                maxLength: 40
-              }
-            },
-            required: ['summary'],
-            additionalProperties: false
+    const callModel = async (): Promise<WorktreeSummary> => {
+      const response = await client.responses.create({
+        model: 'gpt-5-nano',
+        instructions: 'Summarize git changes in max 5 words. Be specific about what feature/fix is being worked on. Examples: "Adding user authentication", "Fixed API timeout bug", "Refactored database queries". Focus on the "what", not the "how".',
+        input,
+        text: {
+          format: {
+            type: 'json_schema',
+            name: 'worktree_summary',
+            strict: true,
+            schema: {
+              type: 'object',
+              properties: {
+                summary: {
+                  type: 'string',
+                  description: 'Maximum 5 words describing the work',
+                  maxLength: 40
+                }
+              },
+              required: ['summary'],
+              additionalProperties: false
+            }
           }
-        }
-      },
-      reasoning: { effort: 'minimal' },
-      max_output_tokens: 32
-    } as any);
+        },
+        reasoning: { effort: 'minimal' },
+        max_output_tokens: 32
+      } as any);
 
-    const text = extractOutputText(response);
-    if (!text) {
-      console.error('[canopy] Worktree summary: empty response from model');
-      return { summary: branchName || 'Unknown work', modifiedCount };
-    }
+      const text = extractOutputText(response);
+      if (!text) {
+        throw new Error('Worktree summary: empty response from model');
+      }
 
-    const parsed = JSON.parse(text);
-    if (!parsed || typeof parsed.summary !== 'string') {
-      console.error('[canopy] Worktree summary: invalid JSON shape');
-      return { summary: branchName || 'Unknown work', modifiedCount };
-    }
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch (error) {
+        throw new Error(`Worktree summary: invalid JSON (${(error as Error).message})`);
+      }
 
-    return {
-      summary: parsed.summary,
-      modifiedCount
+      if (!parsed || typeof (parsed as Record<string, unknown>).summary !== 'string') {
+        throw new Error('Worktree summary: missing summary in model response');
+      }
+
+      return {
+        summary: (parsed as { summary: string }).summary,
+        modifiedCount
+      };
     };
+
+    try {
+      return await withRetry(callModel, {
+        maxRetries: 2,
+        baseDelay: 300,
+        shouldRetry: () => true,
+      });
+    } catch (error) {
+      console.error('[canopy] Worktree summary retries exhausted', error);
+      return {
+        summary: branchName ? `${branchName} (analysis unavailable)` : 'Analysis unavailable',
+        modifiedCount
+      };
+    }
   } catch (error) {
     console.error('[canopy] generateWorktreeSummary failed', error);
-    return null;
+    return {
+      summary: branchName ? `${branchName} (git unavailable)` : 'Git status unavailable',
+      modifiedCount
+    };
   }
 }
 
@@ -155,9 +179,14 @@ export async function enrichWorktreesWithSummaries(
       if (summary) {
         wt.summary = summary.summary;
         wt.modifiedCount = summary.modifiedCount;
+      } else if (!wt.summary) {
+        wt.summary = 'Summary unavailable';
       }
     } catch (error) {
       console.error(`[canopy] Failed to generate summary for ${wt.path}`, error);
+      if (!wt.summary) {
+        wt.summary = 'Summary unavailable';
+      }
     } finally {
       wt.summaryLoading = false;
       if (onUpdate) onUpdate(wt);

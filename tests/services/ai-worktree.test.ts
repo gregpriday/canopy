@@ -45,7 +45,8 @@ describe('AI Worktree Service', () => {
         modified: ['src/auth.ts', 'src/login.ts'],
         created: ['src/middleware/auth.ts'],
         deleted: [],
-        renamed: []
+        renamed: [],
+        not_added: []
       });
 
       mockGit.diff.mockResolvedValue('src/auth.ts | 50 +++++\nsrc/login.ts | 30 +++++');
@@ -76,7 +77,8 @@ describe('AI Worktree Service', () => {
         modified: [],
         created: [],
         deleted: [],
-        renamed: []
+        renamed: [],
+        not_added: []
       });
 
       mockGit.diff.mockResolvedValue('');
@@ -100,12 +102,61 @@ describe('AI Worktree Service', () => {
       expect(result).toBeNull();
     });
 
-    it('should handle git errors gracefully', async () => {
+    it('should return fallback summary when git errors occur', async () => {
       mockGit.status.mockRejectedValue(new Error('Git error'));
 
       const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
 
-      expect(result).toBeNull();
+      expect(result).toEqual({
+        summary: 'feature/test (git unavailable)',
+        modifiedCount: 0
+      });
+    });
+
+    it('retries AI generation and succeeds on a later attempt', async () => {
+      mockGit.status.mockResolvedValue({
+        modified: ['src/auth.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('src/auth.ts | 10 +++++');
+
+      mockCreate
+        .mockRejectedValueOnce(new Error('Transient error'))
+        .mockResolvedValue({ output_text: JSON.stringify({ summary: 'Retry success' }) });
+
+      const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
+
+      expect(result).toEqual({
+        summary: 'Retry success',
+        modifiedCount: 1
+      });
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('returns a resilient fallback when retries fail', async () => {
+      mockGit.status.mockResolvedValue({
+        modified: ['src/auth.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('src/auth.ts | 10 +++++');
+
+      mockCreate.mockRejectedValue(new Error('API down'));
+
+      const result = await generateWorktreeSummary('/path/to/worktree', 'feature/test', 'main');
+
+      expect(result).toEqual({
+        summary: 'feature/test (analysis unavailable)',
+        modifiedCount: 1
+      });
+      expect(mockCreate).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -132,7 +183,8 @@ describe('AI Worktree Service', () => {
         modified: ['file.ts'],
         created: [],
         deleted: [],
-        renamed: []
+        renamed: [],
+        not_added: []
       });
 
       mockGit.diff.mockResolvedValue('file.ts | 10 +++++');
