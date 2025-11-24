@@ -52,7 +52,9 @@ export function useWorktreeSummaries(
         return lastProcessed === undefined;
       }
 
-      return lastProcessed === undefined || latestMtime > lastProcessed;
+      // FIX: Check for inequality (!==) instead of greater-than (>).
+      // This ensures we update when transitioning from Dirty -> Clean (mtime becomes 0).
+      return lastProcessed === undefined || latestMtime !== lastProcessed;
     });
 
     if (worktreesToUpdate.length === 0) {
