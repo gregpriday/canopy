@@ -34,7 +34,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 |-----|--------|
 | `Ctrl+F` | Open fuzzy search modal (search files across all worktrees) |
 | `/` | Open command palette (slash commands) |
-| `Cmd+1-9` | Open quick link by shortcut number |
+| `Option+1-9` | Open quick link by shortcut number |
 | `Esc` | Close modals and overlays (see priority below) |
 | `?` | Toggle help modal (keyboard shortcuts reference) |
 
@@ -155,7 +155,7 @@ These keys work regardless of mode or modal state:
 3. **Custom Profiles:** Press `p` to choose specialized CopyTree profiles (tests only, docs, etc.)
 4. **File Search:** Press `Ctrl+F` to fuzzy search when you need to find a specific file
 5. **Slash Commands:** Press `/` to open command palette for quick links to external tools
-6. **Direct Access:** Use `Cmd+1-9` to instantly open frequently used links
+6. **Direct Access:** Use `Option+1-9` to instantly open frequently used links
 7. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
 
 ### Keyboard-First vs Mouse

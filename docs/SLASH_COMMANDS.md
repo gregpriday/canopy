@@ -92,12 +92,12 @@ Quick links with `shortcut` numbers (1-9) can be opened directly:
 
 | Shortcut | Action |
 |----------|--------|
-| `Cmd+1` | Open quick link with shortcut 1 |
-| `Cmd+2` | Open quick link with shortcut 2 |
+| `Option+1` | Open quick link with shortcut 1 |
+| `Option+2` | Open quick link with shortcut 2 |
 | ... | ... |
-| `Cmd+9` | Open quick link with shortcut 9 |
+| `Option+9` | Open quick link with shortcut 9 |
 
-These shortcuts work when no modal is open.
+These shortcuts work when no modal is open or when the command palette is open.
 
 ## Example Configurations
 

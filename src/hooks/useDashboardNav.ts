@@ -157,7 +157,7 @@ export function useDashboardNav({
 
   useInput(
     (input, key) => {
-      if (isModalOpen || worktrees.length === 0) {
+      if (worktrees.length === 0) {
         return;
       }
 
@@ -194,7 +194,7 @@ export function useDashboardNav({
 
       handlePrimaryActions(input, key);
     },
-    { isActive: true }
+    { isActive: !isModalOpen }
   );
 
   const visibleEnd = Math.min(visibleStart + clampedViewport, worktrees.length);
