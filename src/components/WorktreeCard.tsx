@@ -2,9 +2,10 @@ import React, { useLayoutEffect, useMemo, useState, useCallback } from 'react';
 import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
+import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood, DevServerState } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
+import { ServerDock } from './ServerDock.js';
 
 /**
  * Get OS-specific file manager label
@@ -28,6 +29,12 @@ export interface WorktreeCardProps {
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
   onOpenExplorer?: () => void;
+  /** Dev server state for this worktree */
+  serverState?: DevServerState;
+  /** Whether a dev script was detected */
+  hasDevScript?: boolean;
+  /** Callback when server toggle is pressed */
+  onToggleServer?: () => void;
   registerClickRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
@@ -211,6 +218,9 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   onCopyTree,
   onOpenEditor,
   onOpenExplorer,
+  serverState,
+  hasDevScript,
+  onToggleServer,
   registerClickRegion,
 }) => {
   const { palette } = useTheme();
@@ -222,7 +232,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   // Traffic light is displayed separately via the indicator dot
   const borderColor = palette.text.tertiary; // Medium gray (#808080) - visible but not too prominent
 
-  const borderStyle = isFocused ? 'double' : 'round';
+  const borderStyle = 'round'; // Standardized: traffic light + branch highlight indicate focus
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
   const sortedChanges = useMemo(() => {
@@ -429,6 +439,18 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           />
         </Box>
       </Box>
+
+      {/* Server Dock - only rendered if dev script detected */}
+      {hasDevScript && serverState && onToggleServer && (
+        <ServerDock
+          worktreeId={worktree.id}
+          serverState={serverState}
+          hasDevScript={hasDevScript}
+          isFocused={isFocused}
+          onToggle={onToggleServer}
+          registerClickRegion={registerClickRegion}
+        />
+      )}
     </Box>
   );
 };
@@ -457,6 +479,14 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevChanges.latestFileMtime !== nextChanges.latestFileMtime) return false;
   if (prevChanges.totalInsertions !== nextChanges.totalInsertions) return false;
   if (prevChanges.totalDeletions !== nextChanges.totalDeletions) return false;
+
+  // Compare server state
+  if (prevProps.hasDevScript !== nextProps.hasDevScript) return false;
+  const prevServer = prevProps.serverState;
+  const nextServer = nextProps.serverState;
+  if (prevServer?.status !== nextServer?.status) return false;
+  if (prevServer?.url !== nextServer?.url) return false;
+  if (prevServer?.errorMessage !== nextServer?.errorMessage) return false;
 
   // Callbacks are stable (created with useCallback in parent)
   return true;

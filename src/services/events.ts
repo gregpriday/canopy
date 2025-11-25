@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { NotificationPayload } from '../types/index.js';
+import type { NotificationPayload, DevServerState } from '../types/index.js';
 import type { WorktreeState } from './monitor/index.js';
 
 export type ModalId =
@@ -70,6 +70,10 @@ export type CanopyEventMap = {
   'sys:worktree:remove': { worktreeId: string };
 
   'watcher:change': WatcherChangePayload;
+
+  // Dev Server Events
+  'server:update': DevServerState;
+  'server:error': { worktreeId: string; error: string };
 };
 
 // 3. Create Bus

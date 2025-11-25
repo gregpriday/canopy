@@ -496,24 +496,25 @@ describe('WorktreeCard - Display Specification Compliance', () => {
   });
 
   describe('Border & Visual Hierarchy', () => {
-    it('uses double border when focused', () => {
+    it('uses round border for all cards (focus indicated by traffic light + branch highlighting)', () => {
       const wt = createCleanWorktree();
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          isFocused={true} // Focused
+          isFocused={true} // Focused - but still uses round border
           isExpanded={false}
           activeRootPath="/repo"
           onToggleExpand={vi.fn()}
         />
       );
 
-      // Ink uses different box-drawing characters for double borders
+      // All cards use round borders now (standardized per issue #235)
+      // Focus indication is via traffic light + branch name highlighting
       const output = lastFrame();
-      // Double border characters: ═ ║ ╔ ╗ ╚ ╝
-      expect(output).toMatch(/[═║╔╗╚╝]/);
+      // Round border characters: ╭ ╮ ╰ ╯ ─ │
+      expect(output).toMatch(/[╭╮╰╯─│]/);
     });
 
     it('uses round border when not focused', () => {
