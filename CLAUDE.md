@@ -248,6 +248,11 @@ Located in `src/hooks/`:
 **Core Infrastructure Hooks**:
 - `useAppLifecycle.ts` - Application initialization and lifecycle management
 - `useGitStatus.ts` - Git status fetching with caching and debouncing
+- `useRepositoryStats.ts` - Repository stats (commits, issues, PRs) with adaptive polling
+  - Active mode (30s): Polls frequently when user is actively working
+  - Idle mode (5min): Polls slowly when no activity for 2+ minutes
+  - Subscribes to `watcher:change` to boost activity state
+  - Subscribes to `sys:refresh` for immediate fetch on manual refresh (r key)
 - `useViewportHeight.ts` - Terminal viewport height calculation for pagination
 - `useWatcher.ts` - Chokidar file system watching with event bus integration
 
