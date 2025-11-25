@@ -106,6 +106,9 @@ export function useActivity(): ActivityState {
   }, []);
 
   // Throttled flush function to update React state
+  // FIX: Use maxWait equal to UPDATE_THROTTLE_MS to ensure consistent 5fps updates
+  // even under sustained event traffic (e.g., npm install). Previously maxWait: 1000
+  // caused updates to fire only once per second during continuous events.
   const flushUpdates = useCallback(
     debounce(() => {
       if (pendingUpdates.current.size === 0) return;
@@ -124,7 +127,7 @@ export function useActivity(): ActivityState {
         return next;
       });
       setIsIdle(false);
-    }, UPDATE_THROTTLE_MS, { leading: true, trailing: true, maxWait: 1000 }),
+    }, UPDATE_THROTTLE_MS, { leading: true, trailing: true, maxWait: UPDATE_THROTTLE_MS }),
     []
   );
 
