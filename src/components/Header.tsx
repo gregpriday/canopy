@@ -201,13 +201,13 @@ export const Header: React.FC<HeaderProps> = ({
           />
         )}
 
-        {/* GitHub Stats */}
+        {/* GitHub Stats - bright when > 0, dim when 0 */}
         {stats.issueCount !== null && (
           <HeaderButton
             id="header-issues"
             label={`[${stats.issueCount} issues]`}
             color={palette.text.secondary}
-            dimColor={true}
+            dimColor={stats.issueCount === 0}
             onPress={handleOpenIssues}
             registerRegion={registerClickRegion}
           />
@@ -218,7 +218,7 @@ export const Header: React.FC<HeaderProps> = ({
             id="header-prs"
             label={`[${stats.prCount} PRs]`}
             color={palette.text.secondary}
-            dimColor={true}
+            dimColor={stats.prCount === 0}
             onPress={handleOpenPRs}
             registerRegion={registerClickRegion}
           />
