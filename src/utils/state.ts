@@ -193,18 +193,26 @@ export async function saveSessionState(
 ): Promise<void> {
   const sessionPath = getSessionPath(worktreeId);
   const sessionDir = path.dirname(sessionPath);
+  const tempSuffix = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const tempPath = `${sessionPath}.tmp-${tempSuffix}`;
 
   try {
     // Ensure sessions directory exists
     await fs.ensureDir(sessionDir);
 
-    // Write atomically (temp file + rename)
-    const tempPath = `${sessionPath}.tmp`;
+    // Write atomically with a unique temp file to avoid cross-test races
     await fs.writeFile(tempPath, JSON.stringify(state, null, 2), 'utf-8');
-    await fs.rename(tempPath, sessionPath);
+    await fs.move(tempPath, sessionPath, { overwrite: true });
   } catch (error) {
     // Non-fatal error - just log it
     console.warn('Failed to save session state:', (error as Error).message);
+  } finally {
+    // Clean up stray temp files if move failed midway
+    try {
+      await fs.remove(tempPath);
+    } catch {
+      // ignore
+    }
   }
 }
 

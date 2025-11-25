@@ -10,6 +10,7 @@ export function useWorktreeSummaries(
   worktrees: Worktree[],
   mainBranch: string = 'main',
   worktreeChanges?: Map<string, WorktreeChanges>,
+  debounceOverrideMs?: number,
 ): Worktree[] {
   const [enrichedWorktrees, setEnrichedWorktrees] = useState<Worktree[]>(worktrees);
 
@@ -17,7 +18,7 @@ export function useWorktreeSummaries(
   const lastProcessedRef = useRef<Map<string, number>>(new Map());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isEnrichingRef = useRef(false);
-  const debounceMs = process.env.NODE_ENV === 'test' ? 0 : AI_DEBOUNCE_MS;
+  const debounceMs = debounceOverrideMs ?? AI_DEBOUNCE_MS;
 
   useEffect(() => {
     latestDataRef.current = { worktrees, worktreeChanges };
