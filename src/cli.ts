@@ -182,6 +182,9 @@ async function main(): Promise<void> {
     // We no longer use the Alternate Screen Buffer (ENTER_ALT_SCREEN).
     // This keeps the Canopy output visible in the terminal history after exit.
 
+    // Clear the terminal on startup for a clean slate
+    clearTerminalScreen();
+
     const { waitUntilExit } = render(
       React.createElement(App, {
         cwd: parsedArgs.cwd,
