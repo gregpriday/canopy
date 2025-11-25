@@ -62,22 +62,31 @@ class WorktreeService {
     // 2. Create new monitors and update existing ones
     for (const wt of worktrees) {
       const existingMonitor = this.monitors.get(wt.id);
+      const isActive = wt.id === activeWorktreeId;
 
       if (existingMonitor) {
         // Update polling interval based on active status
-        const interval = wt.id === activeWorktreeId
+        const interval = isActive
           ? ACTIVE_WORKTREE_INTERVAL_MS
           : BACKGROUND_WORKTREE_INTERVAL_MS;
 
         existingMonitor.setPollingInterval(interval);
+
+        // PERF: Only active worktree should have file watching enabled
+        // Background worktrees rely solely on polling to reduce CPU usage
+        const shouldWatch = watchingEnabled && isActive;
+        await existingMonitor.setWatchingEnabled(shouldWatch);
       } else {
         // Create new monitor
         logInfo('Creating new WorktreeMonitor', { id: wt.id, path: wt.path });
 
-        const monitor = new WorktreeMonitor(wt, mainBranch, watchingEnabled);
+        // PERF: Only enable file watching for active worktree
+        // Background worktrees use polling only (5 minute intervals)
+        const shouldWatch = watchingEnabled && isActive;
+        const monitor = new WorktreeMonitor(wt, mainBranch, shouldWatch);
 
         // Set initial polling interval
-        const interval = wt.id === activeWorktreeId
+        const interval = isActive
           ? ACTIVE_WORKTREE_INTERVAL_MS
           : BACKGROUND_WORKTREE_INTERVAL_MS;
 

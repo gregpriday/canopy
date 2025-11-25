@@ -234,6 +234,48 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
+   * Enable or disable file watching for this worktree.
+   * PERF: Background worktrees should disable watching to reduce CPU usage.
+   * Only the active worktree needs real-time file watching.
+   *
+   * @param enabled - Whether to enable file watching
+   */
+  public async setWatchingEnabled(enabled: boolean): Promise<void> {
+    if (this.watchingEnabled === enabled) {
+      return;
+    }
+
+    this.watchingEnabled = enabled;
+
+    if (!this.isRunning) {
+      return; // Will be applied when start() is called
+    }
+
+    if (enabled && !this.watcher) {
+      // Start watching
+      const gitIgnores = await loadGitignorePatterns(this.path);
+      const ignoredPatterns = buildIgnorePatterns(gitIgnores);
+
+      try {
+        this.watcher = createFileWatcher(this.path, {
+          ignored: ignoredPatterns,
+          onBatch: (events) => this.handleFileChanges(events),
+          onError: (error) => this.handleWatcherError(error),
+        });
+        this.watcher.start();
+        logInfo('File watcher started for worktree', { id: this.id });
+      } catch (error) {
+        logError('Failed to start file watcher', error as Error, { id: this.id });
+      }
+    } else if (!enabled && this.watcher) {
+      // Stop watching
+      await this.watcher.stop();
+      this.watcher = null;
+      logInfo('File watcher stopped for worktree (background mode)', { id: this.id });
+    }
+  }
+
+  /**
    * Force refresh of git status and AI summary.
    */
   public async refresh(forceAI: boolean = false): Promise<void> {
