@@ -22,6 +22,7 @@ import path from 'path';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { worktreeService } from './services/monitor/index.js';
+import { devServerManager } from './services/server/index.js';
 import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
@@ -429,6 +430,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setLastCopyProfile(resolvedProfile);
   }, [lastCopyProfile, sortedWorktrees]);
 
+  const handleToggleServerForWorktree = useCallback((id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target) {
+      return;
+    }
+
+    void devServerManager.toggle(target.id, target.path);
+  }, [sortedWorktrees]);
+
   const handleCommandPaletteExecute = useCallback((command: { name: string; action: () => void }) => {
     events.emit('ui:modal:close', { id: 'command-palette' });
     command.action();
@@ -795,6 +805,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       });
     }
 
+    // Stop all running dev servers gracefully
+    await devServerManager.stopAll().catch((err) => {
+      console.error('Error stopping dev servers on quit:', err);
+    });
+
     // PERF: Removed clearGitStatus() - WorktreeService cleans up on stopAll()
     clearTerminalScreen();
     exit();
@@ -809,6 +824,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const anyModalOpen = activeModals.size > 0;
 
+  // Build devScriptMap for keyboard shortcut guard
+  const devScriptMap = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const wt of sortedWorktrees) {
+      map.set(wt.id, devServerManager.hasDevScript(wt.path));
+    }
+    return map;
+  }, [sortedWorktrees]);
+
   const { visibleStart, visibleEnd } = useDashboardNav({
     worktrees: sortedWorktrees,
     focusedWorktreeId,
@@ -819,6 +843,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onToggleExpand: handleToggleExpandWorktree,
     onCopyTree: handleCopyTreeForWorktree,
     onOpenEditor: handleOpenWorktreeEditor,
+    onToggleServer: handleToggleServerForWorktree,
+    devScriptMap,
   });
 
   useInput(
