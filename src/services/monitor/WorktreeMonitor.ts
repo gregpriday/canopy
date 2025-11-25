@@ -276,8 +276,14 @@ export class WorktreeMonitor extends EventEmitter {
 
   /**
    * Update git status for this worktree using hash-based change detection.
-   * This replaces the file watcher approach with a simpler polling model where
-   * git itself is the source of truth for what changed.
+   * Uses atomic state updates to prevent UI flickering.
+   *
+   * ATOMIC UPDATE PATTERN (Fetch-Then-Commit):
+   * 1. Fetch Phase: Get git status
+   * 2. Logic Phase: Determine next state values (draft variables)
+   * 3. Fetch Phase: If clean, fetch git log synchronously before updating state
+   * 4. Commit Phase: Update entire state object at once
+   * 5. Emit Phase: Single event emission
    */
   private async updateGitStatus(forceRefresh: boolean = false): Promise<void> {
     // Prevent overlapping updates
@@ -288,6 +294,9 @@ export class WorktreeMonitor extends EventEmitter {
     this.isUpdating = true; // Lock
 
     try {
+      // ============================================
+      // PHASE 1: FETCH GIT STATUS
+      // ============================================
       if (forceRefresh) {
         invalidateGitStatusCache(this.path);
       }
@@ -299,67 +308,156 @@ export class WorktreeMonitor extends EventEmitter {
         return;
       }
 
-      // HASH-BASED CHANGE DETECTION
-      // Calculate stable hash of the current git state
+      // ============================================
+      // PHASE 2: DETECT CHANGES (Hash Check)
+      // ============================================
       const currentHash = this.calculateStateHash(newChanges);
-
-      // Check if the git state actually changed
       const stateChanged = currentHash !== this.previousStateHash;
 
+      // Optimization: Skip if nothing changed and not forced
       if (!stateChanged && !forceRefresh) {
-        return; // No changes detected, skip update
+        return;
       }
 
-      // Store previous state before updating
+      // Store previous state for comparison
       const prevChanges = this.state.worktreeChanges;
+      const isInitialLoad = this.previousStateHash === '';
+      const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : true;
+      const isNowClean = newChanges.changedFileCount === 0;
 
-      // Update state
-      this.state.worktreeChanges = newChanges;
-      this.state.changes = newChanges.changes;
-      this.state.modifiedCount = newChanges.changedFileCount;
+      // ============================================
+      // PHASE 3: PREPARE DRAFT STATE VALUES
+      // All state changes are drafted here before committing
+      // ============================================
+      let nextSummary = this.state.summary;
+      let nextSummaryLoading = this.state.summaryLoading;
+      let nextTrafficLight = this.state.trafficLight;
+      let nextIsActive = this.state.isActive;
+      let nextLastActivityTimestamp = this.state.lastActivityTimestamp;
+      let shouldStartTrafficLightTimer = false;
 
-      // TRAFFIC LIGHT ACTIVATION
-      // If hash changed (and not first load), something happened - activate traffic light
-      if (stateChanged && this.previousStateHash !== '') {
-        // Update timestamp and set green (even if reverting to clean)
-        // Reverting IS activity - the user/agent did work
-        this.state.lastActivityTimestamp = Date.now();
-        this.state.isActive = true;
-        this.setTrafficLight('green');
+      // Handle activity (traffic light) - draft values only, timer started later
+      if (stateChanged && !isInitialLoad) {
+        nextLastActivityTimestamp = Date.now();
+        nextIsActive = true;
+        nextTrafficLight = 'green';
+        shouldStartTrafficLightTimer = true;
 
         // Emit file activity events for UI (replaces watcher events)
         this.emitFileActivityEvents(newChanges, prevChanges);
       }
 
-      // Update the hash for next comparison
-      const isInitialLoad = this.previousStateHash === '';
-      this.previousStateHash = currentHash;
+      // ============================================
+      // PHASE 4: HANDLE SUMMARY LOGIC (The Sync Fix)
+      // Fetch last commit SYNCHRONOUSLY when clean so stats + summary update together
+      // ============================================
+      let shouldTriggerAI = false;
+      let shouldScheduleAI = false;
 
-      // CENTRAL SUMMARY UPDATE - only place that decides when to generate
-      const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : true;
-      const isNowClean = newChanges.changedFileCount === 0;
-
-      // Cancel any pending buffer if transitioning to clean
+      // Cancel any pending AI buffer if transitioning to clean
       if (isNowClean && this.aiUpdateTimer) {
         clearTimeout(this.aiUpdateTimer);
         this.aiUpdateTimer = null;
         this.lastSummarizedHash = null;
       }
 
-      // Handle summary update through central method
-      await this.handleSummaryUpdate(isNowClean, wasClean, isInitialLoad);
+      if (isNowClean) {
+        // CLEAN STATE: Fetch commit message IMMEDIATELY so stats + summary update together
+        nextSummary = await this.fetchLastCommitMessage();
+        nextSummaryLoading = false;
 
-      // Update mood based on changes
-      await this.updateMood();
+        // If we just became clean, traffic light goes gray immediately
+        // Also cancel the traffic light timer since we're settling to gray
+        if (stateChanged && !isInitialLoad) {
+          nextTrafficLight = 'gray';
+          nextIsActive = false;
+          shouldStartTrafficLightTimer = false; // Don't start timer for clean state
+        }
+      } else {
+        // DIRTY STATE: Show last commit as fallback, then trigger AI if needed
+        const isFirstDirty = isInitialLoad || wasClean;
 
-      // If clean, ensure traffic light goes gray (overrides green from above)
-      // This handles the case where we reverted all changes
-      if (isNowClean && stateChanged) {
-        this.setTrafficLight('gray');
-        this.state.isActive = false;
+        if (isFirstDirty) {
+          // First time becoming dirty: Fetch last commit as placeholder, then trigger AI
+          nextSummary = await this.fetchLastCommitMessage();
+          nextSummaryLoading = false;
+
+          // Guard: Prevent duplicate AI calls on initial load
+          if (!(isInitialLoad && this.hasGeneratedInitialSummary)) {
+            this.hasGeneratedInitialSummary = true;
+            shouldTriggerAI = true;
+            logDebug('Will trigger AI summary generation', { id: this.id, isInitialLoad });
+          }
+        } else {
+          // Subsequent change while dirty: Schedule AI with buffer
+          shouldScheduleAI = true;
+          logDebug('Will schedule AI summary (14s buffer)', { id: this.id });
+        }
       }
 
+      // ============================================
+      // PHASE 5: UPDATE MOOD
+      // This is computed before the atomic commit
+      // ============================================
+      let nextMood = this.state.mood;
+      try {
+        nextMood = await categorizeWorktree(
+          {
+            id: this.id,
+            path: this.path,
+            name: this.name,
+            branch: this.branch,
+            isCurrent: this.isCurrent,
+          },
+          newChanges || undefined,
+          this.mainBranch
+        );
+      } catch (error) {
+        logWarn('Failed to categorize worktree mood', {
+          id: this.id,
+          message: (error as Error).message,
+        });
+        nextMood = 'error';
+      }
+
+      // ============================================
+      // PHASE 6: ATOMIC COMMIT
+      // Apply all state changes at once
+      // ============================================
+      this.previousStateHash = currentHash;
+      this.state = {
+        ...this.state,
+        worktreeChanges: newChanges,
+        changes: newChanges.changes,
+        modifiedCount: newChanges.changedFileCount,
+        summary: nextSummary,
+        summaryLoading: nextSummaryLoading,
+        trafficLight: nextTrafficLight,
+        isActive: nextIsActive,
+        lastActivityTimestamp: nextLastActivityTimestamp,
+        mood: nextMood,
+      };
+
+      // ============================================
+      // PHASE 7: SINGLE EMISSION
+      // ============================================
       this.emitUpdate();
+
+      // ============================================
+      // PHASE 8: POST-EMIT ASYNC WORK
+      // Start traffic light timer only if we're staying dirty (not transitioning to clean)
+      // AI summary is fire-and-forget with its own emission
+      // ============================================
+      if (shouldStartTrafficLightTimer) {
+        this.startTrafficLightTimer();
+      }
+
+      if (shouldTriggerAI) {
+        void this.triggerAISummary();
+      } else if (shouldScheduleAI) {
+        this.scheduleAISummary();
+      }
+
     } catch (error) {
       // Handle index.lock collision gracefully (don't set mood to error)
       const errorMessage = (error as Error).message || '';
@@ -377,73 +475,30 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * CENTRAL SUMMARY UPDATE LOGIC
-   * This is the ONLY method that decides when to generate AI summaries.
-   * All other code paths must call this method.
+   * CENTRAL SUMMARY UPDATE LOGIC (DEPRECATED)
    *
-   * @param isClean - Whether worktree is clean (no changes)
-   * @param wasClean - Whether worktree was clean before this update
-   * @param isInitialLoad - Whether this is the first load (previousStateHash === '')
+   * @deprecated This method is no longer used. Summary logic is now inlined
+   * in updateGitStatus() for atomic state updates.
+   *
+   * The logic has been moved to Phase 4 of updateGitStatus() to ensure
+   * stats and summary are updated atomically in the same render frame.
    */
-  private async handleSummaryUpdate(
-    isClean: boolean,
-    wasClean: boolean,
-    isInitialLoad: boolean
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private async _handleSummaryUpdate_deprecated(
+    _isClean: boolean,
+    _wasClean: boolean,
+    _isInitialLoad: boolean
   ): Promise<void> {
-    logDebug('handleSummaryUpdate called', {
-      id: this.id,
-      isClean,
-      wasClean,
-      isInitialLoad,
-      hasGeneratedInitialSummary: this.hasGeneratedInitialSummary
-    });
-
-    if (isClean) {
-      // Clean state: Always show last commit immediately
-      await this.setLastCommitAsSummary(false);
-      return;
-    }
-
-    // Dirty state: Always show last commit as fallback immediately
-    await this.setLastCommitAsSummary(false);
-
-    // Decide when to generate AI summary
-    const isFirstDirty = isInitialLoad || wasClean;
-
-    if (isFirstDirty) {
-      // Guard: If this is the initial load and we've already triggered generation,
-      // stop here to prevent duplicate AI calls/updates.
-      if (isInitialLoad && this.hasGeneratedInitialSummary) {
-        logDebug('Skipping duplicate AI generation (initial load guard)', { id: this.id });
-        return;
-      }
-
-      // First time becoming dirty: Generate AI asynchronously
-      // Set flag BEFORE starting to prevent race condition with polling timer
-      this.hasGeneratedInitialSummary = true;
-      logDebug('Triggering AI summary generation', { id: this.id, isInitialLoad });
-
-      // Fire and forget - AI will emit when ready (or fail gracefully if offline)
-      void this.updateAISummary();
-    } else {
-      // Subsequent change while already dirty: Use 14s buffer
-      logDebug('Scheduling AI summary (14s buffer)', { id: this.id });
-      this.scheduleAISummary();
-    }
+    // This method is preserved for reference but no longer called.
+    // See updateGitStatus() Phase 4 for the current implementation.
   }
 
   /**
-   * Set summary to last commit message (fallback).
-   * Does not trigger loading states or AI generation.
-   * If no commits exist, shows friendly "ready to start" message.
-   *
-   * @param emit - Whether to emit update after setting summary (default: true)
+   * Fetch the last commit message.
+   * Returns the string directly, does not modify state.
+   * This is the pure helper used by the atomic update cycle.
    */
-  private async setLastCommitAsSummary(emit: boolean = true): Promise<void> {
-    if (!this.isRunning) {
-      return;
-    }
-
+  private async fetchLastCommitMessage(): Promise<string> {
     try {
       const simpleGit = (await import('simple-git')).default;
       const git = simpleGit(this.path);
@@ -453,24 +508,34 @@ export class WorktreeMonitor extends EventEmitter {
 
       if (lastCommitMsg) {
         const firstLine = lastCommitMsg.split('\n')[0].trim();
-        this.state.summary = `✅ ${firstLine}`;
-      } else {
-        // No commits yet - friendly welcome message
-        this.state.summary = '🌱 Ready to get started';
+        return `✅ ${firstLine}`;
       }
-
-      this.state.summaryLoading = false;
-      if (emit) {
-        this.emitUpdate();
-      }
+      return '🌱 Ready to get started';
     } catch (error) {
-      logError('Failed to set last commit summary', error as Error, { id: this.id });
-      // On error, show friendly message
-      this.state.summary = '🌱 Ready to get started';
-      this.state.summaryLoading = false;
-      if (emit) {
-        this.emitUpdate();
-      }
+      logError('Failed to fetch last commit message', error as Error, { id: this.id });
+      return '🌱 Ready to get started';
+    }
+  }
+
+  /**
+   * Set summary to last commit message (fallback).
+   * Does not trigger loading states or AI generation.
+   * If no commits exist, shows friendly "ready to start" message.
+   *
+   * @param emit - Whether to emit update after setting summary (default: true)
+   * @deprecated Use fetchLastCommitMessage() in updateCycle() for atomic updates
+   */
+  private async setLastCommitAsSummary(emit: boolean = true): Promise<void> {
+    if (!this.isRunning) {
+      return;
+    }
+
+    const summary = await this.fetchLastCommitMessage();
+    this.state.summary = summary;
+    this.state.summaryLoading = false;
+
+    if (emit) {
+      this.emitUpdate();
     }
   }
 
@@ -490,7 +555,17 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
+   * Trigger AI summary generation immediately (fire and forget).
+   * This method updates state and emits its own update when AI completes.
+   * Used by the atomic updateGitStatus() after the main state emission.
+   */
+  private async triggerAISummary(): Promise<void> {
+    await this.updateAISummary();
+  }
+
+  /**
    * Update AI summary for this worktree.
+   * Emits its own update when the summary is ready.
    */
   private async updateAISummary(forceUpdate: boolean = false): Promise<void> {
     logDebug('updateAISummary called', {
@@ -593,9 +668,36 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
+   * Start the traffic light timer for automatic green → yellow → gray transitions.
+   * This method only starts/resets the timer, it doesn't set the traffic light color.
+   * Used by atomic updateGitStatus() where color is set via draft variables.
+   */
+  private startTrafficLightTimer(): void {
+    // Clear existing timer
+    if (this.trafficLightTimer) {
+      clearTimeout(this.trafficLightTimer);
+      this.trafficLightTimer = null;
+    }
+
+    // Green → Yellow after 30s
+    this.trafficLightTimer = setTimeout(() => {
+      this.state.trafficLight = 'yellow';
+      this.emitUpdate();
+
+      // Yellow → Gray after 60s more (90s total)
+      this.trafficLightTimer = setTimeout(() => {
+        this.state.trafficLight = 'gray';
+        this.state.isActive = false;
+        this.emitUpdate();
+      }, TRAFFIC_LIGHT_YELLOW_DURATION);
+    }, TRAFFIC_LIGHT_GREEN_DURATION);
+  }
+
+  /**
    * Set traffic light state with automatic transitions.
    *
    * Green (0-30s) → Yellow (30-90s) → Gray (>90s)
+   * @deprecated Use startTrafficLightTimer() with draft variables in updateGitStatus()
    */
   private setTrafficLight(color: 'green' | 'yellow' | 'gray'): void {
     // Clear existing timer
