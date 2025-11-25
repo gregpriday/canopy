@@ -5,16 +5,12 @@ import type { WorktreeState } from './monitor/index.js';
 export type ModalId =
   | 'help'
   | 'worktree'
-  | 'context-menu'
-  | 'recent-activity'
   | 'profile-selector'
   | 'fuzzy-search'
   | 'command-palette';
 export interface ModalContextMap {
   help: undefined;
   worktree: undefined;
-  'context-menu': { path: string; position?: { x: number; y: number } };
-  'recent-activity': undefined;
   'profile-selector': { worktreeId?: string };
   'fuzzy-search': { initialQuery?: string };
   'command-palette': undefined;

@@ -52,24 +52,6 @@ export interface Notification {
 }
 
 export type NotificationPayload = Omit<Notification, 'id'> & { id?: string };
-export interface SystemServices {
-  ui: {
-    notify: (notification: NotificationPayload) => void;
-    refresh: () => void;
-    exit: () => void;
-  };
-  system: {
-    cwd: string;
-    openExternal: (path: string) => Promise<void>;
-    copyToClipboard: (text: string) => Promise<void>;
-    exec: (command: string, args?: string[], cwd?: string) => Promise<string>;
-  };
-  state: {
-    selectedPath: string | null;
-    fileTree: TreeNode[];
-    expandedPaths: Set<string>;
-  };
-}
 
 /**
  * Represents a single git worktree.
@@ -130,35 +112,6 @@ export interface OpenersConfig {
   byGlob: Record<string, OpenerConfig>;
 }
 
-/**
- * Represents a single file system activity event captured from the watcher.
- * Paths are relative to the workspace root for consistency.
- */
-export interface ActivityEvent {
-  /** Workspace-relative path to the file/directory */
-  path: string;
-  /** Type of file system change */
-  type: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
-  /** Unix timestamp (milliseconds) when the event occurred */
-  timestamp: number;
-}
-
-/**
- * Configuration options for the Recent Activity feature.
- */
-export interface RecentActivityConfig {
-  /** Whether the feature is enabled */
-  enabled: boolean;
-  /** Time window in minutes to keep events (older events are pruned) */
-  windowMinutes: number;
-  /** Maximum number of events to retain (oldest are pruned) */
-  maxEntries: number;
-}
-
-/**
- * Import context menu configuration types
- */
-import type { ContextMenuConfig } from './contextMenu.js';
 import type { KeyMapConfig } from './keymap.js';
 
 /**
@@ -220,8 +173,6 @@ export interface CanopyConfig {
     enable: boolean;           // Master toggle for worktree features
     showInHeader: boolean;     // Show/hide worktree indicator in header
   };
-  recentActivity?: RecentActivityConfig;
-  contextMenu?: ContextMenuConfig;
   git?: {
     statusStyle?: 'letter' | 'glyph'; // 'letter' = M/A/D, 'glyph' = ● (default: 'glyph')
     folderHeatMap?: boolean; // Enable folder heat coloring (default: true)
@@ -243,8 +194,6 @@ export interface CanopyState {
   cursorPosition: number;
   showPreview: boolean;
   showHelp: boolean;
-  contextMenuOpen: boolean;
-  contextMenuPosition: { x: number; y: number };
   filterActive: boolean;
   filterQuery: string;
   filteredPaths: string[];
@@ -318,11 +267,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
       args: ['-p', 'docs'],
       description: 'Documentation only'
     }
-  },
-  recentActivity: {
-    enabled: true,             // Enabled by default
-    windowMinutes: 10,         // Keep events from last 10 minutes
-    maxEntries: 50,            // Maximum 50 events in buffer
   },
   git: {
     statusStyle: 'glyph',      // Use color-coded glyphs by default

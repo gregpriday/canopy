@@ -30,7 +30,6 @@ export interface UseMouseOptions {
   onSelect: (path: string) => void;
   onToggle: (path: string) => void;
   onOpen: (path: string) => void;
-  onContextMenu: (path: string, position: { x: number; y: number }) => void;
   onScrollChange: (newOffset: number) => void;
   config: CanopyConfig;
 }
@@ -60,7 +59,6 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
     onSelect,
     onToggle,
     onOpen,
-    onContextMenu,
     onScrollChange,
     config,
   } = options;
@@ -109,12 +107,6 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
         return;
       }
 
-      // Right-click: context menu
-      if (event.button === 'right') {
-        onContextMenu(node.path, { x: event.x, y: event.y });
-        return;
-      }
-
       // Left-click behavior depends on node type
       if (event.button === 'left') {
         if (node.type === 'directory') {
@@ -126,7 +118,7 @@ export function useMouse(options: UseMouseOptions): UseMouseReturn {
         }
       }
     },
-    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, onContextMenu, config],
+    [getRowIndexFromY, fileTree, onToggle, onOpen, onSelect, config],
   );
 
   /**

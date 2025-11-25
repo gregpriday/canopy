@@ -4,7 +4,6 @@ import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { getExplorerLabel } from './components/WorktreeCard.js';
 import { TreeView } from './components/TreeView.js';
-import { ContextMenu } from './components/ContextMenu.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
@@ -12,7 +11,7 @@ import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, SystemServices, WorktreeChanges } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, WorktreeChanges } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
@@ -29,8 +28,6 @@ import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
-import { useRecentActivity } from './hooks/useRecentActivity.js';
-import { RecentActivityPanel } from './components/RecentActivityPanel.js';
 import { useActivity } from './hooks/useActivity.js';
 import { worktreeService } from './services/monitor/index.js';
 import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
@@ -41,7 +38,6 @@ import { logWarn } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import { detectTerminalTheme } from './theme/colorPalette.js';
 import open from 'open';
-import clipboardy from 'clipboardy';
 
 interface AppProps {
   cwd: string;
@@ -53,11 +49,9 @@ interface AppProps {
 
 const MODAL_CLOSE_PRIORITY: ModalId[] = [
   'help',
-  'context-menu',
   'command-palette',
   'worktree',
   'profile-selector',
-  'recent-activity',
 ];
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
@@ -152,10 +146,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [filterActive, setFilterActive] = useState(!!initialFilter);
   const [filterQuery, setFilterQuery] = useState(initialFilter || '');
   const [fuzzySearchQuery, setFuzzySearchQuery] = useState('');
-
-  // Context menu state
-  const [contextMenuTarget, setContextMenuTarget] = useState<string>('');
-  const [contextMenuPosition, setContextMenuPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
   // Active worktree state (can change via user actions)
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
@@ -283,8 +273,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const isWorktreePanelOpen = activeModals.has('worktree');
   const showHelpModal = activeModals.has('help');
-  const contextMenuOpen = activeModals.has('context-menu');
-  const isRecentActivityOpen = activeModals.has('recent-activity');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
   const isCommandPaletteOpen = activeModals.has('command-palette');
@@ -388,13 +376,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const { activeFiles } = useActivity();
 
   const projectIdentity = useProjectIdentity(activeRootPath);
-
-  // Initialize Recent Activity Hook
-  const {
-    recentEvents,
-    lastEvent,
-    clearEvents
-  } = useRecentActivity(activeRootPath, config.recentActivity || { enabled: false, windowMinutes: 10, maxEntries: 50 });
 
   // Resolve theme mode (auto detects terminal background)
   const themeMode = useMemo(() => {
@@ -596,13 +577,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       if (context !== undefined) {
         setModalContext((prev) => ({ ...prev, [id]: context }));
       }
-      if (id === 'context-menu') {
-        const targetPath = (context as { path?: string } | undefined)?.path || selectedPathRef.current || '';
-        if (targetPath) {
-          setContextMenuTarget(targetPath);
-          setContextMenuPosition({ x: 0, y: 0 });
-        }
-      }
     });
 
     const handleClose = events.on('ui:modal:close', ({ id }) => {
@@ -622,9 +596,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         delete next[id];
         return next;
       });
-      if (!id || id === 'context-menu') {
-        setContextMenuTarget('');
-      }
     });
 
     return () => {
@@ -884,7 +855,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setFilterQuery('');
       clearGitStatus();
       // Note: WorktreeService handles its own state refresh
-      clearEvents(); // Clear activity buffer for new worktree
 
       // 6. Notify user of success
       events.emit('ui:modal:close', { id: 'worktree' });
@@ -907,7 +877,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, clearEvents, clearGitStatus, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
+  }, [activeWorktreeId, clearGitStatus, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
@@ -1024,18 +994,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       }
     });
   }, [handleSwitchWorktree, worktreesWithStatus]);
-
-  // Handle navigation from Recent Activity Panel to tree
-  const handleSelectActivityPath = useCallback((targetPath: string) => {
-    // Close the modal
-    events.emit('ui:modal:close', { id: 'recent-activity' });
-
-    // Convert relative path to absolute
-    const absolutePath = path.join(activeRootPath, targetPath);
-
-    // Emit navigation event (existing nav:select handler will expand parents and set selection)
-    events.emit('nav:select', { path: absolutePath });
-  }, [activeRootPath]);
 
   // Handle fuzzy search result selection
   const handleFuzzySearchResult = useCallback(async (relativePath: string, action: 'copy' | 'open') => {
@@ -1209,15 +1167,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       events.emit('sys:refresh');
     },
     onOpenHelp: undefined,
-    onOpenContextMenu: anyModalOpen
-      ? undefined
-      : () => {
-          const focusedWorktree = sortedWorktrees.find(wt => wt.id === focusedWorktreeId);
-          const path = selectedPathRef.current || focusedWorktree?.path;
-          if (!path) return;
-
-          events.emit('ui:modal:open', { id: 'context-menu', context: { path } });
-        },
     onQuit: handleQuit,
     onForceExit: handleQuit,
     onWarnExit: () => {
@@ -1316,67 +1265,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             />
           )}
         </Box>
-        {contextMenuOpen && (() => {
-          // Create SystemServices object for context menu
-          const contextMenuServices: SystemServices = {
-            ui: {
-              notify: (n: NotificationPayload) => events.emit('ui:notify', n),
-              refresh: refreshTree,
-              exit: exitApp,
-            },
-            system: {
-              cwd: activeRootPath,
-              openExternal: async (path) => { await open(path); },
-              copyToClipboard: async (text) => { await clipboardy.write(text); },
-              exec: async (cmd, cmdArgs, execCwd) => {
-                const { stdout } = await execa(cmd, cmdArgs || [], { cwd: execCwd || activeRootPath });
-                return stdout;
-              }
-            },
-            state: {
-              selectedPath,
-              fileTree: rawTree,
-              expandedPaths: expandedFolders
-            }
-          };
-
-          return (
-            <ContextMenu
-              path={contextMenuTarget}
-              position={contextMenuPosition}
-              config={config}
-              services={contextMenuServices}
-              onClose={() => events.emit('ui:modal:close', { id: 'context-menu' })}
-              onAction={(actionType, result) => {
-                if (result.success) {
-                  events.emit('ui:notify', {
-                    type: 'success',
-                    message: result.message || 'Action completed',
-                  });
-                } else {
-                  events.emit('ui:notify', {
-                    type: 'error',
-                    message: `Action failed: ${result.message || 'Unknown error'}`,
-                  });
-                }
-                events.emit('ui:modal:close', { id: 'context-menu' });
-              }}
-            />
-          );
-        })()}
         {isWorktreePanelOpen && (
           <WorktreePanel
             worktrees={worktreesWithStatus}
             activeWorktreeId={activeWorktreeId}
             onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
-          />
-        )}
-        {isRecentActivityOpen && (
-          <RecentActivityPanel
-            visible={isRecentActivityOpen}
-            events={recentEvents}
-            onClose={() => events.emit('ui:modal:close', { id: 'recent-activity' })}
-            onSelectPath={handleSelectActivityPath}
           />
         )}
         <HelpModal

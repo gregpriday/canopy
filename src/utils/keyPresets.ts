@@ -24,7 +24,6 @@ export const STANDARD_PRESET: Record<KeyAction, string[]> = {
 	'file.copyTree': ['C', 'meta+c'],
 	'ui.refresh': ['r'],
 	'ui.help': ['?'],
-	'ui.contextMenu': ['m'],
 	'ui.filter': ['ctrl+f'],
 	'ui.escape': ['escape'],
 	'git.toggle': ['g'],

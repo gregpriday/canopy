@@ -301,6 +301,5 @@ describe('HelpModal', () => {
     expect(frame).toContain('Manual refresh');
     expect(frame).toContain('Toggle this help overlay');
     expect(frame).toContain('Quit Canopy');
-    expect(frame).toContain('Open context menu');
   });
 });

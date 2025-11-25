@@ -34,7 +34,6 @@ describe('useMouse', () => {
     onSelect: vi.fn(),
     onToggle: vi.fn(),
     onOpen: vi.fn(),
-    onContextMenu: vi.fn(),
     onScrollChange: vi.fn(),
     config: DEFAULT_CONFIG,
     ...overrides,
@@ -110,25 +109,6 @@ describe('useMouse', () => {
       expect(onSelect).toHaveBeenCalledWith('src/App.tsx');
       expect(onOpen).not.toHaveBeenCalled();
       expect(emitSpy).not.toHaveBeenCalledWith('file:copy-path', expect.anything());
-    });
-
-    it('opens context menu on right-click', () => {
-      const onContextMenu = vi.fn();
-      const options = createOptions({ onContextMenu });
-      render(React.createElement(TestComponent, options));
-
-      const { handleClick } = (global as any).testHandlers;
-
-      handleClick({
-        x: 10,
-        y: 2,
-        button: 'right',
-        shift: false,
-        ctrl: false,
-        meta: false,
-      });
-
-      expect(onContextMenu).toHaveBeenCalledWith('src/App.tsx', { x: 10, y: 2 });
     });
 
     it('ignores clicks on header', () => {

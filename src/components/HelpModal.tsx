@@ -84,11 +84,9 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
       {/* Misc */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold color={palette.accent.primary}>Misc:</Text>
-        <Text>  <Text color={palette.semantic.srcFolder}>a</Text>           Open recent activity panel</Text>
         <Text>  <Text color={palette.semantic.srcFolder}>r</Text>           Manual refresh</Text>
         <Text>  <Text color={palette.semantic.srcFolder}>?</Text>           Toggle this help overlay</Text>
         <Text>  <Text color={palette.semantic.srcFolder}>q</Text>           Quit Canopy</Text>
-        <Text>  <Text color={palette.semantic.srcFolder}>m</Text>           Open context menu</Text>
       </Box>
 
       {/* Footer */}

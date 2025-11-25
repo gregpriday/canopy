@@ -36,7 +36,6 @@ export interface KeyboardHandlers {
   // UI Actions
   onRefresh?: () => void;          // r key
   onOpenHelp?: () => void;         // ? key
-  onOpenContextMenu?: () => void;  // m key
   onQuit?: () => void;             // q key
   onForceExit?: () => void;        // Ctrl+C (second press)
   onWarnExit?: () => void;         // Ctrl+C (first press)
@@ -231,12 +230,6 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
       return;
     }
 
-    // Recent Activity (not yet configurable - keeping legacy behavior)
-    if (input === 'a' && !key.shift && !key.ctrl && !key.meta) {
-      events.emit('ui:modal:open', { id: 'recent-activity' });
-      return;
-    }
-
     // UI Actions
     if (isAction(input, key, 'ui.refresh', keyMap) && handlers.onRefresh) {
       handlers.onRefresh();
@@ -245,15 +238,6 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
 
     if (isAction(input, key, 'ui.help', keyMap)) {
       events.emit('ui:modal:open', { id: 'help' });
-      return;
-    }
-
-    if (isAction(input, key, 'ui.contextMenu', keyMap)) {
-      if (handlers.onOpenContextMenu) {
-        handlers.onOpenContextMenu();
-        return;
-      }
-      events.emit('ui:modal:open', { id: 'context-menu' });
       return;
     }
 

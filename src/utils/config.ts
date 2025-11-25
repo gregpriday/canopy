@@ -232,19 +232,6 @@ function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
       }
 
       if (
-        typedKey === 'recentActivity' &&
-        value &&
-        typeof value === 'object' &&
-        !Array.isArray(value)
-      ) {
-        merged[typedKey] = {
-          ...merged.recentActivity,
-          ...value,
-        } as typeof merged.recentActivity;
-        continue;
-      }
-
-      if (
         typedKey === 'search' &&
         value &&
         typeof value === 'object' &&
@@ -486,23 +473,6 @@ function validateConfig(config: unknown): CanopyConfig {
       }
       if (typeof c.worktrees.showInHeader !== 'boolean') {
         errors.push('config.worktrees.showInHeader must be a boolean');
-      }
-    }
-  }
-
-  // Validate recentActivity (optional field)
-  if (c.recentActivity !== undefined) {
-    if (!c.recentActivity || typeof c.recentActivity !== 'object') {
-      errors.push('config.recentActivity must be an object');
-    } else {
-      if (typeof c.recentActivity.enabled !== 'boolean') {
-        errors.push('config.recentActivity.enabled must be a boolean');
-      }
-      if (typeof c.recentActivity.windowMinutes !== 'number' || c.recentActivity.windowMinutes <= 0) {
-        errors.push('config.recentActivity.windowMinutes must be a positive number');
-      }
-      if (typeof c.recentActivity.maxEntries !== 'number' || c.recentActivity.maxEntries <= 0) {
-        errors.push('config.recentActivity.maxEntries must be a positive number');
       }
     }
   }

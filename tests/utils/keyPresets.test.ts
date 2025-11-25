@@ -23,7 +23,6 @@ describe('STANDARD_PRESET', () => {
 			'file.copyTree',
 			'ui.refresh',
 			'ui.help',
-			'ui.contextMenu',
 			'ui.filter',
 			'ui.escape',
 			'git.toggle',

@@ -208,17 +208,6 @@ describe('useKeyboard', () => {
       unsubscribe();
     });
 
-    it('emits modal open for context menu when m is pressed', async () => {
-      const { spy, unsubscribe } = listen('ui:modal:open');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, 'm');
-
-      expect(spy).toHaveBeenCalledWith({ id: 'context-menu', context: undefined });
-      unsubscribe();
-    });
-
     it('calls onQuit when q is pressed', async () => {
       const onQuit = vi.fn();
       const { stdin } = render(<TestComponent handlers={{ onQuit }} />);

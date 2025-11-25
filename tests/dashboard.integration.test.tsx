@@ -102,12 +102,6 @@ vi.mock('../src/hooks/useGitStatus.js', () => ({
   })),
 }));
 
-vi.mock('../src/hooks/useRecentActivity.js', () => ({
-  useRecentActivity: vi.fn(() => ({
-    recentFiles: [],
-  })),
-}));
-
 vi.mock('../src/hooks/useWatcher.js', () => ({
   useWatcher: vi.fn(() => ({
     isWatching: false,

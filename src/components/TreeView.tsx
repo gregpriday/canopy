@@ -337,7 +337,6 @@ export const TreeView: React.FC<TreeViewProps> = ({
     onSelect: emitSelect,
     onToggle: handleToggle,
     onOpen: emitSelect, // For now, open = select
-    onContextMenu: () => {}, // Not implemented yet
     onScrollChange: handleScrollChange,
     config,
   });

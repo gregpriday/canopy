@@ -27,7 +27,6 @@ export type KeyAction =
 	// UI actions
 	| 'ui.refresh'
 	| 'ui.help'
-	| 'ui.contextMenu'
 	| 'ui.filter'
 	| 'ui.escape'
 
