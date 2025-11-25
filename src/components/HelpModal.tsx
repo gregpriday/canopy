@@ -73,6 +73,13 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
         <Text>  <Text color={palette.semantic.srcFolder}>C</Text>           Open CopyTree command builder</Text>
       </Box>
 
+      {/* Quick Links */}
+      <Box flexDirection="column" marginBottom={1}>
+        <Text bold color={palette.accent.primary}>Quick Links:</Text>
+        <Text>  <Text color={palette.semantic.srcFolder}>/</Text>           Open command palette (slash commands)</Text>
+        <Text>  <Text color={palette.semantic.srcFolder}>⌘1-9</Text>       Open quick link by shortcut number</Text>
+      </Box>
+
       {/* Misc */}
       <Box flexDirection="column" marginBottom={1}>
         <Text bold color={palette.accent.primary}>Misc:</Text>

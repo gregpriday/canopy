@@ -257,6 +257,19 @@ function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
         continue;
       }
 
+      if (
+        typedKey === 'quickLinks' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        merged[typedKey] = {
+          ...merged.quickLinks,
+          ...value,
+        } as typeof merged.quickLinks;
+        continue;
+      }
+
       (merged as any)[typedKey] = value;
     }
   }
@@ -536,6 +549,69 @@ function validateConfig(config: unknown): CanopyConfig {
                   errors.push(`config.keys.overrides.${action}[${i}] must be a string`);
                 }
               }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate quickLinks (optional field)
+  if (c.quickLinks !== undefined) {
+    if (!c.quickLinks || typeof c.quickLinks !== 'object') {
+      errors.push('config.quickLinks must be an object');
+    } else {
+      if (typeof c.quickLinks.enabled !== 'boolean') {
+        errors.push('config.quickLinks.enabled must be a boolean');
+      }
+      if (!Array.isArray(c.quickLinks.links)) {
+        errors.push('config.quickLinks.links must be an array');
+      } else {
+        // Track used shortcuts and commands for duplicate detection
+        const usedShortcuts = new Set<number>();
+        const usedCommands = new Set<string>();
+
+        for (let i = 0; i < c.quickLinks.links.length; i++) {
+          const link = c.quickLinks.links[i];
+          if (!link || typeof link !== 'object') {
+            errors.push(`config.quickLinks.links[${i}] must be an object`);
+            continue;
+          }
+
+          // Validate required fields
+          if (typeof link.label !== 'string' || link.label.trim() === '') {
+            errors.push(`config.quickLinks.links[${i}].label must be a non-empty string`);
+          }
+          if (typeof link.url !== 'string' || link.url.trim() === '') {
+            errors.push(`config.quickLinks.links[${i}].url must be a non-empty string`);
+          } else {
+            // Basic URL validation
+            try {
+              new URL(link.url);
+            } catch {
+              errors.push(`config.quickLinks.links[${i}].url must be a valid URL`);
+            }
+          }
+
+          // Validate optional shortcut (1-9)
+          if (link.shortcut !== undefined) {
+            if (typeof link.shortcut !== 'number' || !Number.isInteger(link.shortcut) || link.shortcut < 1 || link.shortcut > 9) {
+              errors.push(`config.quickLinks.links[${i}].shortcut must be an integer between 1 and 9`);
+            } else if (usedShortcuts.has(link.shortcut)) {
+              errors.push(`config.quickLinks.links[${i}].shortcut ${link.shortcut} is already used by another link`);
+            } else {
+              usedShortcuts.add(link.shortcut);
+            }
+          }
+
+          // Validate optional command (alphanumeric, lowercase)
+          if (link.command !== undefined) {
+            if (typeof link.command !== 'string' || !/^[a-z][a-z0-9-]*$/.test(link.command)) {
+              errors.push(`config.quickLinks.links[${i}].command must be a lowercase alphanumeric string starting with a letter`);
+            } else if (usedCommands.has(link.command)) {
+              errors.push(`config.quickLinks.links[${i}].command "${link.command}" is already used by another link`);
+            } else {
+              usedCommands.add(link.command);
             }
           }
         }

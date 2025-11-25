@@ -161,6 +161,30 @@ export interface RecentActivityConfig {
 import type { ContextMenuConfig } from './contextMenu.js';
 import type { KeyMapConfig } from './keymap.js';
 
+/**
+ * Represents a configurable quick link for external tools (chat clients, dashboards, etc.)
+ */
+export interface QuickLink {
+  /** Display label for the link */
+  label: string;
+  /** URL to open in default browser */
+  url: string;
+  /** Optional keyboard shortcut number (1-9) for Cmd+{num} access */
+  shortcut?: number;
+  /** Optional slash command name (e.g., "gemini" for /gemini) */
+  command?: string;
+}
+
+/**
+ * Configuration for the quick links feature
+ */
+export interface QuickLinksConfig {
+  /** Enable/disable the quick links feature (default: true) */
+  enabled: boolean;
+  /** Configured links */
+  links: QuickLink[];
+}
+
 export interface CanopyConfig {
   editor: string;
   editorArgs: string[];
@@ -209,6 +233,7 @@ export interface CanopyConfig {
     respectGitignore?: boolean; // Whether to respect gitignore in search (inherits from respectGitignore if not set)
   };
   keys?: KeyMapConfig; // Configurable keyboard shortcuts with preset support
+  quickLinks?: QuickLinksConfig; // Quick links to external tools and chat clients
 }
 
 export interface CanopyState {
@@ -308,5 +333,9 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     defaultAction: 'open',     // Open file by default on Enter
     limit: 20,                 // Show top 20 results
     respectGitignore: true,    // Respect gitignore by default
+  },
+  quickLinks: {
+    enabled: true,
+    links: [], // Empty by default - user configures their own links
   },
 };
