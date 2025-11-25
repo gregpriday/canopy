@@ -28,20 +28,23 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 | `w` | Cycle to next worktree (switches active worktree) |
 | `W` (Shift+w) | Open worktree panel (shows full list with selection) |
 
-### Search
+### Search & Commands
 
 | Key | Action |
 |-----|--------|
 | `Ctrl+F` | Open fuzzy search modal (search files across all worktrees) |
+| `/` | Open command palette (slash commands) |
+| `Cmd+1-9` | Open quick link by shortcut number |
 | `Esc` | Close modals and overlays (see priority below) |
 | `?` | Toggle help modal (keyboard shortcuts reference) |
 
 **Esc Key Priority:**
 1. Help modal → closes if open
 2. Context menu → closes if open
-3. Worktree panel → closes if open
-4. Profile selector modal → closes if open
-5. Recent activity modal → closes if open
+3. Command palette → closes if open
+4. Worktree panel → closes if open
+5. Profile selector modal → closes if open
+6. Recent activity modal → closes if open
 
 ### Display & Settings
 
@@ -88,6 +91,18 @@ Displays traditional hierarchical file browser.
 Same as Dashboard mode.
 
 ## Modal-Specific Shortcuts
+
+### Command Palette
+
+| Key | Action |
+|-----|--------|
+| Type text | Filter commands by name or label (fuzzy search) |
+| `↑` / `↓` | Navigate command list |
+| `Enter` | Execute selected command |
+| `Tab` | Autocomplete to selected command |
+| `Esc` | Close command palette |
+
+See [Slash Commands](./SLASH_COMMANDS.md) for configuration and usage.
 
 ### Fuzzy Search Modal
 
@@ -138,8 +153,10 @@ These keys work regardless of mode or modal state:
 1. **Dashboard Navigation:** Use `j`/`k` or arrow keys to move between worktrees
 2. **Quick Context:** Press `c` to copy changed files for the focused worktree
 3. **Custom Profiles:** Press `p` to choose specialized CopyTree profiles (tests only, docs, etc.)
-4. **Deep Dive:** Press `/` to fuzzy search when you need to find a specific file
-5. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
+4. **File Search:** Press `Ctrl+F` to fuzzy search when you need to find a specific file
+5. **Slash Commands:** Press `/` to open command palette for quick links to external tools
+6. **Direct Access:** Use `Cmd+1-9` to instantly open frequently used links
+7. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
 
 ### Keyboard-First vs Mouse
 

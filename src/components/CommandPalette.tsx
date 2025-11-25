@@ -1,10 +1,10 @@
 import React, { useState, useMemo } from 'react';
-import { Box, Text, useInput } from 'ink';
+import { Box, Text, useInput, useStdout } from 'ink';
 import { useTheme } from '../theme/ThemeProvider.js';
 import type { SlashCommand } from '../hooks/useQuickLinks.js';
 import { fuzzyMatch } from '../utils/fuzzyMatch.js';
 
-const MAX_VISIBLE_COMMANDS = 10;
+const MAX_VISIBLE_COMMANDS = 5;
 
 interface CommandPaletteProps {
   visible: boolean;
@@ -20,8 +20,12 @@ export function CommandPalette({
   onClose,
 }: CommandPaletteProps): React.JSX.Element | null {
   const { palette } = useTheme();
+  const { stdout } = useStdout();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Get terminal width for full-width overlay
+  const terminalWidth = stdout?.columns || 80;
 
   // Filter and sort commands based on query
   const filteredCommands = useMemo(() => {
@@ -120,104 +124,123 @@ export function CommandPalette({
   // Don't render if not visible
   if (!visible) return null;
 
+  // Calculate visible commands for the sliding window
+  const windowStart = Math.max(0, Math.min(
+    filteredCommands.length - MAX_VISIBLE_COMMANDS,
+    selectedIndex - Math.floor(MAX_VISIBLE_COMMANDS / 2)
+  ));
+  const visibleCommands = filteredCommands.slice(windowStart, windowStart + MAX_VISIBLE_COMMANDS);
+
+  // Box drawing characters for command palette border (single line, connects to header)
+  const BORDER = {
+    vertical: '│',
+    horizontal: '─',
+    bottomLeft: '└',
+    bottomRight: '┘',
+  };
+
+  // Calculate horizontal line width (terminal width minus 2 for corners)
+  const horizontalLineWidth = Math.max(0, terminalWidth - 2);
+  const horizontalLine = BORDER.horizontal.repeat(horizontalLineWidth);
+
+  // T-junction characters for the separator line
+  const SEPARATOR = {
+    left: '├',
+    right: '┤',
+  };
+
   // Show message if no commands configured
   if (commands.length === 0) {
     return (
-      <Box
-        flexDirection="column"
-        borderStyle="double"
-        borderColor={palette.chrome.border}
-        padding={1}
-        width={60}
-        marginX={2}
-      >
-        <Box marginBottom={1}>
-          <Text bold color={palette.accent.primary}>
-            /
-          </Text>
-          <Text color={palette.text.secondary}> No quick links configured</Text>
-        </Box>
+      <Box flexDirection="column" width={terminalWidth}>
+        {/* Input line */}
         <Box>
-          <Text color={palette.text.secondary}>
-            Add quickLinks to your config file to enable slash commands.
-          </Text>
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+          <Text> </Text>
+          <Text bold color={palette.accent.primary}>/</Text>
+          <Text color={palette.text.secondary}>_</Text>
+          <Box flexGrow={1} />
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
         </Box>
-        <Box marginTop={1}>
-          <Text color={palette.text.secondary}>[Esc] Close</Text>
+        {/* Separator */}
+        <Text color={palette.chrome.border}>
+          {SEPARATOR.left}{horizontalLine}{SEPARATOR.right}
+        </Text>
+        {/* Message line */}
+        <Box>
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+          <Text> </Text>
+          <Text color={palette.text.secondary}>No commands — use /config to get started</Text>
+          <Box flexGrow={1} />
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
         </Box>
+        {/* Bottom border */}
+        <Text color={palette.chrome.border}>
+          {BORDER.bottomLeft}{horizontalLine}{BORDER.bottomRight}
+        </Text>
       </Box>
     );
   }
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle="double"
-      borderColor={palette.chrome.border}
-      padding={1}
-      width={60}
-      marginX={2}
-    >
-      {/* Header with search input */}
-      <Box marginBottom={1}>
-        <Text bold color={palette.accent.primary}>
-          /
-        </Text>
+    <Box flexDirection="column" width={terminalWidth}>
+      {/* Line 1: Search input */}
+      <Box>
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+        <Text> </Text>
+        <Text bold color={palette.accent.primary}>/</Text>
         <Text color={palette.text.primary}>{query}</Text>
-        <Text color={palette.text.secondary}>
-          {query ? '' : ' Type to search commands...'}
-        </Text>
-      </Box>
-
-      {/* Commands list */}
-      <Box flexDirection="column" marginBottom={1}>
-        {filteredCommands.length === 0 && query && (
-          <Text color={palette.text.secondary}>No matching commands</Text>
-        )}
-        {(() => {
-          // Compute sliding window to keep selectedIndex visible
-          const windowStart = Math.max(0, Math.min(
-            filteredCommands.length - MAX_VISIBLE_COMMANDS,
-            selectedIndex - Math.floor(MAX_VISIBLE_COMMANDS / 2)
-          ));
-          const visibleCommands = filteredCommands.slice(windowStart, windowStart + MAX_VISIBLE_COMMANDS);
-
-          return visibleCommands.map((command, localIndex) => {
-            const globalIndex = windowStart + localIndex;
-            const isSelected = globalIndex === selectedIndex;
-            return (
-              <Box key={command.name} gap={1}>
-                <Text color={isSelected ? palette.accent.primary : palette.text.primary}>
-                  {isSelected ? '→' : ' '}
-                </Text>
-                <Text color={isSelected ? palette.accent.primary : palette.accent.secondary}>
-                  /{command.name}
-                </Text>
-                <Text color={palette.text.secondary}>
-                  {command.label}
-                </Text>
-                {command.shortcut && (
-                  <Text color={palette.text.secondary}>
-                    [⌘{command.shortcut}]
-                  </Text>
-                )}
-              </Box>
-            );
-          });
-        })()}
+        {!query && <Text color={palette.text.secondary}>_</Text>}
         {filteredCommands.length > MAX_VISIBLE_COMMANDS && (
-          <Text color={palette.text.secondary}>
-            {selectedIndex + 1} of {filteredCommands.length} commands
-          </Text>
+          <Text color={palette.text.secondary}> ({selectedIndex + 1}/{filteredCommands.length})</Text>
         )}
+        <Box flexGrow={1} />
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
       </Box>
 
-      {/* Footer with keyboard hints */}
-      <Box borderStyle="single" borderColor={palette.chrome.border} paddingX={1}>
-        <Text color={palette.text.secondary}>
-          [↑↓] Navigate  [Enter] Execute  [Tab] Complete  [Esc] Close
-        </Text>
-      </Box>
+      {/* Separator line */}
+      <Text color={palette.chrome.border}>
+        {SEPARATOR.left}{horizontalLine}{SEPARATOR.right}
+      </Text>
+
+      {/* Browsable options (one per line) */}
+      {filteredCommands.length === 0 && query ? (
+        <Box>
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+          <Text> </Text>
+          <Text color={palette.text.secondary}>No matches</Text>
+          <Box flexGrow={1} />
+          <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+        </Box>
+      ) : (
+        visibleCommands.map((command, localIndex) => {
+          const globalIndex = windowStart + localIndex;
+          const isSelected = globalIndex === selectedIndex;
+          return (
+            <Box key={command.name}>
+              <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+              <Text> </Text>
+              <Text color={isSelected ? palette.accent.primary : palette.text.primary}>
+                {isSelected ? '→' : ' '}
+              </Text>
+              <Text color={isSelected ? palette.accent.primary : palette.accent.secondary}>
+                /{command.name}
+              </Text>
+              <Text color={palette.text.secondary}>
+                {' '}{command.label}
+                {command.shortcut ? ` [⌘${command.shortcut}]` : ''}
+              </Text>
+              <Box flexGrow={1} />
+              <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+            </Box>
+          );
+        })
+      )}
+
+      {/* Bottom border */}
+      <Text color={palette.chrome.border}>
+        {BORDER.bottomLeft}{horizontalLine}{BORDER.bottomRight}
+      </Text>
     </Box>
   );
 }

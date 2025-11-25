@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useLayoutEffect } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useStdout } from 'ink';
 import Gradient from 'ink-gradient';
 import { measureElement } from 'ink';
 import type { Worktree, CanopyConfig, GitStatus } from '../types/index.js';
@@ -26,6 +26,8 @@ interface HeaderProps {
   gitStatus?: Map<string, GitStatus>;
   onOpenGitFox?: () => void;
   onOpenGitHub?: () => void;
+  /** When true, bottom corners connect to command palette below */
+  commandPaletteOpen?: boolean;
 }
 
 const HeaderButton: React.FC<{
@@ -107,15 +109,31 @@ const HeaderButton: React.FC<{
   );
 };
 
+// Box drawing characters for header border
+const BORDER = {
+  topLeft: '┌',
+  topRight: '┐',
+  bottomLeft: '└',
+  bottomRight: '┘',
+  horizontal: '─',
+  vertical: '│',
+  // T-junctions for connecting to command palette below (single lines)
+  bottomLeftT: '├',
+  bottomRightT: '┤',
+};
+
 export const Header: React.FC<HeaderProps> = ({
   cwd,
   filterActive,
   filterQuery,
   identity,
   onOpenGitFox,
+  commandPaletteOpen = false,
 }) => {
   const { palette } = useTheme();
+  const { stdout } = useStdout();
   const stats = useRepositoryStats(cwd);
+  const terminalWidth = stdout?.columns || 80;
 
   const gradient = {
     start: identity.gradientStart,
@@ -163,75 +181,94 @@ export const Header: React.FC<HeaderProps> = ({
   const handleOpenIssues = useCallback(() => openGitHubUrl(cwd, 'issues'), [cwd]);
   const handleOpenPRs = useCallback(() => openGitHubUrl(cwd, 'pulls'), [cwd]);
 
+  // Choose bottom corners based on whether command palette is open
+  const bottomLeft = commandPaletteOpen ? BORDER.bottomLeftT : BORDER.bottomLeft;
+  const bottomRight = commandPaletteOpen ? BORDER.bottomRightT : BORDER.bottomRight;
+
+  // Calculate horizontal line width (terminal width minus 2 for corners)
+  const horizontalLineWidth = Math.max(0, terminalWidth - 2);
+  const horizontalLine = BORDER.horizontal.repeat(horizontalLineWidth);
+
   return (
-    <Box
-      borderStyle="single"
-      borderColor={palette.chrome.border}
-      paddingX={1}
-      justifyContent="space-between"
-      width="100%"
-    >
-      {/* Left side: Project Identity & Filter */}
-      <Box>
-        {identity.emoji && <Text>{identity.emoji} </Text>}
-        <Gradient colors={[gradient.start, gradient.end]}>
-          <Text bold>{identity.title}</Text>
-        </Gradient>
+    <Box flexDirection="column" width={terminalWidth}>
+      {/* Top border */}
+      <Text color={palette.chrome.border}>
+        {BORDER.topLeft}{horizontalLine}{BORDER.topRight}
+      </Text>
 
-        {filterActive && (
-          <Text>
-            <Text dimColor> │ </Text>
-            <Text dimColor>Filter: </Text>
-            <Text color={palette.accent.primary}>{filterQuery}</Text>
-          </Text>
-        )}
+      {/* Content row */}
+      <Box width={terminalWidth}>
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+        <Box flexGrow={1} justifyContent="space-between" paddingX={1}>
+          {/* Left side: Project Identity & Filter */}
+          <Box>
+            {identity.emoji && <Text>{identity.emoji} </Text>}
+            <Gradient colors={[gradient.start, gradient.end]}>
+              <Text bold>{identity.title}</Text>
+            </Gradient>
+
+            {filterActive && (
+              <Text>
+                <Text dimColor> │ </Text>
+                <Text dimColor>Filter: </Text>
+                <Text color={palette.accent.primary}>{filterQuery}</Text>
+              </Text>
+            )}
+          </Box>
+
+          {/* Right side: Stats Bar (no gaps) */}
+          <Box>
+            {/* GitFox / Commits */}
+            {stats.commitCount > 0 && (
+              <HeaderButton
+                id="header-commits"
+                label={`[${stats.commitCount} commits]`}
+                color={palette.text.secondary}
+                dimColor={true}
+                onPress={onOpenGitFox}
+                registerRegion={registerClickRegion}
+              />
+            )}
+
+            {/* GitHub Stats - bright when > 0, dim when 0 */}
+            {stats.issueCount !== null && (
+              <HeaderButton
+                id="header-issues"
+                label={`[${stats.issueCount} issues]`}
+                color={palette.text.secondary}
+                dimColor={stats.issueCount === 0}
+                onPress={handleOpenIssues}
+                registerRegion={registerClickRegion}
+              />
+            )}
+
+            {stats.prCount !== null && (
+              <HeaderButton
+                id="header-prs"
+                label={`[${stats.prCount} PRs]`}
+                color={palette.text.secondary}
+                dimColor={stats.prCount === 0}
+                onPress={handleOpenPRs}
+                registerRegion={registerClickRegion}
+              />
+            )}
+
+            {/* Loading indicator or fallback if gh CLI not found */}
+            {stats.loading && (
+              <Text dimColor>(loading...)</Text>
+            )}
+            {!stats.loading && stats.issueCount === null && stats.prCount === null && (
+              <Text dimColor>({stats.ghError || 'gh CLI unavailable'})</Text>
+            )}
+          </Box>
+        </Box>
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
       </Box>
 
-      {/* Right side: Stats Bar (no gaps) */}
-      <Box>
-        {/* GitFox / Commits */}
-        {stats.commitCount > 0 && (
-          <HeaderButton
-            id="header-commits"
-            label={`[${stats.commitCount} commits]`}
-            color={palette.text.secondary}
-            dimColor={true}
-            onPress={onOpenGitFox}
-            registerRegion={registerClickRegion}
-          />
-        )}
-
-        {/* GitHub Stats - bright when > 0, dim when 0 */}
-        {stats.issueCount !== null && (
-          <HeaderButton
-            id="header-issues"
-            label={`[${stats.issueCount} issues]`}
-            color={palette.text.secondary}
-            dimColor={stats.issueCount === 0}
-            onPress={handleOpenIssues}
-            registerRegion={registerClickRegion}
-          />
-        )}
-
-        {stats.prCount !== null && (
-          <HeaderButton
-            id="header-prs"
-            label={`[${stats.prCount} PRs]`}
-            color={palette.text.secondary}
-            dimColor={stats.prCount === 0}
-            onPress={handleOpenPRs}
-            registerRegion={registerClickRegion}
-          />
-        )}
-
-        {/* Loading indicator or fallback if gh CLI not found */}
-        {stats.loading && (
-          <Text dimColor>(loading...)</Text>
-        )}
-        {!stats.loading && stats.issueCount === null && stats.prCount === null && (
-          <Text dimColor>({stats.ghError || 'gh CLI unavailable'})</Text>
-        )}
-      </Box>
+      {/* Bottom border */}
+      <Text color={palette.chrome.border}>
+        {bottomLeft}{horizontalLine}{bottomRight}
+      </Text>
     </Box>
   );
 };

@@ -1264,8 +1264,16 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           gitStatus={effectiveGitStatus}
           onOpenGitFox={handleOpenGitFox}
           onOpenGitHub={handleOpenGitHub}
+          commandPaletteOpen={isCommandPaletteOpen}
         />
-        <Box flexGrow={1} marginTop={1}>
+        {/* Command palette renders as full-width overlay under header */}
+        <CommandPalette
+          visible={isCommandPaletteOpen}
+          commands={quickLinkCommands}
+          onExecute={handleCommandPaletteExecute}
+          onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
+        />
+        <Box flexGrow={1} marginTop={isCommandPaletteOpen ? 0 : 1}>
           {isProfileSelectorOpen ? (
             <Box flexDirection="row" justifyContent="center">
               <ProfileSelector
@@ -1377,12 +1385,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onSelectResult={handleFuzzySearchResult}
           onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
           onQueryChange={setFuzzySearchQuery}
-        />
-        <CommandPalette
-          visible={isCommandPaletteOpen}
-          commands={quickLinkCommands}
-          onExecute={handleCommandPaletteExecute}
-          onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
         />
         {notifications.length > 0 && (
           <Box flexDirection="column" width="100%">
