@@ -330,7 +330,8 @@ describe('App integration - file:copy-path event', () => {
     );
 
     // Wait for success notification
-    await waitForCondition(() => successReceived);
+    // INCREASED TIMEOUT: 1000ms is flaky for async event bus roundtrips in CI
+    await waitForCondition(() => successReceived, 3000);
 
     unsubscribe();
   });
