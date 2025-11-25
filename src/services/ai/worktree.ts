@@ -120,29 +120,25 @@ export async function generateWorktreeSummary(
       status.not_added.length;
 
     // Two-stage system: if no changes, show last commit instead of AI summary
+    // Note: WorktreeMonitor handles this case, but keep this for backward compatibility
     if (modifiedCount === 0) {
       try {
-        // Explicitly fetch log if status is clean
         const log = await git.log({ maxCount: 1 });
         const lastCommitMsg = log.latest?.message ?? '';
 
         if (lastCommitMsg) {
           const firstLine = lastCommitMsg.split('\n')[0].trim();
-          // Add a distinct icon so we know this is a commit message
           return {
             summary: `✅ ${firstLine}`,
             modifiedCount: 0
           };
         }
       } catch (e) {
-        // Git log failed (empty repo?)
+        // Git log failed - return null to let WorktreeMonitor handle it
       }
 
-      // Edge case: no commits exist yet
-      return {
-        summary: branchName ? `Clean: ${branchName}` : 'No changes',
-        modifiedCount: 0
-      };
+      // No commits - return null, WorktreeMonitor will handle fallback
+      return null;
     }
 
     // --- AI GENERATION SECTION STARTS HERE ---
@@ -354,34 +350,32 @@ export async function generateWorktreeSummary(
       }
     }
 
-    // If we have changes (modifiedCount > 0) but promptContext is empty
-    // (e.g. empty files, binaries, or all noise), DO NOT call the AI.
-    // Return a mechanical summary instead to prevent hallucinations.
+    // If we have changes but no diff content, create minimal context for AI
+    // AI should still generate something reasonable even for empty/binary files
     if (!promptContext.trim()) {
-      let manualSummary = 'Changed files (no text diff)';
+      const fileList: string[] = [];
+      if (createdFiles.length > 0) fileList.push(...createdFiles.map(f => `added: ${f}`));
+      if (modifiedFiles.length > 0) fileList.push(...modifiedFiles.map(f => `modified: ${f}`));
+      if (deletedFiles.length > 0) fileList.push(...deletedFiles.map(f => `deleted: ${f}`));
 
-      if (createdFiles.length > 0) {
-        manualSummary = `Created ${createdFiles[0]}${createdFiles.length > 1 ? '...' : ''}`;
-      } else if (modifiedFiles.length > 0) {
-        manualSummary = `Modified ${modifiedFiles[0]}${modifiedFiles.length > 1 ? '...' : ''}`;
-      } else if (deletedFiles.length > 0) {
-        manualSummary = `Deleted ${deletedFiles[0]}${deletedFiles.length > 1 ? '...' : ''}`;
-      }
+      promptContext = fileList.slice(0, 5).join('\n');
 
-      return {
-        summary: `📝 ${manualSummary}`,
-        modifiedCount
-      };
+      // If still no context (shouldn't happen), this will be handled by AI with just file names
     }
 
     const callModel = async (): Promise<WorktreeSummary> => {
       const response = await client.responses.create({
         model: 'gpt-5-nano',
-        instructions: `Summarize the git diffs into a single active-tense sentence (max 10 words).
+        instructions: `Summarize the git changes into a single active-tense sentence (max 10 words).
 Pay most attention to files listed first and with diffs shown.
 Ignore imports, formatting, and minor refactors.
 Focus on the feature being added or the bug being fixed.
 Start with an emoji.
+
+If context is minimal (just file names or empty files), infer the likely purpose from file names and make a reasonable guess.
+For example: adding empty test files → "🧪 Setting up test infrastructure"
+For example: adding empty components → "🎨 Creating UI components"
+
 Respond with JSON: {"summary":"emoji + description"}
 No newlines in your response.
 Examples:
@@ -449,10 +443,8 @@ Examples:
         type: 'error',
         message: `AI summary failed: ${getUserMessage(error)}`
       });
-      return {
-        summary: branchName ? `${branchName} (analysis unavailable)` : 'Analysis unavailable',
-        modifiedCount
-      };
+      // Return null - WorktreeMonitor will show last commit as fallback
+      return null;
     }
   } catch (error) {
     console.error('[canopy] generateWorktreeSummary failed', error);
@@ -460,10 +452,8 @@ Examples:
       type: 'error',
       message: `Worktree summary error: ${getUserMessage(error)}`
     });
-    return {
-      summary: branchName ? `${branchName} (git unavailable)` : 'Git status unavailable',
-      modifiedCount
-    };
+    // Return null - WorktreeMonitor will show last commit as fallback
+    return null;
   }
 }
 

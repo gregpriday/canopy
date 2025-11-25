@@ -336,25 +336,26 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [activeWorktreeId, focusedWorktreeId, sortedWorktrees]);
 
-  // Initialize WorktreeService when worktrees are ready
+  // Synchronization Effect: Sync WorktreeService when worktrees or active worktree changes
+  // This allows WorktreeService to incrementally add/remove/update monitors
   useEffect(() => {
-    if (lifecycleStatus !== 'ready' || worktrees.length === 0) {
-      return;
+    if (lifecycleStatus === 'ready' && worktrees.length > 0) {
+      void worktreeService.sync(
+        worktrees,
+        activeWorktreeId,
+        'main', // mainBranch - could be made configurable
+        !noWatch
+      );
     }
+  }, [worktrees, activeWorktreeId, lifecycleStatus, noWatch]);
 
-    // Sync the service with current worktrees
-    void worktreeService.sync(
-      worktrees,
-      activeWorktreeId,
-      'main', // mainBranch - could be made configurable
-      !noWatch
-    );
-
-    // Clean up on unmount
+  // Teardown Effect: Clean up all monitors only on unmount
+  // This runs once when the component unmounts, not on every dependency change
+  useEffect(() => {
     return () => {
       void worktreeService.stopAll();
     };
-  }, [worktrees, activeWorktreeId, lifecycleStatus, noWatch]);
+  }, []);
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes

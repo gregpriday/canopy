@@ -4,7 +4,7 @@ import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
-import { logWarn, logError, logInfo } from '../../utils/logger.js';
+import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
 
 const TRAFFIC_LIGHT_GREEN_DURATION = 30000; // Green state: 0-30 seconds after file change
@@ -65,7 +65,9 @@ export class WorktreeMonitor extends EventEmitter {
 
   // Flags
   private isRunning: boolean = false;
+  private isUpdating: boolean = false;
   private isGeneratingSummary: boolean = false;
+  private hasGeneratedInitialSummary: boolean = false;
 
   constructor(worktree: Worktree, mainBranch: string = 'main') {
     super();
@@ -110,23 +112,14 @@ export class WorktreeMonitor extends EventEmitter {
     this.isRunning = true;
     logInfo('Starting WorktreeMonitor (polling-based)', { id: this.id, path: this.path });
 
-    // Start polling timer
-    this.startPolling();
+    // 1. Perform initial fetch immediately
+    // This will trigger summary generation via updateGitStatus
+    await this.updateGitStatus(true);
 
-    // Initial fetch and AI summary generation
-    await this.updateGitStatus(true); // Initial force fetch
-
-    // Trigger initial AI summary generation for startup
-    if (this.state.worktreeChanges) {
-      const isClean = this.state.worktreeChanges.changedFileCount === 0;
-
-      if (isClean) {
-        // Clean worktrees: Generate immediately (fast git log, no AI)
-        await this.updateCleanSummary();
-      } else {
-        // Dirty worktrees: Schedule buffer to prevent API burst on startup
-        this.scheduleAISummary();
-      }
+    // 2. Start polling timer ONLY after initial fetch completes
+    // Check isRunning in case stop() was called during the await above
+    if (this.isRunning) {
+      this.startPolling();
     }
   }
 
@@ -287,9 +280,12 @@ export class WorktreeMonitor extends EventEmitter {
    * git itself is the source of truth for what changed.
    */
   private async updateGitStatus(forceRefresh: boolean = false): Promise<void> {
-    if (!this.isRunning) {
+    // Prevent overlapping updates
+    if (!this.isRunning || this.isUpdating) {
       return;
     }
+
+    this.isUpdating = true; // Lock
 
     try {
       if (forceRefresh) {
@@ -336,30 +332,22 @@ export class WorktreeMonitor extends EventEmitter {
       }
 
       // Update the hash for next comparison
+      const isInitialLoad = this.previousStateHash === '';
       this.previousStateHash = currentHash;
 
-      // Handle clean/dirty transitions
-      const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : false;
+      // CENTRAL SUMMARY UPDATE - only place that decides when to generate
+      const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : true;
       const isNowClean = newChanges.changedFileCount === 0;
 
-      if (!wasClean && isNowClean) {
-        // Transitioned to clean: Cancel buffer and update immediately
-        if (this.aiUpdateTimer) {
-          clearTimeout(this.aiUpdateTimer);
-          this.aiUpdateTimer = null;
-        }
-        // Clear AI hash so next dirty state forces regeneration
+      // Cancel any pending buffer if transitioning to clean
+      if (isNowClean && this.aiUpdateTimer) {
+        clearTimeout(this.aiUpdateTimer);
+        this.aiUpdateTimer = null;
         this.lastSummarizedHash = null;
-        await this.updateCleanSummary();
-      } else if (newChanges.changedFileCount > 0 && stateChanged) {
-        // Dirty and state changed
-        // If we just became dirty from clean, show loading indicator immediately
-        if (wasClean) {
-          this.state.summaryLoading = true;
-        }
-        // Schedule AI summary (buffered)
-        this.scheduleAISummary();
       }
+
+      // Handle summary update through central method
+      await this.handleSummaryUpdate(isNowClean, wasClean, isInitialLoad);
 
       // Update mood based on changes
       await this.updateMood();
@@ -383,46 +371,106 @@ export class WorktreeMonitor extends EventEmitter {
       logError('Failed to update git status', error as Error, { id: this.id });
       this.state.mood = 'error';
       this.emitUpdate();
+    } finally {
+      this.isUpdating = false; // Unlock
     }
   }
 
   /**
-   * Update summary for clean worktree (show last commit).
-   * This bypasses the AI generation and isGeneratingSummary lock.
+   * CENTRAL SUMMARY UPDATE LOGIC
+   * This is the ONLY method that decides when to generate AI summaries.
+   * All other code paths must call this method.
+   *
+   * @param isClean - Whether worktree is clean (no changes)
+   * @param wasClean - Whether worktree was clean before this update
+   * @param isInitialLoad - Whether this is the first load (previousStateHash === '')
    */
-  private async updateCleanSummary(): Promise<void> {
+  private async handleSummaryUpdate(
+    isClean: boolean,
+    wasClean: boolean,
+    isInitialLoad: boolean
+  ): Promise<void> {
+    logDebug('handleSummaryUpdate called', {
+      id: this.id,
+      isClean,
+      wasClean,
+      isInitialLoad,
+      hasGeneratedInitialSummary: this.hasGeneratedInitialSummary
+    });
+
+    if (isClean) {
+      // Clean state: Always show last commit immediately
+      await this.setLastCommitAsSummary(false);
+      return;
+    }
+
+    // Dirty state: Always show last commit as fallback immediately
+    await this.setLastCommitAsSummary(false);
+
+    // Decide when to generate AI summary
+    const isFirstDirty = isInitialLoad || wasClean;
+
+    if (isFirstDirty) {
+      // Guard: If this is the initial load and we've already triggered generation,
+      // stop here to prevent duplicate AI calls/updates.
+      if (isInitialLoad && this.hasGeneratedInitialSummary) {
+        logDebug('Skipping duplicate AI generation (initial load guard)', { id: this.id });
+        return;
+      }
+
+      // First time becoming dirty: Generate AI asynchronously
+      // Set flag BEFORE starting to prevent race condition with polling timer
+      this.hasGeneratedInitialSummary = true;
+      logDebug('Triggering AI summary generation', { id: this.id, isInitialLoad });
+
+      // Fire and forget - AI will emit when ready (or fail gracefully if offline)
+      void this.updateAISummary();
+    } else {
+      // Subsequent change while already dirty: Use 14s buffer
+      logDebug('Scheduling AI summary (14s buffer)', { id: this.id });
+      this.scheduleAISummary();
+    }
+  }
+
+  /**
+   * Set summary to last commit message (fallback).
+   * Does not trigger loading states or AI generation.
+   * If no commits exist, shows friendly "ready to start" message.
+   *
+   * @param emit - Whether to emit update after setting summary (default: true)
+   */
+  private async setLastCommitAsSummary(emit: boolean = true): Promise<void> {
     if (!this.isRunning) {
       return;
     }
 
     try {
-      // Use simple-git to get last commit message
       const simpleGit = (await import('simple-git')).default;
       const git = simpleGit(this.path);
 
-      try {
-        const log = await git.log({ maxCount: 1 });
-        const lastCommitMsg = log.latest?.message ?? '';
+      const log = await git.log({ maxCount: 1 });
+      const lastCommitMsg = log.latest?.message ?? '';
 
-        if (lastCommitMsg) {
-          const firstLine = lastCommitMsg.split('\n')[0].trim();
-          this.state.summary = `✅ ${firstLine}`;
-          this.state.modifiedCount = 0;
-          this.state.summaryLoading = false;
-          this.emitUpdate();
-          return;
-        }
-      } catch (e) {
-        // Git log failed (empty repo?)
+      if (lastCommitMsg) {
+        const firstLine = lastCommitMsg.split('\n')[0].trim();
+        this.state.summary = `✅ ${firstLine}`;
+      } else {
+        // No commits yet - friendly welcome message
+        this.state.summary = '🌱 Ready to get started';
       }
 
-      // Edge case: no commits exist yet
-      this.state.summary = this.branch ? `Clean: ${this.branch}` : 'No changes';
-      this.state.modifiedCount = 0;
       this.state.summaryLoading = false;
-      this.emitUpdate();
+      if (emit) {
+        this.emitUpdate();
+      }
     } catch (error) {
-      logError('Failed to fetch clean summary', error as Error, { id: this.id });
+      logError('Failed to set last commit summary', error as Error, { id: this.id });
+      // On error, show friendly message
+      this.state.summary = '🌱 Ready to get started';
+      this.state.summaryLoading = false;
+      if (emit) {
+        this.emitUpdate();
+      }
     }
   }
 
@@ -445,12 +493,21 @@ export class WorktreeMonitor extends EventEmitter {
    * Update AI summary for this worktree.
    */
   private async updateAISummary(forceUpdate: boolean = false): Promise<void> {
+    logDebug('updateAISummary called', {
+      id: this.id,
+      isRunning: this.isRunning,
+      isGeneratingSummary: this.isGeneratingSummary,
+      forceUpdate
+    });
+
     if (!this.isRunning || this.isGeneratingSummary) {
+      logDebug('Skipping AI summary (not running or already generating)', { id: this.id });
       return;
     }
 
     // Don't generate summary if we don't have changes data yet
     if (!this.state.worktreeChanges) {
+      logDebug('Skipping AI summary (no changes data)', { id: this.id });
       return;
     }
 
@@ -458,16 +515,18 @@ export class WorktreeMonitor extends EventEmitter {
 
     // Dedup logic: don't run AI on exact same state unless forced
     if (!forceUpdate && this.lastSummarizedHash === currentHash) {
+      logDebug('Skipping AI summary (same hash)', { id: this.id, currentHash });
       this.state.summaryLoading = false;
       this.emitUpdate();
       return;
     }
 
     this.isGeneratingSummary = true;
+    logDebug('Starting AI summary generation', { id: this.id, currentHash });
 
     try {
-      this.state.summaryLoading = true;
-      this.emitUpdate();
+      // Keep showing old summary while AI generates new one
+      // No loading state - just swap when ready
 
       const result = await generateWorktreeSummary(
         this.path,
@@ -479,23 +538,29 @@ export class WorktreeMonitor extends EventEmitter {
       if (!this.isRunning) return;
 
       if (result) {
+        logDebug('AI summary generated successfully', {
+          id: this.id,
+          summary: result.summary.substring(0, 50) + '...'
+        });
         this.state.summary = result.summary;
         this.state.modifiedCount = result.modifiedCount;
 
         // Mark as processed
         this.lastSummarizedHash = currentHash;
+        this.emitUpdate();
       }
+      // If result is null, keep showing last commit (already set)
 
+      // Ensure loading flag is off (defensive cleanup)
       this.state.summaryLoading = false;
-      this.emitUpdate();
 
     } catch (error) {
       logError('AI summary generation failed', error as Error, { id: this.id });
       this.state.summaryLoading = false;
-      this.state.summary = 'Summary unavailable';
-      this.emitUpdate();
+      // Keep showing last commit on error (don't change summary)
     } finally {
       this.isGeneratingSummary = false;
+      logDebug('AI summary generation complete', { id: this.id });
     }
   }
 
@@ -586,6 +651,13 @@ export class WorktreeMonitor extends EventEmitter {
    */
   private emitUpdate(): void {
     const state = this.getState();
+    logDebug('emitUpdate called', {
+      id: this.id,
+      summary: state.summary?.substring(0, 50) + '...',
+      modifiedCount: state.modifiedCount,
+      mood: state.mood,
+      stack: new Error().stack?.split('\n').slice(2, 5).join(' <- ')
+    });
     this.emit('update', state);
     events.emit('sys:worktree:update', state);
   }

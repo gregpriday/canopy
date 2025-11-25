@@ -17,11 +17,20 @@ const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
  *
  * This service is a singleton and should be accessed via the exported instance.
  */
+interface PendingSyncRequest {
+  worktrees: Worktree[];
+  activeWorktreeId: string | null;
+  mainBranch: string;
+  watchingEnabled: boolean;
+}
+
 class WorktreeService {
   private monitors = new Map<string, WorktreeMonitor>();
   private mainBranch: string = 'main';
   private watchingEnabled: boolean = true;
   private activeWorktreeId: string | null = null;
+  private isSyncing: boolean = false;
+  private pendingSync: PendingSyncRequest | null = null;
 
   /**
    * Initialize or update monitors to match the current worktree list.
@@ -42,11 +51,21 @@ class WorktreeService {
     mainBranch: string = 'main',
     watchingEnabled: boolean = true
   ): Promise<void> {
-    this.mainBranch = mainBranch;
-    this.watchingEnabled = watchingEnabled;
-    this.activeWorktreeId = activeWorktreeId;
+    // If already syncing, queue this request and return
+    if (this.isSyncing) {
+      logWarn('Sync already in progress, queuing request');
+      this.pendingSync = { worktrees, activeWorktreeId, mainBranch, watchingEnabled };
+      return;
+    }
 
-    const currentIds = new Set(worktrees.map(wt => wt.id));
+    this.isSyncing = true;
+
+    try {
+      this.mainBranch = mainBranch;
+      this.watchingEnabled = watchingEnabled;
+      this.activeWorktreeId = activeWorktreeId;
+
+      const currentIds = new Set(worktrees.map(wt => wt.id));
 
     // 1. Remove stale monitors (worktrees that no longer exist)
     for (const [id, monitor] of this.monitors) {
@@ -91,10 +110,27 @@ class WorktreeService {
       }
     }
 
-    logInfo('WorktreeService sync complete', {
-      totalMonitors: this.monitors.size,
-      activeWorktreeId,
-    });
+      logInfo('WorktreeService sync complete', {
+        totalMonitors: this.monitors.size,
+        activeWorktreeId,
+      });
+    } finally {
+      this.isSyncing = false;
+
+      // Check if there's a pending sync request and execute it
+      if (this.pendingSync) {
+        const pending = this.pendingSync;
+        this.pendingSync = null;
+        logInfo('Executing pending sync request');
+        // Execute pending sync asynchronously (don't await to avoid blocking)
+        void this.sync(
+          pending.worktrees,
+          pending.activeWorktreeId,
+          pending.mainBranch,
+          pending.watchingEnabled
+        );
+      }
+    }
   }
 
   /**
