@@ -8,7 +8,8 @@ export type ModalId =
   | 'context-menu'
   | 'recent-activity'
   | 'profile-selector'
-  | 'fuzzy-search';
+  | 'fuzzy-search'
+  | 'command-palette';
 export interface ModalContextMap {
   help: undefined;
   worktree: undefined;
@@ -16,6 +17,7 @@ export interface ModalContextMap {
   'recent-activity': undefined;
   'profile-selector': { worktreeId?: string };
   'fuzzy-search': { initialQuery?: string };
+  'command-palette': undefined;
 }
 
 // 1. Define Payload Types

@@ -9,12 +9,14 @@ import { WorktreePanel } from './components/WorktreePanel.js';
 import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
+import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
 import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, SystemServices, WorktreeChanges } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
+import { useQuickLinks } from './hooks/useQuickLinks.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
@@ -52,6 +54,7 @@ interface AppProps {
 const MODAL_CLOSE_PRIORITY: ModalId[] = [
   'help',
   'context-menu',
+  'command-palette',
   'worktree',
   'profile-selector',
   'recent-activity',
@@ -283,6 +286,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isRecentActivityOpen = activeModals.has('recent-activity');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
+  const isCommandPaletteOpen = activeModals.has('command-palette');
+
+  // Quick links hook for slash commands and keyboard shortcuts
+  const { commands: quickLinkCommands, openByShortcut, enabled: quickLinksEnabled } = useQuickLinks(config.quickLinks);
 
   const headerRows = 3;
   const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0);
@@ -566,6 +573,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setLastCopyProfile(profileName);
     events.emit('ui:notify', { type: 'info', message: `Active profile: ${profileName}` });
     events.emit('ui:modal:close', { id: 'profile-selector' });
+  }, []);
+
+  const handleCommandPaletteExecute = useCallback((command: { name: string; action: () => void }) => {
+    events.emit('ui:modal:close', { id: 'command-palette' });
+    command.action();
+  }, []);
+
+  const handleOpenCommandPalette = useCallback(() => {
+    events.emit('ui:modal:open', { id: 'command-palette' });
   }, []);
 
   useEffect(() => {
@@ -1135,7 +1151,22 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   });
 
   useInput(
-    (input) => {
+    (input, key) => {
+      // Handle slash to open command palette (when no modal is open and quick links enabled)
+      if (input === '/' && !anyModalOpen && quickLinksEnabled) {
+        handleOpenCommandPalette();
+        return;
+      }
+
+      // Handle Cmd+1-9 for quick link shortcuts (when no modal is open and quick links enabled)
+      if (key.meta && !anyModalOpen && quickLinksEnabled) {
+        const num = parseInt(input, 10);
+        if (num >= 1 && num <= 9) {
+          void openByShortcut(num);
+          return;
+        }
+      }
+
       if (viewMode !== 'dashboard' || anyModalOpen) {
         return;
       }
@@ -1343,6 +1374,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onSelectResult={handleFuzzySearchResult}
           onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
           onQueryChange={setFuzzySearchQuery}
+        />
+        <CommandPalette
+          visible={isCommandPaletteOpen}
+          commands={quickLinkCommands}
+          onExecute={handleCommandPaletteExecute}
+          onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
         />
         {notifications.length > 0 && (
           <Box flexDirection="column" width="100%">
