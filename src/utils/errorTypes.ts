@@ -29,6 +29,16 @@ export class GitError extends CanopyError {
 }
 
 /**
+ * Worktree directory no longer exists (deleted externally).
+ * Used to signal that a worktree monitor should stop polling and clean up.
+ */
+export class WorktreeRemovedError extends GitError {
+  constructor(path: string, cause?: Error) {
+    super('Worktree directory no longer exists', { path }, cause);
+  }
+}
+
+/**
  * File system operation failed (permission denied, file not found, read error)
  */
 export class FileSystemError extends CanopyError {

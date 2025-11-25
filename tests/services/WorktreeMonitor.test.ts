@@ -4,6 +4,7 @@ import type { Worktree } from '../../src/types/index.js';
 import { events } from '../../src/services/events.js';
 import * as gitStatus from '../../src/utils/git.js';
 import * as worktreeMood from '../../src/utils/worktreeMood.js';
+import { WorktreeRemovedError } from '../../src/utils/errorTypes.js';
 
 // Mock the git utilities
 vi.mock('../../src/utils/git.js', () => ({
@@ -516,6 +517,76 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       expect(monitor.getState().mood).toBe('error');
 
       await monitor.stop();
+    });
+
+    it('stops monitor and emits removal event when worktree is deleted', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats)
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [],
+          changedFileCount: 0,
+          lastUpdated: Date.now(),
+        })
+        .mockRejectedValueOnce(new WorktreeRemovedError(baseWorktree.path));
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Track removal events
+      const removedWorktrees: string[] = [];
+      const handler = (payload: { worktreeId: string }) => {
+        removedWorktrees.push(payload.worktreeId);
+      };
+      events.on('sys:worktree:remove', handler);
+
+      const stopSpy = vi.spyOn(monitor, 'stop');
+
+      // Trigger update that will fail with WorktreeRemovedError
+      await (monitor as any).updateGitStatus();
+
+      // Should emit removal event
+      expect(removedWorktrees).toContain(baseWorktree.id);
+
+      // Should stop the monitor
+      expect(stopSpy).toHaveBeenCalled();
+
+      events.off('sys:worktree:remove', handler);
+    });
+
+    it('stops polling when worktree is deleted during monitoring', async () => {
+      let callCount = 0;
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          // First call succeeds (initial state)
+          return {
+            worktreeId: baseWorktree.id,
+            rootPath: baseWorktree.path,
+            changes: [],
+            changedFileCount: 0,
+            lastUpdated: Date.now(),
+          };
+        }
+        // Subsequent calls fail with directory removed
+        throw new WorktreeRemovedError(baseWorktree.path);
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Advance timer to trigger polling
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // The monitor should have stopped after detecting removal
+      // This means no further polling calls should happen
+      const callCountAfterRemoval = callCount;
+
+      // Advance more time to verify no more calls
+      await vi.advanceTimersByTimeAsync(10000);
+
+      // Call count should not increase after removal was detected
+      expect(callCount).toBe(callCountAfterRemoval);
     });
   });
 
