@@ -18,21 +18,12 @@ function TestComponent({ handlers }: { handlers: KeyboardHandlers }) {
 }
 
 // Helper to wait for Ink to finish mounting and attach stdin listener
-async function waitForInk(stdin: NodeJS.ReadableStream, hasHomeEndHandlers = false) {
+async function waitForInk(stdin: NodeJS.ReadableStream) {
   // Wait until Ink has attached the 'readable' listener
   let attempts = 0;
   while (stdin.listenerCount('readable') === 0 && attempts < 50) {
     await new Promise(resolve => setTimeout(resolve, 10));
     attempts++;
-  }
-
-  // If Home/End handlers are present, also wait for the 'data' listener
-  if (hasHomeEndHandlers) {
-    attempts = 0;
-    while (stdin.listenerCount('data') === 0 && attempts < 50) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      attempts++;
-    }
   }
 
   // Give one more microtask for the hook to fully initialize
@@ -53,59 +44,10 @@ const listen = <K extends keyof CanopyEventMap>(event: K) => {
 };
 
 describe('useKeyboard', () => {
-  describe('navigation keys', () => {
-    it('emits nav:move for arrow keys', async () => {
-      const { spy, unsubscribe } = listen('nav:move');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x1B[A');
-      await writeKey(stdin, '\x1B[B');
-      await writeKey(stdin, '\x1B[D');
-      await writeKey(stdin, '\x1B[C');
-
-      expect(spy).toHaveBeenCalledWith({ direction: 'up' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'down' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'left' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'right' });
-      unsubscribe();
-    });
-
-    it('emits nav:move for paging and home/end sequences', async () => {
-      const { spy, unsubscribe } = listen('nav:move');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin, true);
-
-      await writeKey(stdin, '\x1B[5~');
-      await writeKey(stdin, '\x1B[6~');
-      await writeKey(stdin, '\x15');
-      await writeKey(stdin, '\x04');
-      await writeKey(stdin, '\x1B[H');
-      await writeKey(stdin, '\x1B[F');
-      await writeKey(stdin, '\u001BOH');
-      await writeKey(stdin, '\u001BOF');
-
-      expect(spy).toHaveBeenCalledWith({ direction: 'pageUp' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'pageDown' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'home' });
-      expect(spy).toHaveBeenCalledWith({ direction: 'end' });
-      unsubscribe();
-    });
-  });
+  // Note: Navigation event tests (nav:move, nav:primary) removed with tree view mode
+  // Dashboard uses useDashboardNav for its own navigation
 
   describe('file/folder actions', () => {
-    it('emits nav:primary when Enter is pressed', async () => {
-      const { spy, unsubscribe } = listen('nav:primary');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\r');
-
-      expect(spy).toHaveBeenCalled();
-      expect(spy.mock.calls[0]).toEqual([]);
-      unsubscribe();
-    });
-
     it('calls onToggleExpand when Space is pressed', async () => {
       const onToggleExpand = vi.fn();
       const { stdin } = render(<TestComponent handlers={{ onToggleExpand }} />);
@@ -225,17 +167,15 @@ describe('useKeyboard', () => {
       unsubscribe();
     });
 
-    it('does not call onCopyPath when Shift+C is pressed', async () => {
-      const onCopyPath = vi.fn();
+    it('calls onOpenCopyTreeBuilder when Shift+C is pressed', async () => {
       const onOpenCopyTreeBuilder = vi.fn();
       const { stdin } = render(
-        <TestComponent handlers={{ onCopyPath, onOpenCopyTreeBuilder }} />
+        <TestComponent handlers={{ onOpenCopyTreeBuilder }} />
       );
       await waitForInk(stdin);
 
       await writeKey(stdin, 'C');
 
-      expect(onCopyPath).not.toHaveBeenCalled();
       expect(onOpenCopyTreeBuilder).toHaveBeenCalledTimes(1);
     });
   });
@@ -251,40 +191,5 @@ describe('useKeyboard', () => {
     });
   });
 
-  describe('modifier key requirements', () => {
-    it('does not call onPageUp when plain u is pressed (requires Ctrl+U)', async () => {
-      const onPageUp = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageUp }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, 'u');
-
-      expect(onPageUp).not.toHaveBeenCalled();
-    });
-
-    it('does not call onPageDown when plain d is pressed (requires Ctrl+D)', async () => {
-      const onPageDown = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onPageDown }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, 'd');
-
-      expect(onPageDown).not.toHaveBeenCalled();
-    });
-
-  });
-
-  describe('cleanup and unmount', () => {
-    it('stops emitting after unmount', async () => {
-      const { spy, unsubscribe } = listen('nav:move');
-      const { stdin, unmount } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      unmount();
-      await writeKey(stdin, '\\x1B[A');
-
-      expect(spy).not.toHaveBeenCalled();
-      unsubscribe();
-    });
-  });
+  // Note: Modifier key and cleanup tests for navigation events removed with tree view mode
 });
