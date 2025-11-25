@@ -3,8 +3,8 @@ import type { Worktree } from '../../types/index.js';
 import { logInfo, logWarn } from '../../utils/logger.js';
 import { events } from '../events.js';
 
-const ACTIVE_WORKTREE_INTERVAL_MS = 5000; // 5s for active worktree (reduced from 1.5s)
-const BACKGROUND_WORKTREE_INTERVAL_MS = 60000; // 60s for background worktrees (reduced from 10s)
+const ACTIVE_WORKTREE_INTERVAL_MS = 5000; // 5s for active worktree
+const BACKGROUND_WORKTREE_INTERVAL_MS = 300000; // 5 minutes for background worktrees (PERF: reduced from 60s)
 
 /**
  * WorktreeService manages all WorktreeMonitor instances.

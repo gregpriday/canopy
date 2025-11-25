@@ -121,8 +121,8 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
    - Returns unsubscribe function for React useEffect cleanup
 
 7. **Multi-Worktree Status Tracking**: Real-time git status polling across all worktrees:
-   - Active worktree refreshes every 1.5 seconds
-   - Background worktrees refresh every 10 seconds
+   - Active worktree refreshes every 5 seconds
+   - Background worktrees refresh every 60 seconds
    - File-level change details with insertions/deletions counts
    - Isolated error handling per worktree (one failure doesn't affect others)
 
@@ -224,12 +224,17 @@ Located in `src/hooks/`:
   - Debug logging via `DEBUG_AI_STATUS=1`
 
 **Multi-Worktree Management**:
-- `useMultiWorktreeStatus.ts` - Git status polling for all worktrees
-  - Active worktree: 1.5-second refresh interval
-  - Background worktrees: 10-second refresh interval
-  - Returns `Map<string, WorktreeChanges>` with file-level details (insertions/deletions)
-  - Isolated error handling per worktree (one failure doesn't affect others)
-  - Tracks modification times for intelligent change prioritization
+- `useWorktreeMonitor.ts` - **Primary hook** for accessing worktree state
+  - Subscribes to `sys:worktree:update` and `sys:worktree:remove` events from WorktreeService
+  - Returns `Map<string, WorktreeState>` with complete worktree information
+  - Event-driven architecture (no polling in the hook itself)
+  - Polling is handled by `WorktreeService` and `WorktreeMonitor` instances
+- `useMultiWorktreeStatus.ts` - **Legacy hook** (kept for backward compatibility in tests)
+  - Direct polling implementation (replaced by WorktreeService architecture)
+  - Active worktree: 5-second refresh interval
+  - Background worktrees: 60-second refresh interval
+  - Not used in production code - only in tests
+  - Consider using `useWorktreeMonitor` for new code
 
 **Activity Tracking**:
 - `useActivity.ts` - Real-time file activity tracking based on watcher events
@@ -237,6 +242,7 @@ Located in `src/hooks/`:
   - "The Cooldown" state: 2-10 seconds after change
   - "Idle" state: >60 seconds after change
   - Subscribes to `watcher:change` events from event bus
+  - UI updates throttled to 200ms (5fps) to prevent terminal flashing during high-frequency operations
 - `useRecentActivity.ts` - Recent file activity history tracking
 
 **Core Infrastructure Hooks**:

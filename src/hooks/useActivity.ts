@@ -9,6 +9,7 @@ const ACTIVITY_DURATION = 2000;  // The Flash: 0-2s
 const COOLDOWN_DURATION = 10000; // The Cooldown: 2-10s
 const IDLE_THRESHOLD = 60000;    // The Idle State: >60s
 const UPDATE_THROTTLE_MS = 200;  // Limit visual updates to 5fps
+const CLEANUP_INTERVAL_MS = 2000; // Run cleanup every 2s (only when active)
 
 export interface ActivityState {
   activeFiles: Map<string, number>; // path → timestamp
@@ -21,8 +22,10 @@ export interface ActivityState {
  * Maintains a map of file paths to their last modification timestamp.
  * Automatically cleans up stale entries and detects idle state.
  *
- * Performance optimization: Throttles UI updates to 5fps (200ms) to prevent
- * excessive re-renders during high-frequency file operations like npm install.
+ * Performance optimizations:
+ * - Throttles UI updates to 5fps (200ms) to prevent excessive re-renders
+ * - Cleanup interval only runs when there are active files to track
+ * - Stops running entirely when idle (no CPU usage when inactive)
  *
  * @returns ActivityState with activeFiles map and isIdle flag
  *
@@ -35,45 +38,20 @@ export interface ActivityState {
  */
 export function useActivity(): ActivityState {
   const [activeFiles, setActiveFiles] = useState<Map<string, number>>(new Map());
-  const [isIdle, setIsIdle] = useState(false);
+  const [isIdle, setIsIdle] = useState(true); // Start as idle (no activity yet)
 
   // Use a ref to store the "pending" state so we don't lose events during throttle
   const pendingUpdates = useRef<Map<string, number>>(new Map());
-  const lastActivityRef = useRef<number>(Date.now());
+  const lastActivityRef = useRef<number>(0); // 0 = no activity yet
   const cleanupTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Throttled flush function to update React state
-  const flushUpdates = useCallback(
-    debounce(() => {
-      if (pendingUpdates.current.size === 0) return;
+  // Ref to track current activeFiles size without re-running effects
+  const activeFilesCountRef = useRef<number>(0);
 
-      setActiveFiles(prev => {
-        const next = new Map(prev);
-        // Merge pending updates
-        for (const [path, timestamp] of pendingUpdates.current.entries()) {
-          next.set(path, timestamp);
-        }
-        pendingUpdates.current.clear();
-        return next;
-      });
-      setIsIdle(false);
-    }, UPDATE_THROTTLE_MS, { leading: true, trailing: true, maxWait: 1000 }),
-    []
-  );
+  // Start/stop cleanup interval based on whether we have active files
+  const startCleanupInterval = useCallback(() => {
+    if (cleanupTimer.current) return; // Already running
 
-  useEffect(() => {
-    // Subscribe to file watcher events
-    const handleFileChange = ({ path }: { path: string }) => {
-      const now = Date.now();
-      pendingUpdates.current.set(path, now);
-      lastActivityRef.current = now;
-      flushUpdates();
-    };
-
-    const unsubscribe = events.on('watcher:change', handleFileChange);
-
-    // Cleanup loop: Remove stale entries and detect idle state
-    // Optimization: Run less frequently (every 2s instead of 1s)
     cleanupTimer.current = setInterval(() => {
       const now = Date.now();
 
@@ -96,23 +74,81 @@ export function useActivity(): ActivityState {
             next.delete(filePath);
           }
         }
+
+        // Update ref for checking if we should stop the interval
+        activeFilesCountRef.current = next.size;
+
+        // If map is now empty, stop the interval on next tick
+        if (next.size === 0) {
+          setTimeout(() => {
+            if (activeFilesCountRef.current === 0 && cleanupTimer.current) {
+              clearInterval(cleanupTimer.current);
+              cleanupTimer.current = null;
+            }
+          }, 0);
+        }
+
         return next;
       });
 
       // Check for global idle state (>60s since last activity)
-      if (now - lastActivityRef.current > IDLE_THRESHOLD) {
-        setIsIdle(true);
+      if (lastActivityRef.current > 0 && now - lastActivityRef.current > IDLE_THRESHOLD) {
+        setIsIdle(prev => prev ? prev : true); // Only update if not already idle
       }
-    }, 2000); // Check every 2s instead of 1s
+    }, CLEANUP_INTERVAL_MS);
+  }, []);
+
+  const stopCleanupInterval = useCallback(() => {
+    if (cleanupTimer.current) {
+      clearInterval(cleanupTimer.current);
+      cleanupTimer.current = null;
+    }
+  }, []);
+
+  // Throttled flush function to update React state
+  const flushUpdates = useCallback(
+    debounce(() => {
+      if (pendingUpdates.current.size === 0) return;
+
+      setActiveFiles(prev => {
+        const next = new Map(prev);
+        // Merge pending updates
+        for (const [path, timestamp] of pendingUpdates.current.entries()) {
+          next.set(path, timestamp);
+        }
+        pendingUpdates.current.clear();
+
+        // Update ref
+        activeFilesCountRef.current = next.size;
+
+        return next;
+      });
+      setIsIdle(false);
+    }, UPDATE_THROTTLE_MS, { leading: true, trailing: true, maxWait: 1000 }),
+    []
+  );
+
+  useEffect(() => {
+    // Subscribe to file watcher events
+    const handleFileChange = ({ path }: { path: string }) => {
+      const now = Date.now();
+      pendingUpdates.current.set(path, now);
+      lastActivityRef.current = now;
+
+      // Start cleanup interval if not already running
+      startCleanupInterval();
+
+      flushUpdates();
+    };
+
+    const unsubscribe = events.on('watcher:change', handleFileChange);
 
     return () => {
       unsubscribe();
-      if (cleanupTimer.current) {
-        clearInterval(cleanupTimer.current);
-      }
+      stopCleanupInterval();
       flushUpdates.cancel();
     };
-  }, [flushUpdates]); // Empty deps - effect stays mounted for component lifetime
+  }, [flushUpdates, startCleanupInterval, stopCleanupInterval]);
 
   return { activeFiles, isIdle };
 }
