@@ -190,7 +190,15 @@ async function main(): Promise<void> {
         noGit: parsedArgs.noGit,
         initialFilter: parsedArgs.initialFilter,
       }),
-      { exitOnCtrlC: false, stdin: supportsRaw ? process.stdin : undefined, stdout: process.stdout }
+      {
+        exitOnCtrlC: false,
+        stdin: supportsRaw ? process.stdin : undefined,
+        stdout: process.stdout,
+        // Performance: Limit render frequency to 5 FPS for responsive UI feedback
+        // while still reducing CPU usage significantly from the default 30 FPS
+        maxFps: 5,
+        incrementalRendering: true,
+      }
     );
 
     await waitUntilExit();
