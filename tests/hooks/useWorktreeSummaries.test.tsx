@@ -84,7 +84,7 @@ describe('useWorktreeSummaries Hook', () => {
       vi.advanceTimersByTime(10000);
     });
 
-    // 3. Rerender with NEW OBJECT but SAME DATA (simulating useMultiWorktreeStatus poll)
+    // 3. Rerender with NEW OBJECT but SAME DATA (simulating WorktreeMonitor poll)
     const changes2 = new Map<string, WorktreeChanges>([
       [
         'wt1',
