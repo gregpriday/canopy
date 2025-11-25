@@ -4,11 +4,9 @@ import type { WorktreeState } from './monitor/index.js';
 
 export type ModalId =
   | 'worktree'
-  | 'profile-selector'
   | 'command-palette';
 export interface ModalContextMap {
   worktree: undefined;
-  'profile-selector': { worktreeId?: string };
   'command-palette': undefined;
 }
 

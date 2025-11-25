@@ -47,7 +47,6 @@ interface AppProps {
 const MODAL_CLOSE_PRIORITY: ModalId[] = [
   'command-palette',
   'worktree',
-  'profile-selector',
 ];
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
@@ -267,7 +266,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [activeWorktreeChanges, gitStatus]);
 
   const isWorktreePanelOpen = activeModals.has('worktree');
-  const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isCommandPaletteOpen = activeModals.has('command-palette');
 
   // Quick links hook for slash commands and keyboard shortcuts
@@ -520,29 +518,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     setLastCopyProfile(resolvedProfile);
   }, [lastCopyProfile, sortedWorktrees]);
-
-  const handleOpenProfileSelector = useCallback((id: string) => {
-    const target = sortedWorktrees.find(wt => wt.id === id);
-    if (!target) {
-      return;
-    }
-    setActiveModals((prev) => {
-      const next = new Set(prev);
-      next.add('profile-selector');
-      return next;
-    });
-    setModalContext((prev) => ({
-      ...prev,
-      'profile-selector': { worktreeId: target.id },
-    }));
-    events.emit('ui:modal:open', { id: 'profile-selector', context: { worktreeId: target.id } });
-  }, [sortedWorktrees]);
-
-  const handleProfileSelect = useCallback((profileName: string) => {
-    setLastCopyProfile(profileName);
-    events.emit('ui:notify', { type: 'info', message: `Active profile: ${profileName}` });
-    events.emit('ui:modal:close', { id: 'profile-selector' });
-  }, []);
 
   const handleCommandPaletteExecute = useCallback((command: { name: string; action: () => void }) => {
     events.emit('ui:modal:close', { id: 'command-palette' });
@@ -1017,17 +992,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   };
 
-  const handleOpenProfileSelectorForFocused = useCallback(() => {
-    const targetId =
-      focusedWorktreeId ||
-      activeWorktreeId ||
-      sortedWorktrees[0]?.id;
-    if (!targetId) {
-      return;
-    }
-    handleOpenProfileSelector(targetId);
-  }, [activeWorktreeId, focusedWorktreeId, handleOpenProfileSelector, sortedWorktrees]);
-
   const anyModalOpen = activeModals.size > 0;
 
   const { visibleStart, visibleEnd } = useDashboardNav({
@@ -1040,7 +1004,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onToggleExpand: handleToggleExpandWorktree,
     onCopyTree: handleCopyTreeForWorktree,
     onOpenEditor: handleOpenWorktreeEditor,
-    onOpenProfileSelector: handleOpenProfileSelector,
   });
 
   useInput(
@@ -1068,9 +1031,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       if (viewMode !== 'dashboard') {
         return;
       }
-      if (input === 'p') {
-        handleOpenProfileSelectorForFocused();
-      }
       if (input === 'f') {
         handleOpenGitFox();
       }
@@ -1085,7 +1045,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
-    onOpenProfileSelector: anyModalOpen ? undefined : handleOpenProfileSelectorForFocused,
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
     onToggleGitOnlyMode: anyModalOpen ? undefined : handleToggleGitOnlyMode,
@@ -1158,16 +1117,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
         />
         <Box flexGrow={1} marginTop={isCommandPaletteOpen ? 0 : 1}>
-          {isProfileSelectorOpen ? (
-            <Box flexDirection="row" justifyContent="center">
-              <ProfileSelector
-                profiles={config.copytreeProfiles || {}}
-                currentProfile={lastCopyProfile}
-                onSelect={handleProfileSelect}
-                onClose={() => events.emit('ui:modal:close', { id: 'profile-selector' })}
-              />
-            </Box>
-          ) : viewMode === 'dashboard' ? (
+          {viewMode === 'dashboard' ? (
             <WorktreeOverview
               worktrees={sortedWorktrees}
               worktreeChanges={worktreeChanges}
