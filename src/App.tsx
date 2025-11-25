@@ -1112,29 +1112,27 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   useInput(
     (input, key) => {
-      // Handle slash to open command palette (when no modal is open and quick links enabled)
-      if (input === '/' && !anyModalOpen && quickLinksEnabled) {
+      // All shortcuts in this block only work when no modal is open
+      if (anyModalOpen) {
+        return;
+      }
+
+      // Handle slash to open command palette (when quick links enabled)
+      if (input === '/' && quickLinksEnabled) {
         handleOpenCommandPalette();
         return;
       }
 
       // Handle 1-9 for quick link shortcuts (first-class shortcuts)
-      // Works when no modal is open OR when only the command palette is open
-      const onlyCommandPaletteOpen = isCommandPaletteOpen && activeModals.size === 1;
-
-      if ((!anyModalOpen || onlyCommandPaletteOpen) && quickLinksEnabled) {
+      if (quickLinksEnabled) {
         const parsed = parseInt(input, 10);
         if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
-          // Close command palette if open before opening the link
-          if (isCommandPaletteOpen) {
-            events.emit('ui:modal:close', { id: 'command-palette' });
-          }
           void openByShortcut(parsed);
           return;
         }
       }
 
-      if (viewMode !== 'dashboard' || anyModalOpen) {
+      if (viewMode !== 'dashboard') {
         return;
       }
       if (input === 'p') {
