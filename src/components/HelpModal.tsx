@@ -77,7 +77,7 @@ export function HelpModal({ visible, onClose }: HelpModalProps): React.JSX.Eleme
       <Box flexDirection="column" marginBottom={1}>
         <Text bold color={palette.accent.primary}>Slash Commands:</Text>
         <Text>  <Text color={palette.semantic.srcFolder}>/</Text>           Open command palette</Text>
-        <Text>  <Text color={palette.semantic.srcFolder}>⌥1-9</Text>       Open quick link by shortcut number</Text>
+        <Text>  <Text color={palette.semantic.srcFolder}>1-9</Text>         Open quick link by shortcut number</Text>
         <Text dimColor>  Tip: Use /config to open your config folder</Text>
       </Box>
 

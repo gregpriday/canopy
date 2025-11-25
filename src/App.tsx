@@ -1160,56 +1160,18 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         return;
       }
 
-      // Handle Cmd+1-9 / Option+1-9 for quick link shortcuts
+      // Handle 1-9 for quick link shortcuts (first-class shortcuts)
       // Works when no modal is open OR when only the command palette is open
       const onlyCommandPaletteOpen = isCommandPaletteOpen && activeModals.size === 1;
 
-      // macOS Option+Number mapping (US Layout)
-      // Option+1 = ¡, Option+2 = ™, etc.
-      const MACOS_OPTION_MAP: Record<string, number> = {
-        '¡': 1, '™': 2, '£': 3, '¢': 4, '∞': 5, '§': 6, '¶': 7, '•': 8, 'ª': 9
-      };
-
-      // Escape sequence mapping (when terminal sends \x1b1 for Cmd+1)
-      // These appear as escape key + number, so input will be the number after escape
-      const ESC_SEQ_MAP: Record<string, number> = {
-        '\x1b1': 1, '\x1b2': 2, '\x1b3': 3, '\x1b4': 4, '\x1b5': 5,
-        '\x1b6': 6, '\x1b7': 7, '\x1b8': 8, '\x1b9': 9
-      };
-
       if ((!anyModalOpen || onlyCommandPaletteOpen) && quickLinksEnabled) {
-        let shortcutNum = -1;
-
-        // Case 1: Terminal sends Meta + Number directly
-        if (key.meta) {
-          const parsed = parseInt(input, 10);
-          if (!isNaN(parsed)) shortcutNum = parsed;
-        }
-
-        // Case 2: Terminal sends macOS Option key symbol (e.g. ¡ for Option+1)
-        if (shortcutNum === -1 && MACOS_OPTION_MAP[input]) {
-          shortcutNum = MACOS_OPTION_MAP[input];
-        }
-
-        // Case 3: Terminal sends escape sequence (e.g. \x1b1 for configured Cmd+1)
-        if (shortcutNum === -1 && ESC_SEQ_MAP[input]) {
-          shortcutNum = ESC_SEQ_MAP[input];
-        }
-
-        // Case 4: Escape key was pressed, next char is a number (Ghostty sends this way)
-        if (shortcutNum === -1 && key.escape) {
-          const parsed = parseInt(input, 10);
-          if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
-            shortcutNum = parsed;
-          }
-        }
-
-        if (shortcutNum >= 1 && shortcutNum <= 9) {
+        const parsed = parseInt(input, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= 9) {
           // Close command palette if open before opening the link
           if (isCommandPaletteOpen) {
             events.emit('ui:modal:close', { id: 'command-palette' });
           }
-          void openByShortcut(shortcutNum);
+          void openByShortcut(parsed);
           return;
         }
       }

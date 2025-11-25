@@ -34,7 +34,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 |-----|--------|
 | `Ctrl+F` | Open fuzzy search modal (search files across all worktrees) |
 | `/` | Open command palette (slash commands) |
-| `Option+1-9` | Open quick link by shortcut number |
+| `1-9` | Open quick link by shortcut number |
 | `Esc` | Close modals and overlays (see priority below) |
 | `?` | Toggle help modal (keyboard shortcuts reference) |
 

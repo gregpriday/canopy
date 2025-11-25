@@ -88,14 +88,14 @@ Examples:
 
 ## Direct Keyboard Shortcuts
 
-Quick links with `shortcut` numbers (1-9) can be opened directly:
+Quick links with `shortcut` numbers (1-9) can be opened directly by pressing the number key:
 
 | Shortcut | Action |
 |----------|--------|
-| `Option+1` | Open quick link with shortcut 1 |
-| `Option+2` | Open quick link with shortcut 2 |
+| `1` | Open quick link with shortcut 1 |
+| `2` | Open quick link with shortcut 2 |
 | ... | ... |
-| `Option+9` | Open quick link with shortcut 9 |
+| `9` | Open quick link with shortcut 9 |
 
 These shortcuts work when no modal is open or when the command palette is open.
 
