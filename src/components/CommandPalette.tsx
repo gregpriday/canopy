@@ -228,7 +228,7 @@ export function CommandPalette({
               </Text>
               <Text color={palette.text.secondary}>
                 {' '}{command.label}
-                {command.shortcut ? ` [⌘${command.shortcut}]` : ''}
+                {command.shortcut ? ` [${command.shortcut}]` : ''}
               </Text>
               <Box flexGrow={1} />
               <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
