@@ -60,14 +60,15 @@ const MODAL_CLOSE_PRIORITY: ModalId[] = [
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
-  // Use full terminal height
-  const [height, setHeight] = useState(stdout?.rows || 24);
+  // Use terminal height - 1 for calculations to prevent scroll jitter on the last line.
+  // Many terminal emulators reserve the last line for scroll behavior.
+  const [height, setHeight] = useState((stdout?.rows || 24) - 1);
 
   useEffect(() => {
     if (!stdout) return;
-    
+
     const handleResize = () => {
-      setHeight(stdout.rows);
+      setHeight(stdout.rows - 1);
     };
 
     stdout.on('resize', handleResize);
@@ -286,7 +287,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const headerRows = 3;
   const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0);
-  const reservedRows = headerRows + overlayRows;
+  // Reserve header + overlays + 1 extra row for the safety margin
+  const reservedRows = headerRows + overlayRows + 1;
   const viewportHeight = useViewportHeight(reservedRows);
   const dashboardViewportSize = useMemo(() => {
     const available = Math.max(1, height - reservedRows);
@@ -1212,7 +1214,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   return (
     <ThemeProvider mode={themeMode} projectAccent={projectAccent}>
-      <Box flexDirection="column" height={height}>
+      {/* Remove fixed height to allow natural top-to-bottom rendering without forced blank space */}
+      <Box flexDirection="column">
         <Header
           cwd={cwd}
           filterActive={filterActive}

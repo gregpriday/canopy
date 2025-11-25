@@ -194,9 +194,10 @@ async function main(): Promise<void> {
         exitOnCtrlC: false,
         stdin: supportsRaw ? process.stdin : undefined,
         stdout: process.stdout,
-        // Performance: Limit render frequency to 5 FPS for responsive UI feedback
-        // while still reducing CPU usage significantly from the default 30 FPS
-        maxFps: 5,
+        // Performance: Limit render frequency to 10 FPS for responsive UI feedback
+        // while still reducing CPU usage significantly from the default 30 FPS.
+        // 10 FPS prevents aliasing against the 200ms traffic light timer.
+        maxFps: 10,
         incrementalRendering: true,
       }
     );
