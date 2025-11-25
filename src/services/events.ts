@@ -3,12 +3,10 @@ import type { NotificationPayload } from '../types/index.js';
 import type { WorktreeState } from './monitor/index.js';
 
 export type ModalId =
-  | 'help'
   | 'worktree'
   | 'profile-selector'
   | 'command-palette';
 export interface ModalContextMap {
-  help: undefined;
   worktree: undefined;
   'profile-selector': { worktreeId?: string };
   'command-palette': undefined;

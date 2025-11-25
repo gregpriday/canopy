@@ -558,49 +558,6 @@ describe('Dashboard Integration Tests', () => {
     });
   });
 
-  describe('Help Modal', () => {
-    it('opens help modal on ? key', async () => {
-      const { stdin, lastFrame } = render(<App cwd="/test/repo" />);
-
-      await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
-      await tick();
-
-      // Press '?' to open help
-      stdin.write('?');
-
-      // Wait for the modal to appear in the frame
-      await waitForCondition(() => {
-        const frame = lastFrame() || '';
-        return frame.includes('Keyboard') || frame.includes('Help') || frame.includes('Shortcuts');
-      }, 1000);
-
-      const frame = lastFrame() || '';
-
-      // Should show help content
-      expect(frame).toMatch(/help|keyboard|shortcuts/i);
-    });
-
-    it('closes help modal on Escape', async () => {
-      const { stdin, lastFrame } = render(<App cwd="/test/repo" />);
-
-      await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
-      await tick();
-
-      // Open help
-      stdin.write('?');
-      await tick();
-      await tick();
-
-      // Close with Escape
-      stdin.write('\x1B');
-      await tick();
-      await tick();
-
-      // Help should be closed
-      expect(lastFrame()).toBeDefined();
-    });
-  });
-
   describe('Error Scenarios', () => {
     it('handles missing worktrees gracefully', async () => {
       // Mock empty worktrees

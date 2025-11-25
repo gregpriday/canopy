@@ -187,17 +187,6 @@ describe('useKeyboard', () => {
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
 
-    it('emits modal open when ? is pressed', async () => {
-      const { spy, unsubscribe } = listen('ui:modal:open');
-      const { stdin } = render(<TestComponent handlers={{}} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '?');
-
-      expect(spy).toHaveBeenCalledWith({ id: 'help', context: undefined });
-      unsubscribe();
-    });
-
     it('calls onQuit when q is pressed', async () => {
       const onQuit = vi.fn();
       const { stdin } = render(<TestComponent handlers={{ onQuit }} />);

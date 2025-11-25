@@ -26,7 +26,6 @@ export type KeyAction =
 
 	// UI actions
 	| 'ui.refresh'
-	| 'ui.help'
 	| 'ui.escape'
 
 	// Git/Worktree
