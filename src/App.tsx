@@ -313,6 +313,42 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     };
   }, []);
 
+  // Dev Server Auto-Start: Start dev servers on app launch if configured
+  const devServerAutoStartDone = useRef(false);
+  useEffect(() => {
+    // Only run once when lifecycle is ready and we have worktrees
+    if (lifecycleStatus !== 'ready' || worktrees.length === 0 || devServerAutoStartDone.current) {
+      return;
+    }
+
+    const devServerConfig = config.devServer;
+    const autoStart = devServerConfig?.autoStart ?? false;
+    const enabled = devServerConfig?.enabled ?? true;
+
+    // Skip if feature is disabled or auto-start is off
+    if (!enabled || !autoStart) {
+      devServerAutoStartDone.current = true;
+      return;
+    }
+
+    devServerAutoStartDone.current = true;
+
+    // Auto-start dev servers for all worktrees with dev scripts
+    const startServers = async () => {
+      const customCommand = devServerConfig?.command;
+
+      for (const wt of worktrees) {
+        const hasDevScript = await devServerManager.hasDevScriptAsync(wt.path);
+        if (hasDevScript) {
+          // Start with custom command if provided, otherwise auto-detect
+          void devServerManager.start(wt.id, wt.path, customCommand);
+        }
+      }
+    };
+
+    void startServers();
+  }, [lifecycleStatus, worktrees, config.devServer]);
+
   // Note: sys:refresh is handled by WorktreeMonitor internally.
   // PERF: Removed useGitStatus refresh call - WorktreeMonitor handles git status updates.
 
@@ -436,8 +472,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       return;
     }
 
-    void devServerManager.toggle(target.id, target.path);
-  }, [sortedWorktrees]);
+    // Pass custom command from config if provided
+    void devServerManager.toggle(target.id, target.path, config.devServer?.command);
+  }, [sortedWorktrees, config.devServer?.command]);
 
   const handleCommandPaletteExecute = useCallback((command: { name: string; action: () => void }) => {
     events.emit('ui:modal:close', { id: 'command-palette' });
@@ -824,14 +861,40 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   const anyModalOpen = activeModals.size > 0;
 
-  // Build devScriptMap for keyboard shortcut guard
-  const devScriptMap = useMemo(() => {
-    const map = new Map<string, boolean>();
-    for (const wt of sortedWorktrees) {
-      map.set(wt.id, devServerManager.hasDevScript(wt.path));
+  // Build devScriptMap for keyboard shortcut guard (async to avoid blocking UI)
+  const [devScriptMap, setDevScriptMap] = useState<Map<string, boolean>>(new Map());
+  const devServerEnabled = config.devServer?.enabled ?? true;
+
+  useEffect(() => {
+    // If dev server feature is disabled, return empty map
+    if (!devServerEnabled) {
+      setDevScriptMap(new Map());
+      return;
     }
-    return map;
-  }, [sortedWorktrees]);
+
+    let cancelled = false;
+
+    const loadDevScripts = async () => {
+      // Pre-warm the cache for all worktrees in parallel
+      const paths = sortedWorktrees.map(wt => wt.path);
+      await devServerManager.warmCache(paths);
+
+      if (cancelled) return;
+
+      // Build the map from the warmed cache
+      const map = new Map<string, boolean>();
+      for (const wt of sortedWorktrees) {
+        map.set(wt.id, devServerManager.hasDevScript(wt.path));
+      }
+      setDevScriptMap(map);
+    };
+
+    void loadDevScripts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sortedWorktrees, devServerEnabled]);
 
   const { visibleStart, visibleEnd } = useDashboardNav({
     worktrees: sortedWorktrees,
@@ -954,6 +1017,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onCopyTree={handleCopyTreeForWorktree}
             onOpenEditor={handleOpenWorktreeEditor}
             onOpenExplorer={handleOpenWorktreeExplorer}
+            devServerConfig={{
+              enabled: config.devServer?.enabled ?? true,
+              command: config.devServer?.command,
+            }}
           />
         </Box>
         {isWorktreePanelOpen && (

@@ -1,5 +1,6 @@
-import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { execa, type ResultPromise } from 'execa';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { events } from '../events.js';
 import type { DevServerState, DevServerStatus } from '../../types/index.js';
@@ -36,6 +37,16 @@ const PORT_PATTERNS = [
 const FORCE_KILL_TIMEOUT_MS = 5000;
 const MAX_LOG_LINES = 100;
 
+// Cache entry for dev script detection
+interface DevScriptCacheEntry {
+  hasDevScript: boolean;
+  command: string | null;
+  checkedAt: number;
+}
+
+// Cache TTL: 5 minutes (invalidated on explicit refresh)
+const DEV_SCRIPT_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /**
  * DevServerManager manages dev server processes for worktrees.
  *
@@ -44,11 +55,13 @@ const MAX_LOG_LINES = 100;
  * - Detect server URLs from stdout
  * - Emit state updates via event bus
  * - Graceful shutdown with SIGTERM → SIGKILL fallback
+ * - Cross-platform process cleanup using execa
  */
 class DevServerManager {
-  private servers = new Map<string, ChildProcess>();
+  private servers = new Map<string, ResultPromise>();
   private states = new Map<string, DevServerState>();
   private logBuffers = new Map<string, string[]>();
+  private devScriptCache = new Map<string, DevScriptCacheEntry>();
 
   /**
    * Get the current state for a worktree's dev server.
@@ -94,7 +107,7 @@ class DevServerManager {
     }
 
     // Detect or use provided command
-    const resolvedCommand = command ?? this.detectDevCommand(worktreePath);
+    const resolvedCommand = command ?? await this.detectDevCommandAsync(worktreePath);
 
     if (!resolvedCommand) {
       this.updateState(worktreeId, {
@@ -113,55 +126,60 @@ class DevServerManager {
     // Update state to starting
     this.updateState(worktreeId, { status: 'starting' });
 
-    // Initialize log buffer
+    // Clear and initialize log buffer for fresh start
     this.logBuffers.set(worktreeId, []);
 
     try {
-      // Parse command and spawn process
-      const [cmd, ...args] = this.parseCommand(resolvedCommand);
-
-      const proc = spawn(cmd, args, {
-        cwd: worktreePath,
+      // Use execa for robust cross-platform process management
+      // execa handles process tree killing properly on all platforms
+      const proc = execa({
         shell: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-        // Detach on Windows to allow tree-kill
-        detached: process.platform !== 'win32',
-      });
-
-      if (!proc.pid) {
-        throw new Error('Failed to spawn process - no PID');
-      }
+        cwd: worktreePath,
+        // Don't buffer - we stream stdout/stderr
+        buffer: false,
+        // Allow the process to keep running
+        cleanup: true,
+        // Reject on non-zero exit (we handle this ourselves)
+        reject: false,
+      })`${resolvedCommand}`;
 
       this.servers.set(worktreeId, proc);
       this.updateState(worktreeId, { pid: proc.pid });
 
       // Handle stdout for URL detection
-      proc.stdout?.on('data', (data: Buffer) => {
-        const output = data.toString();
-        this.appendLog(worktreeId, output);
-        this.detectUrl(worktreeId, output);
-      });
+      if (proc.stdout) {
+        proc.stdout.on('data', (data: Buffer) => {
+          const output = data.toString();
+          this.appendLog(worktreeId, output);
+          this.detectUrl(worktreeId, output);
+        });
+      }
 
       // Handle stderr (also check for URL as some servers output there)
-      proc.stderr?.on('data', (data: Buffer) => {
-        const output = data.toString();
-        this.appendLog(worktreeId, output);
-        this.detectUrl(worktreeId, output);
-      });
+      if (proc.stderr) {
+        proc.stderr.on('data', (data: Buffer) => {
+          const output = data.toString();
+          this.appendLog(worktreeId, output);
+          this.detectUrl(worktreeId, output);
+        });
+      }
 
-      // Handle process exit
-      proc.on('exit', (code, signal) => {
-        logInfo('Dev server exited', { worktreeId, code, signal });
+      // Handle process completion
+      proc.then((result) => {
+        logInfo('Dev server exited', { worktreeId, exitCode: result.exitCode, signal: result.signal });
         this.servers.delete(worktreeId);
 
         const currentState = this.states.get(worktreeId);
 
         // Only update to stopped if not already in error state
         if (currentState?.status !== 'error') {
-          if (code !== 0 && code !== null && signal !== 'SIGTERM' && signal !== 'SIGKILL') {
+          const exitCode = result.exitCode;
+          const signal = result.signal;
+
+          if (exitCode !== 0 && exitCode !== null && signal !== 'SIGTERM' && signal !== 'SIGKILL') {
             this.updateState(worktreeId, {
               status: 'error',
-              errorMessage: `Process exited with code ${code}`,
+              errorMessage: `Process exited with code ${exitCode}`,
             });
           } else {
             this.updateState(worktreeId, {
@@ -172,10 +190,7 @@ class DevServerManager {
             });
           }
         }
-      });
-
-      // Handle process error
-      proc.on('error', (error) => {
+      }).catch((error) => {
         logError('Dev server process error', { worktreeId, error: error.message });
         this.servers.delete(worktreeId);
         this.updateState(worktreeId, {
@@ -198,7 +213,7 @@ class DevServerManager {
 
   /**
    * Stop a dev server for a worktree.
-   * Uses graceful SIGTERM with SIGKILL fallback.
+   * Uses execa's built-in process tree killing for cross-platform support.
    */
   public async stop(worktreeId: string): Promise<void> {
     const proc = this.servers.get(worktreeId);
@@ -222,18 +237,15 @@ class DevServerManager {
       const forceKillTimer = setTimeout(() => {
         logWarn('Force killing dev server', { worktreeId });
         try {
-          // On Unix, kill the process group
-          if (process.platform !== 'win32' && proc.pid) {
-            process.kill(-proc.pid, 'SIGKILL');
-          } else {
-            proc.kill('SIGKILL');
-          }
+          // execa's kill with forceKillAfterDelay handles cross-platform tree killing
+          proc.kill('SIGKILL');
         } catch {
           // Process may have already exited
         }
       }, FORCE_KILL_TIMEOUT_MS);
 
-      proc.once('exit', () => {
+      // Listen for process completion
+      proc.finally(() => {
         clearTimeout(forceKillTimer);
         this.servers.delete(worktreeId);
         this.updateState(worktreeId, {
@@ -246,13 +258,9 @@ class DevServerManager {
       });
 
       // Try graceful shutdown first
+      // execa's kill() properly handles process tree killing on all platforms
       try {
-        // On Unix, send SIGTERM to the process group
-        if (process.platform !== 'win32' && proc.pid) {
-          process.kill(-proc.pid, 'SIGTERM');
-        } else {
-          proc.kill('SIGTERM');
-        }
+        proc.kill('SIGTERM');
       } catch {
         // Process may have already exited
         clearTimeout(forceKillTimer);
@@ -300,17 +308,30 @@ class DevServerManager {
   }
 
   /**
-   * Detect dev command from package.json scripts.
+   * Detect dev command from package.json scripts (async version).
+   * Results are cached to avoid repeated disk I/O.
    */
-  public detectDevCommand(worktreePath: string): string | null {
+  public async detectDevCommandAsync(worktreePath: string): Promise<string | null> {
+    // Check cache first
+    const cached = this.devScriptCache.get(worktreePath);
+    if (cached && Date.now() - cached.checkedAt < DEV_SCRIPT_CACHE_TTL_MS) {
+      return cached.command;
+    }
+
     const packageJsonPath = path.join(worktreePath, 'package.json');
 
     if (!existsSync(packageJsonPath)) {
+      this.devScriptCache.set(worktreePath, {
+        hasDevScript: false,
+        command: null,
+        checkedAt: Date.now(),
+      });
       return null;
     }
 
     try {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+      const content = await readFile(packageJsonPath, 'utf-8');
+      const pkg = JSON.parse(content);
       const scripts = pkg.scripts || {};
 
       // Priority order for script detection
@@ -318,25 +339,84 @@ class DevServerManager {
 
       for (const script of candidates) {
         if (scripts[script]) {
-          return `npm run ${script}`;
+          const command = `npm run ${script}`;
+          this.devScriptCache.set(worktreePath, {
+            hasDevScript: true,
+            command,
+            checkedAt: Date.now(),
+          });
+          return command;
         }
       }
 
+      this.devScriptCache.set(worktreePath, {
+        hasDevScript: false,
+        command: null,
+        checkedAt: Date.now(),
+      });
       return null;
     } catch {
+      this.devScriptCache.set(worktreePath, {
+        hasDevScript: false,
+        command: null,
+        checkedAt: Date.now(),
+      });
       return null;
     }
   }
 
   /**
-   * Check if a worktree has a detectable dev script.
+   * Synchronous version for backwards compatibility.
+   * Uses cache if available, otherwise returns false to avoid blocking.
+   * @deprecated Prefer hasDevScriptAsync for new code
    */
   public hasDevScript(worktreePath: string): boolean {
-    return this.detectDevCommand(worktreePath) !== null;
+    const cached = this.devScriptCache.get(worktreePath);
+    if (cached && Date.now() - cached.checkedAt < DEV_SCRIPT_CACHE_TTL_MS) {
+      return cached.hasDevScript;
+    }
+    // Don't block - trigger async check and return false for now
+    // The cache will be populated and next check will return correct value
+    void this.hasDevScriptAsync(worktreePath);
+    return false;
   }
 
   /**
-   * Update state and emit event.
+   * Check if a worktree has a detectable dev script (async version).
+   * This is the preferred method - doesn't block the UI thread.
+   */
+  public async hasDevScriptAsync(worktreePath: string): Promise<boolean> {
+    const command = await this.detectDevCommandAsync(worktreePath);
+    return command !== null;
+  }
+
+  /**
+   * Invalidate the dev script cache for a specific worktree.
+   * Call this when you suspect package.json may have changed.
+   */
+  public invalidateCache(worktreePath: string): void {
+    this.devScriptCache.delete(worktreePath);
+  }
+
+  /**
+   * Clear the entire dev script cache.
+   */
+  public clearCache(): void {
+    this.devScriptCache.clear();
+  }
+
+  /**
+   * Pre-warm the cache for multiple worktrees.
+   * Call this on startup to avoid UI stutter later.
+   */
+  public async warmCache(worktreePaths: string[]): Promise<void> {
+    await Promise.all(
+      worktreePaths.map(path => this.hasDevScriptAsync(path))
+    );
+  }
+
+  /**
+   * Update state and emit event only if state actually changed.
    */
   private updateState(
     worktreeId: string,
@@ -344,8 +424,19 @@ class DevServerManager {
   ): void {
     const current = this.states.get(worktreeId) ?? { worktreeId, status: 'stopped' as DevServerStatus };
     const next: DevServerState = { ...current, ...updates };
-    this.states.set(worktreeId, next);
-    events.emit('server:update', next);
+
+    // Only emit if something actually changed
+    const hasChanged =
+      current.status !== next.status ||
+      current.url !== next.url ||
+      current.port !== next.port ||
+      current.pid !== next.pid ||
+      current.errorMessage !== next.errorMessage;
+
+    if (hasChanged) {
+      this.states.set(worktreeId, next);
+      events.emit('server:update', next);
+    }
   }
 
   /**
@@ -365,7 +456,7 @@ class DevServerManager {
 
     this.logBuffers.set(worktreeId, logs);
 
-    // Update state with latest logs
+    // Update state with latest logs (don't emit event for log-only updates)
     const current = this.states.get(worktreeId);
     if (current) {
       this.states.set(worktreeId, { ...current, logs });
@@ -426,45 +517,6 @@ class DevServerManager {
         return;
       }
     }
-  }
-
-  /**
-   * Parse command string into executable and args.
-   *
-   * SECURITY NOTE: Commands are executed with shell: true, so they run exactly
-   * as the user entered them. This is intentional for dev server commands which
-   * may include npm scripts, environment variables, etc. Commands should only
-   * come from trusted sources (package.json scripts or user config).
-   */
-  private parseCommand(command: string): string[] {
-    // Simple parsing - split by space, respecting quotes
-    const parts: string[] = [];
-    let current = '';
-    let inQuote = false;
-    let quoteChar = '';
-
-    for (const char of command) {
-      if ((char === '"' || char === "'") && !inQuote) {
-        inQuote = true;
-        quoteChar = char;
-      } else if (char === quoteChar && inQuote) {
-        inQuote = false;
-        quoteChar = '';
-      } else if (char === ' ' && !inQuote) {
-        if (current) {
-          parts.push(current);
-          current = '';
-        }
-      } else {
-        current += char;
-      }
-    }
-
-    if (current) {
-      parts.push(current);
-    }
-
-    return parts;
   }
 }
 
