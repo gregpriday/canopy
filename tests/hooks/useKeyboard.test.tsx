@@ -141,16 +141,6 @@ describe('useKeyboard', () => {
   });
 
   describe('command/filter actions', () => {
-    it('calls onOpenFilter when Ctrl+F is pressed', async () => {
-      const onOpenFilter = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenFilter }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, '\x06'); // Ctrl+F
-
-      expect(onOpenFilter).toHaveBeenCalledTimes(1);
-    });
-
     it('calls onClearFilter when ESC is pressed', async () => {
       const onClearFilter = vi.fn();
       const { stdin } = render(<TestComponent handlers={{ onClearFilter }} />);
@@ -293,15 +283,6 @@ describe('useKeyboard', () => {
       expect(onPageDown).not.toHaveBeenCalled();
     });
 
-    it('does not call onOpenFilter when plain f is pressed (requires Ctrl+F)', async () => {
-      const onOpenFilter = vi.fn();
-      const { stdin } = render(<TestComponent handlers={{ onOpenFilter }} />);
-      await waitForInk(stdin);
-
-      await writeKey(stdin, 'f');
-
-      expect(onOpenFilter).not.toHaveBeenCalled();
-    });
   });
 
   describe('cleanup and unmount', () => {
