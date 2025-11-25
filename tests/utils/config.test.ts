@@ -7,14 +7,26 @@ import os from 'os';
 
 describe('loadConfig', () => {
   let tempDir: string;
+  let originalXdgConfigHome: string | undefined;
 
   beforeEach(async () => {
     // Create temp directory for test files
     tempDir = path.join(os.tmpdir(), `canopy-test-${Date.now()}`);
     await fs.ensureDir(tempDir);
+
+    // Mock XDG_CONFIG_HOME to avoid picking up real global config
+    originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = path.join(tempDir, 'fake-xdg-config');
   });
 
   afterEach(async () => {
+    // Restore original XDG_CONFIG_HOME
+    if (originalXdgConfigHome !== undefined) {
+      process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    } else {
+      delete process.env.XDG_CONFIG_HOME;
+    }
+
     // Clean up
     await fs.remove(tempDir);
   });
@@ -651,6 +663,7 @@ describe('loadConfig - worktree-aware loading', () => {
   let tempDir: string;
   let mainRepoPath: string;
   let worktreePath: string;
+  let originalXdgConfigHome: string | undefined;
 
   beforeEach(async () => {
     tempDir = path.join(os.tmpdir(), `canopy-worktree-config-test-${Date.now()}`);
@@ -663,9 +676,20 @@ describe('loadConfig - worktree-aware loading', () => {
     // Create worktree path
     worktreePath = path.join(tempDir, 'feature');
     await fs.ensureDir(worktreePath);
+
+    // Mock XDG_CONFIG_HOME to avoid picking up real global config
+    originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = path.join(tempDir, 'fake-xdg-config');
   });
 
   afterEach(async () => {
+    // Restore original XDG_CONFIG_HOME
+    if (originalXdgConfigHome !== undefined) {
+      process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    } else {
+      delete process.env.XDG_CONFIG_HOME;
+    }
+
     await fs.remove(tempDir);
   });
 
