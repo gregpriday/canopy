@@ -2,6 +2,7 @@ import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
 import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
+import { WorktreeRemovedError } from '../../utils/errorTypes.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
@@ -424,6 +425,18 @@ export class WorktreeMonitor extends EventEmitter {
       }
 
     } catch (error) {
+      // Handle worktree deletion: stop monitoring and emit removal event
+      if (error instanceof WorktreeRemovedError) {
+        logInfo('Worktree directory deleted, stopping monitor', { id: this.id, path: this.path });
+
+        // Emit removal event before stopping so UI can clean up
+        events.emit('sys:worktree:remove', { worktreeId: this.id });
+
+        // Stop monitoring this worktree (clears timers, removes listeners)
+        void this.stop();
+        return;
+      }
+
       // Handle index.lock collision gracefully (don't set mood to error)
       const errorMessage = (error as Error).message || '';
       if (errorMessage.includes('index.lock')) {

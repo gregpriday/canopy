@@ -2,7 +2,7 @@ import { dirname, resolve } from 'path';
 import { realpathSync, promises as fs } from 'fs';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import type { FileChangeDetail, GitStatus, WorktreeChanges } from '../types/index.js';
-import { GitError } from './errorTypes.js';
+import { GitError, WorktreeRemovedError } from './errorTypes.js';
 import { logWarn, logError } from './logger.js';
 import { Cache } from './cache.js';
 import { perfMonitor } from './perfMetrics.js';
@@ -280,6 +280,20 @@ export async function getWorktreeChangesWithStats(
   // PERF: Limit the number of files we calculate stats for to prevent CPU hang
   // on massive changesets (e.g., accidental package-lock.json deletion in monorepo)
   const MAX_FILES_FOR_NUMSTAT = 100;
+
+  // Check if directory exists before calling simpleGit.
+  // simple-git throws immediately if cwd doesn't exist, which can flood stderr
+  // when a worktree is deleted externally while being monitored.
+  try {
+    await fs.access(cwd);
+  } catch (accessError) {
+    const nodeError = accessError as NodeJS.ErrnoException;
+    if (nodeError.code === 'ENOENT') {
+      throw new WorktreeRemovedError(cwd, nodeError);
+    }
+    // Re-throw other access errors (e.g., permissions)
+    throw accessError;
+  }
 
   try {
     const git: SimpleGit = simpleGit(cwd);

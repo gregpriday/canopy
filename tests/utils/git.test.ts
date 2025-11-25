@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { getGitStatusCached, clearGitStatusCache, stopGitStatusCacheCleanup, getWorktreeChangesWithStats } from '../../src/utils/git.js';
 import type { GitStatus } from '../../src/types/index.js';
+import { WorktreeRemovedError } from '../../src/utils/errorTypes.js';
 
 // Mock simple-git
 vi.mock('simple-git', () => ({
@@ -27,6 +28,7 @@ vi.mock('fs', async () => {
 		promises: {
 			readFile: vi.fn(),
 			stat: vi.fn(),
+			access: vi.fn(), // Add access mock for directory existence check
 		},
 	};
 });
@@ -330,6 +332,91 @@ describe('git.ts', () => {
 			expect(change.status).toBe('untracked');
 			expect(change.insertions).toBeNull(); // Binary files return null
 			expect(change.deletions).toBeNull();
+		});
+	});
+
+	describe('getWorktreeChangesWithStats - deleted directory handling', () => {
+		let mockAccess: any;
+		let mockStat: any;
+
+		beforeEach(async () => {
+			clearGitStatusCache();
+			// Get the mocked fs module
+			const fs = await import('fs');
+			mockAccess = fs.promises.access as any;
+			mockStat = fs.promises.stat as any;
+
+			// Reset mocks
+			vi.mocked(mockAccess).mockReset();
+			vi.mocked(mockStat).mockReset();
+			vi.mocked(mockStat).mockResolvedValue({ mtimeMs: Date.now() } as any);
+		});
+
+		it('throws WorktreeRemovedError when directory does not exist', async () => {
+			// Mock fs.access to fail with ENOENT
+			const enoentError = new Error('ENOENT: no such file or directory');
+			(enoentError as NodeJS.ErrnoException).code = 'ENOENT';
+			vi.mocked(mockAccess).mockRejectedValue(enoentError);
+
+			await expect(getWorktreeChangesWithStats('/deleted/worktree', true))
+				.rejects
+				.toThrow(WorktreeRemovedError);
+		});
+
+		it('includes path in WorktreeRemovedError context', async () => {
+			const enoentError = new Error('ENOENT: no such file or directory');
+			(enoentError as NodeJS.ErrnoException).code = 'ENOENT';
+			vi.mocked(mockAccess).mockRejectedValue(enoentError);
+
+			try {
+				await getWorktreeChangesWithStats('/deleted/worktree', true);
+				expect.fail('Should have thrown');
+			} catch (error) {
+				expect(error).toBeInstanceOf(WorktreeRemovedError);
+				expect((error as WorktreeRemovedError).context?.path).toBe('/deleted/worktree');
+			}
+		});
+
+		it('re-throws non-ENOENT errors without wrapping', async () => {
+			// Mock fs.access to fail with permission error
+			const epermError = new Error('EPERM: operation not permitted');
+			(epermError as NodeJS.ErrnoException).code = 'EPERM';
+			vi.mocked(mockAccess).mockRejectedValue(epermError);
+
+			await expect(getWorktreeChangesWithStats('/protected/worktree', true))
+				.rejects
+				.toThrow('EPERM: operation not permitted');
+
+			// Should NOT be a WorktreeRemovedError
+			try {
+				await getWorktreeChangesWithStats('/protected/worktree', true);
+			} catch (error) {
+				expect(error).not.toBeInstanceOf(WorktreeRemovedError);
+			}
+		});
+
+		it('proceeds normally when directory exists', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				status: vi.fn().mockResolvedValue({
+					modified: ['file.ts'],
+					created: [],
+					deleted: [],
+					renamed: [],
+					not_added: [],
+					conflicted: [],
+				}),
+				revparse: vi.fn().mockResolvedValue('/existing/repo'),
+				diff: vi.fn().mockResolvedValue('10\t5\tfile.ts'),
+			} as any);
+
+			// Mock fs.access to succeed (directory exists)
+			vi.mocked(mockAccess).mockResolvedValue(undefined);
+
+			const result = await getWorktreeChangesWithStats('/existing/repo', true);
+
+			expect(result.changes).toHaveLength(1);
+			expect(result.changes[0].status).toBe('modified');
 		});
 	});
 });
