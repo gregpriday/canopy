@@ -5,6 +5,7 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     globals: true,
+    setupFiles: ['./tests/setup.ts'],
     poolOptions: {
       threads: {
         minThreads: 1,
