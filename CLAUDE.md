@@ -162,7 +162,6 @@ All types centralized in `src/types/index.ts`:
   - Includes modification time tracking for prioritization
 - `FileChangeDetail` - Individual file change metadata (status, insertions, deletions, mtime)
 - `WorktreeMood` - Worktree categorization: `'stable' | 'active' | 'stale' | 'error'`
-- `RepositoryMood` - Repository state: `'clean' | 'additions' | 'modifications' | 'mixed' | 'deletions' | 'conflict'`
 
 Additional type modules in `src/types/`:
 - `keymap.ts` - Keyboard mapping types and shortcut definitions
@@ -300,9 +299,6 @@ Located in `src/utils/`:
   - Active: Has changes
   - Stale: No recent commits (>7 days)
   - Error: Git operation failures
-- `repositoryMood.ts` - Analyze git status for repository mood
-  - Moods: `clean`, `additions`, `modifications`, `mixed`, `deletions`, `conflict`
-  - Used for visual gradients and UI coloring
 - `moodColors.ts` - Map `WorktreeMood` to terminal border colors
   - Stable: green, Active: yellow, Error: red, Stale: gray
 

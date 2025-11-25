@@ -146,7 +146,6 @@ export interface CanopyConfig {
     compactMode?: boolean;
     activePathHighlight?: boolean;
     activePathColor?: 'cyan' | 'blue' | 'green';
-  moodGradients?: boolean; // Enable mood-based header gradients (default: true)
   };
   worktrees?: {
     enable: boolean;           // Master toggle for worktree features
@@ -216,7 +215,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     compactMode: true,
     activePathHighlight: true,
     activePathColor: 'cyan',
-    moodGradients: true,
   },
   worktrees: {
     enable: true,              // Enabled by default for backwards compatibility
