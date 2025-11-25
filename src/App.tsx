@@ -144,7 +144,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // Use the new WorktreeMonitor system
   const worktreeStates = useWorktreeMonitor();
-  const enrichedWorktrees = worktreeStatesToArray(worktreeStates);
+  const enrichedWorktrees = useMemo(
+    () => worktreeStatesToArray(worktreeStates),
+    [worktreeStates]
+  );
 
   // Build worktreeChanges map for backward compatibility
   const worktreeChanges = useMemo(() => {
@@ -864,6 +867,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Build devScriptMap for keyboard shortcut guard (async to avoid blocking UI)
   const [devScriptMap, setDevScriptMap] = useState<Map<string, boolean>>(new Map());
   const devServerEnabled = config.devServer?.enabled ?? true;
+  const devServerCommand = config.devServer?.command;
+
+  // Memoize devServerConfig to prevent unnecessary re-renders
+  const devServerConfig = useMemo(() => ({
+    enabled: devServerEnabled,
+    command: devServerCommand,
+  }), [devServerEnabled, devServerCommand]);
 
   useEffect(() => {
     // If dev server feature is disabled, return empty map
@@ -1017,10 +1027,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onCopyTree={handleCopyTreeForWorktree}
             onOpenEditor={handleOpenWorktreeEditor}
             onOpenExplorer={handleOpenWorktreeExplorer}
-            devServerConfig={{
-              enabled: config.devServer?.enabled ?? true,
-              command: config.devServer?.command,
-            }}
+            devServerConfig={devServerConfig}
           />
         </Box>
         {isWorktreePanelOpen && (

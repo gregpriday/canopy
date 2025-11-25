@@ -72,14 +72,17 @@ Running `git status` across multiple worktrees or constantly checking different 
 See all your git worktrees at once, sorted by activity. Active worktrees appear first, followed by stable ones, then stale. Each card shows the branch, path, and current state.
 
 ### AI-Powered Summaries
-Each worktree card displays an AI-generated summary of what's happening based on file changes and commit messages. Powered by GPT-5 Nano for fast, context-aware descriptions.
+Each worktree card displays an AI-generated summary of what's happening based on file changes and commit messages. Powered by **GPT-5 Nano** for high-speed status summarization and **GPT-5 Mini** for creative project identity generation. Canopy analyzes diffs using zero-context diffs for token efficiency, describing exactly *what* feature is being built, not just which files changed.
 
 ### Mood Indicators
 Worktrees are automatically categorized by activity level:
-- **ACTIVE** (orange border): Recent changes (< 1 hour ago)
-- **STABLE** (blue border): Some changes but not recent
-- **STALE** (gray border): No recent activity (> 24 hours)
+- **ACTIVE** (yellow border): Has uncommitted changes
+- **STABLE** (green border): Clean worktree with recent commits
+- **STALE** (gray border): No recent activity (> 7 days since last commit)
 - **ERROR** (red border): Git status fetch failed
+
+### Project Identity
+Each project gets a unique visual identity with AI-generated emoji and gradient colors based on the project name. This helps visually distinguish worktrees at a glance and adds personality to your dashboard.
 
 ### One-Keystroke Context Extraction
 Press `c` on any worktree to copy its changed files to your clipboard via CopyTree integration. Press `p` to open the profile selector and choose from configured CopyTree profiles for different AI context formats.
@@ -104,6 +107,45 @@ Press `/` to open fuzzy search and find any file across all worktrees. Search re
 
 ### Live Updates
 File watching keeps the dashboard current. As AI agents modify files, you see changes appear in real-time on the relevant worktree card—no manual refresh needed.
+
+### Dev Server Management
+Start and stop development servers directly from the dashboard. Press `s` on any worktree to toggle its dev server. Canopy auto-detects dev scripts from `package.json` and monitors server output for URLs, displaying them in the worktree card.
+
+```
+────────────────────────────────────────────────
+● http://localhost:5173              [s] [■ Stop]
+```
+
+Enable in `.canopy.json`:
+```json
+{
+  "devServer": {
+    "enabled": true
+  }
+}
+```
+
+See [docs/DEV_SERVER.md](docs/DEV_SERVER.md) for full configuration options.
+
+### Quick Links & Command Palette
+Press `/` to open the command palette for slash commands and quick access to external tools. Configure custom links to GitHub, Linear, or any URL you use frequently.
+
+- **Numeric shortcuts:** Press `1-9` to instantly open configured quick links
+- **Command aliases:** Type `/gh` or `/linear` to jump to those URLs
+- **File search:** The command palette also provides fuzzy search across all files
+
+```json
+{
+  "quickLinks": {
+    "enabled": true,
+    "links": [
+      { "label": "GitHub", "url": "https://github.com/my-org/repo", "shortcut": 1, "command": "gh" },
+      { "label": "Linear", "url": "https://linear.app/team", "shortcut": 2, "command": "linear" },
+      { "label": "Localhost", "url": "http://localhost:3000", "shortcut": 3 }
+    ]
+  }
+}
+```
 
 ## Installation
 
@@ -154,15 +196,16 @@ canopy --no-git
 **Worktree Actions:**
 - `c` - Copy changed files via CopyTree (default profile)
 - `p` - Open CopyTree profile selector
+- `s` - Toggle dev server (start/stop)
 - `Enter` - Open worktree in VS Code/editor
 - `w` - Cycle to next worktree
 - `W` - Open worktree panel (full list)
 
 **Search & Commands:**
-- `/` - Fuzzy search across all worktrees
+- `/` - Open command palette (slash commands and fuzzy search)
+- `1-9` - Open quick links by shortcut number
 - `Ctrl+F` - Quick filter
 - `Esc` - Close modals/search
-- `?` - Toggle help
 
 **Other:**
 - `g` - Toggle git status visibility
@@ -182,25 +225,28 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
   "editor": "code",
   "editorArgs": ["-r"],
   "showGitStatus": true,
+  "refreshDebounce": 100,
   "copytreeProfiles": {
-    "default": {
-      "args": ["-r"],
-      "description": "Standard recursive scan"
-    },
-    "tests": {
-      "args": ["--filter", "tests/**/*.ts", "-r"],
-      "description": "Tests only"
-    },
-    "minimal": {
-      "args": ["--tree-only"],
-      "description": "Structure only"
-    }
+    "default": { "args": ["-r"], "description": "Standard recursive scan" },
+    "tests": { "args": ["--filter", "tests/**/*.ts", "-r"], "description": "Tests only" }
+  },
+  "devServer": {
+    "enabled": true,
+    "autoStart": false,
+    "command": "npm run dev"
+  },
+  "quickLinks": {
+    "enabled": true,
+    "links": [
+      { "label": "GitHub", "url": "https://github.com/my-org/repo", "shortcut": 1, "command": "gh" },
+      { "label": "Linear", "url": "https://linear.app/", "shortcut": 2, "command": "linear" },
+      { "label": "Localhost", "url": "http://localhost:3000", "shortcut": 3 }
+    ]
   },
   "ui": {
     "compactMode": true,
-    "moodGradients": true
-  },
-  "refreshDebounce": 100
+    "activePathHighlight": true
+  }
 }
 ```
 
@@ -212,9 +258,15 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
 - **`showGitStatus`** - Display git status indicators (default: `true`)
 - **`refreshDebounce`** - File watcher debounce in ms (default: `100`)
 - **`ui.compactMode`** - Compact display mode (default: `true`)
-- **`ui.moodGradients`** - Show mood-based header gradients (default: `true`)
+- **`ui.activePathHighlight`** - Highlight active path (default: `true`)
+- **`devServer.enabled`** - Enable dev server management (default: `false`)
+- **`devServer.command`** - Custom dev server command (default: auto-detect from package.json)
+- **`devServer.autoStart`** - Auto-start servers on launch (default: `false`)
+- **`quickLinks.enabled`** - Enable quick links feature (default: `true`)
+- **`quickLinks.links`** - Array of link objects with `label`, `url`, optional `shortcut` (1-9), and optional `command`
 
 See [docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md) for detailed CopyTree profile documentation.
+See [docs/DEV_SERVER.md](docs/DEV_SERVER.md) for dev server configuration.
 
 ## Why This Matters
 
@@ -260,6 +312,7 @@ npm run typecheck
 - **[CLAUDE.md](CLAUDE.md)** - AI agent development instructions
 - **[docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md)** - Full keyboard reference
 - **[docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md)** - CopyTree profiles and context extraction
+- **[docs/DEV_SERVER.md](docs/DEV_SERVER.md)** - Dev server management and configuration
 
 ## License
 

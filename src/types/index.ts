@@ -174,7 +174,7 @@ export interface CanopyConfig {
   devServer?: {
     command?: string;     // Custom dev server command (e.g., "npm run start:frontend")
     autoStart?: boolean;  // Auto-start servers on Canopy launch (default: false)
-    enabled?: boolean;    // Enable/disable dev server feature (default: true)
+    enabled?: boolean;    // Enable/disable dev server feature (default: false, must be explicitly enabled)
   };
 }
 
@@ -243,7 +243,7 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     links: [], // Empty by default - user configures their own links
   },
   devServer: {
-    enabled: true,        // Enabled by default
+    enabled: false,       // Disabled by default - must be explicitly enabled in project config
     autoStart: false,     // Don't auto-start servers
     // command: undefined - auto-detect from package.json
   },

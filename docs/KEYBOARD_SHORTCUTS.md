@@ -25,8 +25,11 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 | `Enter` | Open focused worktree in VS Code/configured editor |
 | `c` | Copy changed files to clipboard via CopyTree (default profile) |
 | `p` | Open CopyTree profile selector modal |
+| `s` | Toggle dev server (start if stopped, stop if running) |
 | `w` | Cycle to next worktree (switches active worktree) |
 | `W` (Shift+w) | Open worktree panel (shows full list with selection) |
+
+> **Note:** The `s` key only works when `devServer.enabled` is `true` in your config and a dev script is detected for the focused worktree. See [DEV_SERVER.md](./DEV_SERVER.md) for setup.
 
 ### Search & Commands
 
@@ -142,10 +145,11 @@ These keys work regardless of mode or modal state:
 1. **Dashboard Navigation:** Use `j`/`k` or arrow keys to move between worktrees
 2. **Quick Context:** Press `c` to copy changed files for the focused worktree
 3. **Custom Profiles:** Press `p` to choose specialized CopyTree profiles (tests only, docs, etc.)
-4. **File Search:** Press `Ctrl+F` to fuzzy search when you need to find a specific file
-5. **Slash Commands:** Press `/` to open command palette for quick links to external tools
-6. **Direct Access:** Use `Option+1-9` to instantly open frequently used links
-7. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
+4. **Dev Server:** Press `s` to toggle the dev server for the focused worktree
+5. **File Search:** Press `Ctrl+F` to fuzzy search when you need to find a specific file
+6. **Slash Commands:** Press `/` to open command palette for quick links to external tools
+7. **Direct Access:** Use `Option+1-9` to instantly open frequently used links
+8. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
 
 ### Keyboard-First vs Mouse
 
