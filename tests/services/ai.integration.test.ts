@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { generateProjectIdentity, generateStatusUpdate } from '../../src/services/ai/index.js';
+import { generateProjectIdentity } from '../../src/services/ai/index.js';
 import * as clientModule from '../../src/services/ai/client.js';
 
 // Mock the client module
@@ -90,44 +90,4 @@ describe('AI Services Integration', () => {
     });
   });
 
-  describe('generateStatusUpdate', () => {
-    it('should generate and parse status correctly', async () => {
-      const mockResponse = {
-        emoji: '🛠️',
-        description: 'Refactoring the codebase'
-      };
-
-      mockCreate.mockResolvedValue({
-        output_text: JSON.stringify(mockResponse)
-      });
-
-      const diff = 'diff --git a/file.ts b/file.ts\n+ new code';
-      const readme = '# Project Title';
-
-      const result = await generateStatusUpdate(diff, readme);
-
-      expect(result).toEqual(mockResponse);
-      expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
-        model: 'gpt-5-nano',
-      }));
-
-      // Check that input contains diff and instructions exist
-      const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.input).toContain(diff);
-      expect(callArgs.instructions).toBeDefined();
-      expect(callArgs.instructions).toContain('summarize');
-    });
-
-    it('should return null for empty diff', async () => {
-      const result = await generateStatusUpdate('', 'readme');
-      expect(result).toBeNull();
-      expect(mockCreate).not.toHaveBeenCalled();
-    });
-    
-    it('should return null for whitespace-only diff', async () => {
-        const result = await generateStatusUpdate('   \n  ', 'readme');
-        expect(result).toBeNull();
-        expect(mockCreate).not.toHaveBeenCalled();
-      });
-  });
 });
