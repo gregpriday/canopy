@@ -156,11 +156,6 @@ export interface CanopyConfig {
     folderHeatMap?: boolean; // Enable folder heat coloring (default: true)
     heatMapIntensity?: 'subtle' | 'normal' | 'intense'; // Heat scaling (default: 'normal')
   };
-  search?: {
-    defaultAction?: 'open' | 'copy'; // Action when pressing Enter on search result
-    limit?: number; // Maximum number of search results to show
-    respectGitignore?: boolean; // Whether to respect gitignore in search (inherits from respectGitignore if not set)
-  };
   keys?: KeyMapConfig; // Configurable keyboard shortcuts with preset support
   quickLinks?: QuickLinksConfig; // Quick links to external tools and chat clients
 }
@@ -224,11 +219,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     statusStyle: 'glyph',      // Use color-coded glyphs by default
     folderHeatMap: true,       // Enable heat mapping by default
     heatMapIntensity: 'normal', // Normal intensity by default
-  },
-  search: {
-    defaultAction: 'open',     // Open file by default on Enter
-    limit: 20,                 // Show top 20 results
-    respectGitignore: true,    // Respect gitignore by default
   },
   quickLinks: {
     enabled: true,
