@@ -25,6 +25,19 @@ export interface WorktreeChanges {
 
 export type WorktreeMood = 'stable' | 'active' | 'stale' | 'error';
 
+// Dev Server Types
+export type DevServerStatus = 'stopped' | 'starting' | 'running' | 'error';
+
+export interface DevServerState {
+  worktreeId: string;
+  status: DevServerStatus;
+  url?: string;
+  port?: number;
+  pid?: number;
+  errorMessage?: string;
+  logs?: string[];
+}
+
 export interface Notification {
   id: string;
   message: string;
@@ -158,6 +171,11 @@ export interface CanopyConfig {
   };
   keys?: KeyMapConfig; // Configurable keyboard shortcuts with preset support
   quickLinks?: QuickLinksConfig; // Quick links to external tools and chat clients
+  devServer?: {
+    command?: string;     // Custom dev server command (e.g., "npm run start:frontend")
+    autoStart?: boolean;  // Auto-start servers on Canopy launch (default: false)
+    enabled?: boolean;    // Enable/disable dev server feature (default: true)
+  };
 }
 
 export interface CanopyState {
@@ -223,5 +241,10 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   quickLinks: {
     enabled: true,
     links: [], // Empty by default - user configures their own links
+  },
+  devServer: {
+    enabled: true,        // Enabled by default
+    autoStart: false,     // Don't auto-start servers
+    // command: undefined - auto-detect from package.json
   },
 };

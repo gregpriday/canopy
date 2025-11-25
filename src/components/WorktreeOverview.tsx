@@ -1,8 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box } from 'ink';
-import type { Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
+import type { Worktree, WorktreeChanges, WorktreeMood, DevServerState } from '../types/index.js';
 import { WorktreeCard } from './WorktreeCard.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
+import { devServerManager } from '../services/server/index.js';
+import { events } from '../services/events.js';
+
+export interface DevServerConfig {
+  /** Enable/disable dev server feature entirely */
+  enabled: boolean;
+  /** Custom command override (applies to all worktrees) */
+  command?: string;
+}
 
 export interface WorktreeOverviewProps {
   worktrees: Worktree[];
@@ -17,6 +26,8 @@ export interface WorktreeOverviewProps {
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
   onOpenExplorer: (id: string) => void;
+  /** Dev server configuration */
+  devServerConfig?: DevServerConfig;
 }
 
 const MOOD_PRIORITY: Record<WorktreeMood, number> = {
@@ -79,11 +90,73 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onCopyTree,
   onOpenEditor,
   onOpenExplorer,
+  devServerConfig,
 }) => {
+  // Check if dev server feature is enabled (default: true)
+  const devServerEnabled = devServerConfig?.enabled ?? true;
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
   const start = Math.max(0, visibleStart ?? 0);
   const end = visibleEnd ?? sorted.length;
   const sliced = sorted.slice(start, end);
+
+  // Track dev server states and which worktrees have dev scripts
+  const [serverStates, setServerStates] = useState<Map<string, DevServerState>>(new Map());
+  const [devScriptCache, setDevScriptCache] = useState<Map<string, boolean>>(new Map());
+
+  // Check for dev scripts asynchronously to avoid blocking UI
+  useEffect(() => {
+    // Skip if dev server feature is disabled
+    if (!devServerEnabled) {
+      setDevScriptCache(new Map());
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkDevScripts = async () => {
+      // Pre-warm the cache for all worktrees in parallel
+      const paths = worktrees.map(wt => wt.path);
+      await devServerManager.warmCache(paths);
+
+      if (cancelled) return;
+
+      // Now build the cache map from the warmed cache
+      const cache = new Map<string, boolean>();
+      for (const wt of worktrees) {
+        // This will now be a cache hit (synchronous)
+        cache.set(wt.id, devServerManager.hasDevScript(wt.path));
+      }
+      setDevScriptCache(cache);
+    };
+
+    void checkDevScripts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [worktrees, devServerEnabled]);
+
+  // Subscribe to server state updates
+  useEffect(() => {
+    // Initialize with current states
+    setServerStates(devServerManager.getAllStates());
+
+    const unsubscribe = events.on('server:update', (newState) => {
+      setServerStates(prev => {
+        const next = new Map(prev);
+        next.set(newState.worktreeId, newState);
+        return next;
+      });
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Handler for toggling server state
+  const handleToggleServer = useCallback((worktreeId: string, worktreePath: string) => {
+    // Pass custom command from config if provided
+    void devServerManager.toggle(worktreeId, worktreePath, devServerConfig?.command);
+  }, [devServerConfig?.command]);
 
   const clickRegionsRef = React.useRef(
     new Map<
@@ -131,6 +204,13 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
           rootPath: worktree.path,
         };
 
+        // Only show dev script indicator if feature is enabled
+        const hasDevScript = devServerEnabled && (devScriptCache.get(worktree.id) ?? false);
+        const serverState = serverStates.get(worktree.id) ?? {
+          worktreeId: worktree.id,
+          status: 'stopped' as const,
+        };
+
         return (
           <WorktreeCard
             key={worktree.id}
@@ -144,6 +224,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
             onOpenExplorer={() => onOpenExplorer(worktree.id)}
+            serverState={serverState}
+            hasDevScript={hasDevScript}
+            onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}
             registerClickRegion={registerClickRegion}
           />
         );

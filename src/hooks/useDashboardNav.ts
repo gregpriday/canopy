@@ -13,6 +13,9 @@ export interface DashboardNavProps {
   onToggleExpand: (worktreeId: string) => void;
   onCopyTree: (worktreeId: string) => void;
   onOpenEditor: (worktreeId: string) => void;
+  onToggleServer?: (worktreeId: string) => void;
+  /** Map of worktreeId -> hasDevScript for guarding 's' key */
+  devScriptMap?: Map<string, boolean>;
 }
 
 export interface DashboardNavResult {
@@ -30,6 +33,8 @@ export function useDashboardNav({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
+  onToggleServer,
+  devScriptMap,
 }: DashboardNavProps): DashboardNavResult {
   const [visibleStart, setVisibleStart] = useState(0);
 
@@ -131,6 +136,15 @@ export function useDashboardNav({
         return;
       }
 
+      // 's' key toggles dev server for focused worktree (only if dev script exists)
+      if (input === 's') {
+        const hasDevScript = devScriptMap?.get(id) ?? false;
+        if (hasDevScript) {
+          onToggleServer?.(id);
+        }
+        return;
+      }
+
       if (input === ' ') {
         toggleExpansion(id, 'toggle');
         return;
@@ -145,7 +159,7 @@ export function useDashboardNav({
         toggleExpansion(id, 'collapse');
       }
     },
-    [onCopyTree, onOpenEditor, resolveFocused, toggleExpansion]
+    [devScriptMap, onCopyTree, onOpenEditor, onToggleServer, resolveFocused, toggleExpansion]
   );
 
   useInput(
