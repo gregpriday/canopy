@@ -403,13 +403,6 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
         />
         <Box gap={1}>
           <ActionButton
-            id={`${worktree.id}-explorer`}
-            label={explorerLabel}
-            color={palette.text.secondary}
-            onPress={onOpenExplorer}
-            registerRegion={registerClickRegion}
-          />
-          <ActionButton
             id={`${worktree.id}-copytree`}
             label="CopyTree"
             color={palette.text.secondary}
@@ -421,6 +414,13 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
             label="VS Code"
             color={palette.text.secondary}
             onPress={onOpenEditor}
+            registerRegion={registerClickRegion}
+          />
+          <ActionButton
+            id={`${worktree.id}-explorer`}
+            label={explorerLabel}
+            color={palette.text.secondary}
+            onPress={onOpenExplorer}
             registerRegion={registerClickRegion}
           />
         </Box>
