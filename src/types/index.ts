@@ -107,9 +107,6 @@ export interface Worktree {
   /** High-level mood/state for dashboard sorting */
   mood?: WorktreeMood;
 
-  /** Traffic light indicator for activity state (optional, UI-only) */
-  trafficLight?: 'green' | 'yellow' | 'gray';
-
   /** Timestamp of last git activity (milliseconds since epoch, null if no activity yet) */
   lastActivityTimestamp?: number | null;
 }

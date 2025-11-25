@@ -19,9 +19,7 @@ const buildWorktreeStateMap = (
       modifiedCount: worktree.modifiedCount ?? changeSet?.changedFileCount ?? 0,
       summaryLoading: worktree.summaryLoading ?? false,
       mood: worktree.mood ?? 'stable',
-      trafficLight: 'gray',
       lastActivityTimestamp: null,
-      isActive: false,
     });
   }
   return stateMap;

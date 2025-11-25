@@ -28,7 +28,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -46,7 +45,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -67,7 +65,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/other"
@@ -87,7 +84,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -102,8 +98,10 @@ describe('WorktreeCard - Display Specification Compliance', () => {
   });
 
   describe('Row 2: Statistics & Traffic Light', () => {
-    it('renders traffic light colors correctly based on trafficLight prop - green', () => {
+    it('renders activity indicator based on lastActivityTimestamp (recent activity)', () => {
       const wt = createDirtyWorktree(3);
+      // Set a recent timestamp (will show as green/active)
+      wt.lastActivityTimestamp = Date.now();
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
           worktree={wt}
@@ -111,7 +109,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
             { path: 'a.ts', status: 'modified', insertions: 45, deletions: 0 },
           ])}
           mood="active"
-          trafficLight="green" // Should use green, not mood
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -119,12 +116,14 @@ describe('WorktreeCard - Display Specification Compliance', () => {
         />
       );
 
-      // Should render with green color indicator
+      // Should render traffic light indicator
       expect(lastFrame()).toContain('●');
     });
 
-    it('renders traffic light colors correctly based on trafficLight prop - yellow', () => {
+    it('renders activity indicator for older activity (stale)', () => {
       const wt = createDirtyWorktree(3);
+      // Set an older timestamp (>90s ago, will show as gray)
+      wt.lastActivityTimestamp = Date.now() - 120000;
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
           worktree={wt}
@@ -132,7 +131,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
             { path: 'a.ts', status: 'modified', insertions: 45, deletions: 0 },
           ])}
           mood="active"
-          trafficLight="yellow" // Should use yellow
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -143,14 +141,14 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       expect(lastFrame()).toContain('●');
     });
 
-    it('renders traffic light colors correctly based on trafficLight prop - gray', () => {
+    it('renders activity indicator when no activity timestamp (null)', () => {
       const wt = createCleanWorktree();
+      wt.lastActivityTimestamp = null;
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray" // Should use gray
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -173,7 +171,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -198,7 +195,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -223,7 +219,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -247,7 +242,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
             { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
           ])}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -269,7 +263,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
             { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
           ])}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -293,7 +286,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -317,7 +309,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
             { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
           ])}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -339,7 +330,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"
@@ -370,7 +360,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"
@@ -398,7 +387,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -421,7 +409,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"
@@ -449,7 +436,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"
@@ -473,7 +459,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={changes}
           mood="active"
-          trafficLight="green"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"
@@ -495,7 +480,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={true} // Focused
           isExpanded={false}
           activeRootPath="/repo"
@@ -516,7 +500,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false} // Not focused
           isExpanded={false}
           activeRootPath="/repo"
@@ -529,17 +512,17 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       expect(output).toMatch(/[─│╭╮╰╯]/);
     });
 
-    it('uses traffic light state for border color, not mood', () => {
-      // Even if mood is "active", if traffic light is gray, border should be gray
+    it('renders with consistent border color using theme tertiary color', () => {
+      // Border color is now theme.text.tertiary for consistency
       const wt = createDirtyWorktree(3);
+      wt.lastActivityTimestamp = Date.now() - 120000; // Old activity
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
           worktree={wt}
           changes={createMockChanges([
             { path: 'a.ts', status: 'modified', insertions: 10, deletions: 5 },
           ])}
-          mood="active" // Mood is active
-          trafficLight="gray" // But traffic light is gray (>90s since change)
+          mood="active"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -547,8 +530,7 @@ describe('WorktreeCard - Display Specification Compliance', () => {
         />
       );
 
-      // Border color should follow trafficLight, not mood
-      // This is a visual test - border should be gray, not yellow
+      // Card should render without error
       expect(lastFrame()).toBeDefined();
     });
   });
@@ -561,7 +543,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -584,7 +565,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={false}
           activeRootPath="/repo"
@@ -600,7 +580,6 @@ describe('WorktreeCard - Display Specification Compliance', () => {
           worktree={wt}
           changes={createEmptyChanges()}
           mood="stable"
-          trafficLight="gray"
           isFocused={false}
           isExpanded={true}
           activeRootPath="/repo"

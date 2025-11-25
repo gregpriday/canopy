@@ -154,47 +154,8 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
     });
   });
 
-  describe('Traffic Light Transitions', () => {
-    it('transitions from green -> yellow after 30 seconds', async () => {
-      // We need multiple different states to trigger traffic light changes
-      // Use an incremental counter for different changes
-      let callCount = 0;
-      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
-        callCount++;
-        return {
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [{ path: `file${callCount}.ts`, status: 'modified', insertions: callCount, deletions: 0 }],
-          changedFileCount: 1,
-          totalInsertions: callCount,
-          totalDeletions: 0,
-          latestFileMtime: Date.now(),
-          lastUpdated: Date.now(),
-        };
-      });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-
-      await monitor.start();
-
-      // Stop polling so it doesn't interfere with our timer tests
-      (monitor as any).stopPolling();
-
-      // Trigger another state change (will see different file)
-      await (monitor as any).updateGitStatus(true);
-
-      // Should be green after state change
-      expect(monitor.getState().trafficLight).toBe('green');
-
-      // Advance 30 seconds - only advance timer, not runAllTimers which would trigger polling
-      await vi.advanceTimersByTimeAsync(30000);
-
-      expect(monitor.getState().trafficLight).toBe('yellow');
-
-      await monitor.stop();
-    });
-
-    it('transitions from yellow -> gray after 60 more seconds', async () => {
+  describe('Activity Timestamp Tracking', () => {
+    it('updates lastActivityTimestamp when changes are detected', async () => {
       let callCount = 0;
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
         callCount++;
@@ -217,65 +178,56 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       // Stop polling so it doesn't interfere
       (monitor as any).stopPolling();
 
-      // Trigger state change
+      // Trigger another state change (will see different file)
+      const beforeChange = Date.now();
       await (monitor as any).updateGitStatus(true);
+      const afterChange = Date.now();
 
-      // Should be green after state change
-      expect(monitor.getState().trafficLight).toBe('green');
-
-      // Advance to yellow (30s)
-      await vi.advanceTimersByTimeAsync(30000);
-      expect(monitor.getState().trafficLight).toBe('yellow');
-
-      // Advance 60 more seconds (90s total)
-      await vi.advanceTimersByTimeAsync(60000);
-
-      expect(monitor.getState().trafficLight).toBe('gray');
-      expect(monitor.getState().isActive).toBe(false);
+      // Should have updated lastActivityTimestamp
+      const timestamp = monitor.getState().lastActivityTimestamp;
+      expect(timestamp).not.toBeNull();
+      expect(timestamp).toBeGreaterThanOrEqual(beforeChange);
+      expect(timestamp).toBeLessThanOrEqual(afterChange);
 
       await monitor.stop();
     });
 
-    it('sets traffic light to gray immediately when reverting to clean', async () => {
-      vi.mocked(gitStatus.getWorktreeChangesWithStats)
-        .mockResolvedValueOnce({
+    it('preserves lastActivityTimestamp on subsequent changes', async () => {
+      let callCount = 0;
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
+        callCount++;
+        return {
           worktreeId: baseWorktree.id,
           rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        })
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [{ path: 'test.ts', status: 'modified', insertions: 5, deletions: 0 }],
+          changes: [{ path: `file${callCount}.ts`, status: 'modified', insertions: callCount, deletions: 0 }],
           changedFileCount: 1,
-          totalInsertions: 5,
+          totalInsertions: callCount,
           totalDeletions: 0,
           latestFileMtime: Date.now(),
           lastUpdated: Date.now(),
-        })
-        .mockResolvedValueOnce({
-          // Back to clean
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        });
+        };
+      });
 
       const monitor = new WorktreeMonitor(baseWorktree);
 
       await monitor.start();
-      await (monitor as any).updateGitStatus(true); // dirty
 
-      expect(monitor.getState().trafficLight).toBe('green');
+      // Stop polling so it doesn't interfere
+      (monitor as any).stopPolling();
 
-      await (monitor as any).updateGitStatus(true); // clean again
+      // First change
+      await (monitor as any).updateGitStatus(true);
+      const firstTimestamp = monitor.getState().lastActivityTimestamp;
 
-      // Should be gray (clean state)
-      expect(monitor.getState().trafficLight).toBe('gray');
-      expect(monitor.getState().isActive).toBe(false);
+      // Advance time a bit
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // Second change
+      await (monitor as any).updateGitStatus(true);
+      const secondTimestamp = monitor.getState().lastActivityTimestamp;
+
+      // Second timestamp should be newer
+      expect(secondTimestamp).toBeGreaterThan(firstTimestamp!);
 
       await monitor.stop();
     });

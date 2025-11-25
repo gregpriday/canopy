@@ -7,9 +7,6 @@ import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
 
-const TRAFFIC_LIGHT_GREEN_DURATION = 30000; // Green state: 0-30 seconds after file change
-const TRAFFIC_LIGHT_YELLOW_DURATION = 60000; // Yellow state: additional 60 seconds (30-90s total)
-
 /**
  * Represents the complete state of a monitored worktree.
  * This is what gets emitted on every update.
@@ -19,12 +16,8 @@ export interface WorktreeState extends Worktree {
   // Full worktree changes (includes all file details)
   worktreeChanges: WorktreeChanges | null;
 
-  // Traffic light state (activity indicator)
-  trafficLight: 'green' | 'yellow' | 'gray';
-
-  // Activity tracking
+  // Activity tracking (used by ActivityTrafficLight for smooth color transitions)
   lastActivityTimestamp: number | null;
-  isActive: boolean; // True if currently in "flash" or "cooldown" state
 }
 
 /**
@@ -55,7 +48,6 @@ export class WorktreeMonitor extends EventEmitter {
   private lastSummarizedHash: string | null = null;
 
   // Timers
-  private trafficLightTimer: NodeJS.Timeout | null = null;
   private pollingTimer: NodeJS.Timeout | null = null;
   private aiUpdateTimer: NodeJS.Timeout | null = null;
 
@@ -93,9 +85,7 @@ export class WorktreeMonitor extends EventEmitter {
       summaryLoading: false,
       modifiedCount: worktree.modifiedCount || 0,
       changes: worktree.changes,
-      trafficLight: 'gray',
       lastActivityTimestamp: null,
-      isActive: false,
     };
   }
 
@@ -137,11 +127,6 @@ export class WorktreeMonitor extends EventEmitter {
 
     // Clear timers
     this.stopPolling();
-
-    if (this.trafficLightTimer) {
-      clearTimeout(this.trafficLightTimer);
-      this.trafficLightTimer = null;
-    }
 
     if (this.aiUpdateTimer) {
       clearTimeout(this.aiUpdateTimer);
@@ -331,17 +316,12 @@ export class WorktreeMonitor extends EventEmitter {
       // ============================================
       let nextSummary = this.state.summary;
       let nextSummaryLoading = this.state.summaryLoading;
-      let nextTrafficLight = this.state.trafficLight;
-      let nextIsActive = this.state.isActive;
       let nextLastActivityTimestamp = this.state.lastActivityTimestamp;
-      let shouldStartTrafficLightTimer = false;
 
-      // Handle activity (traffic light) - draft values only, timer started later
+      // Update activity timestamp when changes are detected
+      // (ActivityTrafficLight component uses this for smooth color transitions)
       if (stateChanged && !isInitialLoad) {
         nextLastActivityTimestamp = Date.now();
-        nextIsActive = true;
-        nextTrafficLight = 'green';
-        shouldStartTrafficLightTimer = true;
 
         // Emit file activity events for UI (replaces watcher events)
         this.emitFileActivityEvents(newChanges, prevChanges);
@@ -365,14 +345,6 @@ export class WorktreeMonitor extends EventEmitter {
         // CLEAN STATE: Fetch commit message IMMEDIATELY so stats + summary update together
         nextSummary = await this.fetchLastCommitMessage();
         nextSummaryLoading = false;
-
-        // If we just became clean, traffic light goes gray immediately
-        // Also cancel the traffic light timer since we're settling to gray
-        if (stateChanged && !isInitialLoad) {
-          nextTrafficLight = 'gray';
-          nextIsActive = false;
-          shouldStartTrafficLightTimer = false; // Don't start timer for clean state
-        }
       } else {
         // DIRTY STATE: Show last commit as fallback, then trigger AI if needed
         const isFirstDirty = isInitialLoad || wasClean;
@@ -432,8 +404,6 @@ export class WorktreeMonitor extends EventEmitter {
         modifiedCount: newChanges.changedFileCount,
         summary: nextSummary,
         summaryLoading: nextSummaryLoading,
-        trafficLight: nextTrafficLight,
-        isActive: nextIsActive,
         lastActivityTimestamp: nextLastActivityTimestamp,
         mood: nextMood,
       };
@@ -445,13 +415,8 @@ export class WorktreeMonitor extends EventEmitter {
 
       // ============================================
       // PHASE 8: POST-EMIT ASYNC WORK
-      // Start traffic light timer only if we're staying dirty (not transitioning to clean)
       // AI summary is fire-and-forget with its own emission
       // ============================================
-      if (shouldStartTrafficLightTimer) {
-        this.startTrafficLightTimer();
-      }
-
       if (shouldTriggerAI) {
         void this.triggerAISummary();
       } else if (shouldScheduleAI) {
@@ -664,64 +629,6 @@ export class WorktreeMonitor extends EventEmitter {
         message: (error as Error).message,
       });
       this.state.mood = 'error';
-    }
-  }
-
-  /**
-   * Start the traffic light timer for automatic green → yellow → gray transitions.
-   * This method only starts/resets the timer, it doesn't set the traffic light color.
-   * Used by atomic updateGitStatus() where color is set via draft variables.
-   */
-  private startTrafficLightTimer(): void {
-    // Clear existing timer
-    if (this.trafficLightTimer) {
-      clearTimeout(this.trafficLightTimer);
-      this.trafficLightTimer = null;
-    }
-
-    // Green → Yellow after 30s
-    this.trafficLightTimer = setTimeout(() => {
-      this.state.trafficLight = 'yellow';
-      this.emitUpdate();
-
-      // Yellow → Gray after 60s more (90s total)
-      this.trafficLightTimer = setTimeout(() => {
-        this.state.trafficLight = 'gray';
-        this.state.isActive = false;
-        this.emitUpdate();
-      }, TRAFFIC_LIGHT_YELLOW_DURATION);
-    }, TRAFFIC_LIGHT_GREEN_DURATION);
-  }
-
-  /**
-   * Set traffic light state with automatic transitions.
-   *
-   * Green (0-30s) → Yellow (30-90s) → Gray (>90s)
-   * @deprecated Use startTrafficLightTimer() with draft variables in updateGitStatus()
-   */
-  private setTrafficLight(color: 'green' | 'yellow' | 'gray'): void {
-    // Clear existing timer
-    if (this.trafficLightTimer) {
-      clearTimeout(this.trafficLightTimer);
-      this.trafficLightTimer = null;
-    }
-
-    this.state.trafficLight = color;
-
-    // Set up automatic transitions
-    if (color === 'green') {
-      // Green → Yellow after 30s
-      this.trafficLightTimer = setTimeout(() => {
-        this.setTrafficLight('yellow');
-        this.emitUpdate();
-      }, TRAFFIC_LIGHT_GREEN_DURATION);
-    } else if (color === 'yellow') {
-      // Yellow → Gray after 60s more (90s total)
-      this.trafficLightTimer = setTimeout(() => {
-        this.setTrafficLight('gray');
-        this.state.isActive = false;
-        this.emitUpdate();
-      }, TRAFFIC_LIGHT_YELLOW_DURATION);
     }
   }
 

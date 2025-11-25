@@ -20,7 +20,7 @@ export const createMockWorktree = (overrides?: Partial<Worktree>): Worktree => (
   modifiedCount: 0,
   summaryLoading: false,
   mood: 'stable',
-  trafficLight: 'gray',
+  lastActivityTimestamp: null,
   changes: [],
   ...overrides,
 });
@@ -33,7 +33,7 @@ export const createCleanWorktree = (overrides?: Partial<Worktree>): Worktree =>
     summary: '✅ feat: previous commit message',
     modifiedCount: 0,
     mood: 'stable',
-    trafficLight: 'gray',
+    lastActivityTimestamp: null,
     changes: [],
     ...overrides,
   });
@@ -49,7 +49,7 @@ export const createDirtyWorktree = (
     summary: '🔧 Refactoring authentication middleware',
     modifiedCount: fileCount,
     mood: 'active',
-    trafficLight: 'green',
+    lastActivityTimestamp: Date.now(),
     changes: Array.from({ length: fileCount }, (_, i) => ({
       path: `src/file${i}.ts`,
       status: 'modified' as GitStatus,

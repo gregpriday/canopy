@@ -21,7 +21,6 @@ export interface WorktreeCardProps {
   worktree: Worktree;
   changes: WorktreeChanges;
   mood: WorktreeMood;
-  trafficLight: 'green' | 'yellow' | 'gray';
   isFocused: boolean;
   isExpanded: boolean;
   activeRootPath: string;
@@ -205,7 +204,6 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   worktree,
   changes,
   mood,
-  trafficLight,
   isFocused,
   isExpanded,
   activeRootPath,
@@ -435,7 +433,6 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevProps.isFocused !== nextProps.isFocused) return false;
   if (prevProps.isExpanded !== nextProps.isExpanded) return false;
   if (prevProps.mood !== nextProps.mood) return false;
-  if (prevProps.trafficLight !== nextProps.trafficLight) return false;
   if (prevProps.activeRootPath !== nextProps.activeRootPath) return false;
 
   // Compare worktree identity and content
@@ -445,6 +442,7 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevWt.summary !== nextWt.summary) return false;
   if (prevWt.summaryLoading !== nextWt.summaryLoading) return false;
   if (prevWt.modifiedCount !== nextWt.modifiedCount) return false;
+  if (prevWt.lastActivityTimestamp !== nextWt.lastActivityTimestamp) return false;
 
   // Compare changes (check count and latest mtime for quick equality)
   const prevChanges = prevProps.changes;
