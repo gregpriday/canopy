@@ -4,11 +4,6 @@ export type FileType = 'file' | 'directory';
 
 export type NotificationType = 'info' | 'success' | 'error' | 'warning';
 
-export interface CopytreeProfile {
-  args: string[];
-  description?: string;
-}
-
 export interface FileChangeDetail {
   path: string;
   status: GitStatus;
@@ -153,7 +148,6 @@ export interface CanopyConfig {
     format: string;
     asReference: boolean;
   };
-  copytreeProfiles?: Record<string, CopytreeProfile>;
   openers?: OpenersConfig;
   autoRefresh: boolean;
   refreshDebounce: number;
@@ -249,24 +243,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   worktrees: {
     enable: true,              // Enabled by default for backwards compatibility
     showInHeader: true,        // Show indicator by default
-  },
-  copytreeProfiles: {
-    default: {
-      args: ['-r'],
-      description: 'Standard recursive scan (uses .copytree.yml if present)'
-    },
-    minimal: {
-      args: ['--tree-only', '--depth', '2'],
-      description: 'Structure only, max depth 2'
-    },
-    debug: {
-      args: ['--verbose', '--no-cache'],
-      description: 'Verbose output with cache disabled'
-    },
-    docs: {
-      args: ['-p', 'docs'],
-      description: 'Documentation only'
-    }
   },
   git: {
     statusStyle: 'glyph',      // Use color-coded glyphs by default

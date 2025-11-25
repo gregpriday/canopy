@@ -27,7 +27,6 @@ function Harness({
     onToggleExpand: ReturnType<typeof vi.fn>;
     onCopyTree: ReturnType<typeof vi.fn>;
     onOpenEditor: ReturnType<typeof vi.fn>;
-    onOpenProfileSelector: ReturnType<typeof vi.fn>;
   };
 }) {
   const [focused, setFocused] = useState<string | null>(worktrees[0].id);
@@ -57,7 +56,6 @@ function Harness({
     },
     onCopyTree: spies.onCopyTree,
     onOpenEditor: spies.onOpenEditor,
-    onOpenProfileSelector: spies.onOpenProfileSelector,
   });
 
   return (
@@ -73,7 +71,6 @@ describe('useDashboardNav', () => {
     onToggleExpand: vi.fn(),
     onCopyTree: vi.fn(),
     onOpenEditor: vi.fn(),
-    onOpenProfileSelector: vi.fn(),
   });
 
   it('moves focus with arrow keys within bounds', async () => {
@@ -123,18 +120,16 @@ describe('useDashboardNav', () => {
     expect(spies.onToggleExpand).toHaveBeenCalledWith('main');
   });
 
-  it('fires action keys for copy, profile, and open editor', async () => {
+  it('fires action keys for copy and open editor', async () => {
     const spies = makeSpies();
     const { stdin } = render(<Harness spies={spies} />);
     await tick();
 
     stdin.write('c');
-    stdin.write('p');
     stdin.write('\r');
     await tick();
 
     expect(spies.onCopyTree).toHaveBeenCalledWith('main');
-    expect(spies.onOpenProfileSelector).toHaveBeenCalledWith('main');
     expect(spies.onOpenEditor).toHaveBeenCalledWith('main');
   });
 

@@ -4,14 +4,9 @@ vi.mock('execa', () => ({
   execa: vi.fn(),
 }));
 
-vi.mock('../../src/utils/logger.js', () => ({
-  logWarn: vi.fn(),
-}));
-
 import { runCopyTreeWithProfile, runCopyTree } from '../../src/utils/copytree.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import { execa as mockedExeca } from 'execa';
-import { logWarn } from '../../src/utils/logger.js';
 
 describe('copytree utility', () => {
   beforeEach(() => {
@@ -22,66 +17,65 @@ describe('copytree utility', () => {
     vi.restoreAllMocks();
   });
 
-  it('runs copytree with a named profile', async () => {
+  it('runs copytree with default args', async () => {
     mockedExeca.mockResolvedValue({ stdout: 'ok' } as any);
-    const config = {
-      ...DEFAULT_CONFIG,
-      copytreeProfiles: {
-        ...DEFAULT_CONFIG.copytreeProfiles,
-        minimal: { args: ['--tree-only'], description: 'structure only' },
-      },
-    };
 
-    const output = await runCopyTreeWithProfile('/repo', 'minimal', config);
+    const output = await runCopyTree('/repo', DEFAULT_CONFIG);
 
     expect(output).toBe('ok');
-    expect(mockedExeca).toHaveBeenCalledWith('copytree', ['--tree-only'], { cwd: '/repo' });
-  });
-
-  it('falls back to default profile when requested profile is missing', async () => {
-    mockedExeca.mockResolvedValue({ stdout: 'done' } as any);
-
-    await runCopyTreeWithProfile('/repo', 'unknown', DEFAULT_CONFIG);
-
-    expect(mockedExeca).toHaveBeenCalledWith(
-      'copytree',
-      DEFAULT_CONFIG.copytreeProfiles!.default.args,
-      { cwd: '/repo' }
-    );
-    expect(vi.mocked(logWarn)).toHaveBeenCalled();
-  });
-
-  it('falls back to built-in args when profiles are undefined', async () => {
-    mockedExeca.mockResolvedValue({ stdout: 'done' } as any);
-    const config = { ...DEFAULT_CONFIG, copytreeProfiles: undefined };
-
-    await runCopyTreeWithProfile('/repo', 'default', config);
-
     expect(mockedExeca).toHaveBeenCalledWith('copytree', ['-r'], { cwd: '/repo' });
-    expect(vi.mocked(logWarn)).toHaveBeenCalled();
   });
 
-  it('appends extra args after profile args', async () => {
+  it('appends extra args after default args', async () => {
     mockedExeca.mockResolvedValue({ stdout: 'done' } as any);
 
-    await runCopyTreeWithProfile('/repo', 'debug', DEFAULT_CONFIG, ['--foo']);
+    await runCopyTree('/repo', DEFAULT_CONFIG, ['--foo']);
 
     expect(mockedExeca).toHaveBeenCalledWith(
       'copytree',
-      [...(DEFAULT_CONFIG.copytreeProfiles?.debug.args ?? []), '--foo'],
+      ['-r', '--foo'],
       { cwd: '/repo' }
     );
   });
 
-  it('runCopyTree delegates to the default profile', async () => {
+  it('runCopyTreeWithProfile uses default args (profile ignored)', async () => {
     mockedExeca.mockResolvedValue({ stdout: 'ok' } as any);
 
-    await runCopyTree('/repo', DEFAULT_CONFIG);
+    await runCopyTreeWithProfile('/repo', 'some-profile', DEFAULT_CONFIG);
+
+    // Profile is now ignored - always uses default args
+    expect(mockedExeca).toHaveBeenCalledWith(
+      'copytree',
+      ['-r'],
+      { cwd: '/repo' }
+    );
+  });
+
+  it('runCopyTreeWithProfile appends extra args', async () => {
+    mockedExeca.mockResolvedValue({ stdout: 'done' } as any);
+
+    await runCopyTreeWithProfile('/repo', 'debug', DEFAULT_CONFIG, ['--verbose']);
 
     expect(mockedExeca).toHaveBeenCalledWith(
       'copytree',
-      DEFAULT_CONFIG.copytreeProfiles!.default.args,
+      ['-r', '--verbose'],
       { cwd: '/repo' }
     );
+  });
+
+  it('throws when copytree command is not found', async () => {
+    const error = new Error('command not found');
+    (error as any).code = 'ENOENT';
+    mockedExeca.mockRejectedValue(error);
+
+    await expect(runCopyTree('/repo', DEFAULT_CONFIG)).rejects.toThrow(
+      'copytree command not found. Please install it first.'
+    );
+  });
+
+  it('throws on other execution errors', async () => {
+    mockedExeca.mockRejectedValue(new Error('Something went wrong'));
+
+    await expect(runCopyTree('/repo', DEFAULT_CONFIG)).rejects.toThrow('Something went wrong');
   });
 });
