@@ -372,6 +372,9 @@ Ignore imports, formatting, and minor refactors.
 Focus on the feature being added or the bug being fixed.
 Start with an emoji.
 
+IMPORTANT: Never use technical jargon like "noop", "no-op", "empty diff", "trivial", or parenthetical asides.
+For formatting-only or whitespace changes, say "Minor code cleanup" or "Refactoring [component name]".
+
 If context is minimal (just file names or empty files), infer the likely purpose from file names and make a reasonable guess.
 For example: adding empty test files → "🧪 Setting up test infrastructure"
 For example: adding empty components → "🎨 Creating UI components"
@@ -382,7 +385,8 @@ Examples:
 {"summary":"🚧 Building dashboard filters"}
 {"summary":"🔧 Optimizing CLI flag parsing"}
 {"summary":"✅ Fixing auth handshake bug"}
-{"summary":"🎨 Redesigning settings page"}`,
+{"summary":"🎨 Redesigning settings page"}
+{"summary":"🧹 Minor code cleanup in WorktreeCard"}`,
         input: promptContext,
         text: {
           format: {
