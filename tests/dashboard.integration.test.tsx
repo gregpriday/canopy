@@ -87,24 +87,10 @@ vi.mock('../src/hooks/useFileTree.js', () => ({
   })),
 }));
 
-vi.mock('../src/hooks/useMultiWorktreeStatus.ts', () => ({
-  useMultiWorktreeStatus: vi.fn(() => ({
-    worktreeChanges: mockWorktreeChanges,
-    refresh: vi.fn(),
-    clear: vi.fn(),
-  })),
-}));
-
 vi.mock('../src/hooks/useGitStatus.js', () => ({
   useGitStatus: vi.fn(() => ({
     gitStatus: new Map(),
     refresh: vi.fn(),
-  })),
-}));
-
-vi.mock('../src/hooks/useWatcher.js', () => ({
-  useWatcher: vi.fn(() => ({
-    isWatching: false,
   })),
 }));
 
