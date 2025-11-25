@@ -99,7 +99,6 @@
 - `SearchBar.tsx` - Search/filter input
 - `PreviewPane.tsx` - Optional file preview
 - `ContextMenu.tsx` - Right-click context menu
-- `HelpModal.tsx` - Help overlay
 
 **Custom Hooks (3 empty stubs):**
 - `useFileTree.ts` - File tree state management
@@ -147,7 +146,6 @@ App (src/App.tsx)
 ├── ProfileSelectorModal (CopyTree profile picker)
 ├── CommandBar (slash command input)
 ├── ContextMenu (right-click actions)
-├── HelpModal (keyboard shortcuts)
 ├── WorktreePanel (worktree switcher)
 └── Inline command input (rendered conditionally)
 ```
@@ -532,8 +530,8 @@ interface Worktree {
 ### 6. Technical Architecture
 
 - **Technology stack:** Ink, React 19, TypeScript 5.9, Node 18+, chokidar, simple-git, cosmiconfig, clipboardy, fs-extra, globby, execa, term-size, supports-hyperlinks.
-- **Component structure:** `Canopy` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `HelpModal`, `WorktreePanel`.
-- **Responsibilities:** Canopy loads config, file trees, git status, watchers; Header displays context and handles worktree switching; TreeView manages selection, scrolling, virtualization; CommandBar parses/executes commands; WorktreePanel lists worktrees; ContextMenu drives opener/copy actions; HelpModal shows shortcuts.
+- **Component structure:** `Canopy` (root orchestrator), `Header` with `WorktreeIndicator`, `TreeView` rendering recursive `TreeNode`/`FolderNode`/`FileNode`, `ContextMenu`, `CommandBar`, `WorktreePanel`.
+- **Responsibilities:** Canopy loads config, file trees, git status, watchers; Header displays context and handles worktree switching; TreeView manages selection, scrolling, virtualization; CommandBar parses/executes commands; WorktreePanel lists worktrees; ContextMenu drives opener/copy actions.
 - **State management:** See interfaces below; state tracks file tree, expanded folders, selection, UI overlays, command bar input/history, filters, git/worktree data, notifications, and merged config.
 
 ```ts
@@ -822,7 +820,6 @@ it('handles keyboard input', () => {
 - #16: Implement FileNode component (needs #14)
 - #17: Implement FolderNode component (needs #14)
 - #18: Enhance Header with worktree indicator (needs #4)
-- #20: Implement HelpModal component (needs #7)
 - #21: Implement WorktreePanel component (needs #4, #7)
 
 ### Batch 05: Commands & Context (Issues #22-26)

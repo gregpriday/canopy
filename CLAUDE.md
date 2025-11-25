@@ -189,7 +189,6 @@ Components in `src/components/` follow Ink's React-based model:
 - `ProfileSelector.tsx` - CopyTree profile picker (press `p` key)
 - `ContextMenu.tsx` - Right-click/keyboard-triggered context menu for file actions
 - `WorktreePanel.tsx` - Worktree switcher modal (press `W` key)
-- `HelpModal.tsx` - Keyboard shortcuts help overlay (press `?` key)
 - `Notification.tsx` - Toast-style notifications (info/success/error/warning)
 - `RecentActivityPanel.tsx` - Recent file activity panel
 
@@ -485,10 +484,9 @@ npm run test:watch
 - `W` - Open worktree panel (full list)
 - `g` - Toggle git status visibility
 
-**Search & Help**:
+**Search**:
 - `Ctrl+F` - Open fuzzy search (find files across all worktrees)
-- `Esc` - Close modals/search (priority: help → profile selector → fuzzy search → worktree panel)
-- `?` - Toggle help modal
+- `Esc` - Close modals/search
 
 **Legacy Tree Mode**:
 - `←/→` - Collapse folder / expand folder or open file

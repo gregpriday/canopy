@@ -22,7 +22,6 @@ describe('STANDARD_PRESET', () => {
 			'file.copyPath',
 			'file.copyTree',
 			'ui.refresh',
-			'ui.help',
 			'ui.filter',
 			'ui.escape',
 			'git.toggle',
@@ -49,7 +48,6 @@ describe('STANDARD_PRESET', () => {
 	it('includes standard keybindings', () => {
 		expect(STANDARD_PRESET['ui.filter']).toEqual(['ctrl+f']);
 		expect(STANDARD_PRESET['app.quit']).toEqual(['q']);
-		expect(STANDARD_PRESET['ui.help']).toEqual(['?']);
 	});
 });
 
@@ -57,7 +55,7 @@ describe('VIM_PRESET', () => {
 	it('inherits from standard preset', () => {
 		// Non-nav keys should be same as standard
 		expect(VIM_PRESET['app.quit']).toEqual(STANDARD_PRESET['app.quit']);
-		expect(VIM_PRESET['ui.help']).toEqual(STANDARD_PRESET['ui.help']);
+		expect(VIM_PRESET['ui.filter']).toEqual(STANDARD_PRESET['ui.filter']);
 	});
 
 	it('uses hjkl for navigation', () => {
@@ -169,7 +167,7 @@ describe('getResolvedKeyMap', () => {
 		expect(keyMap['app.quit']).toEqual(['ctrl+q']);
 		// Non-overridden actions should remain from standard preset
 		expect(keyMap['nav.up']).toEqual(STANDARD_PRESET['nav.up']);
-		expect(keyMap['ui.help']).toEqual(STANDARD_PRESET['ui.help']);
+		expect(keyMap['ui.filter']).toEqual(STANDARD_PRESET['ui.filter']);
 		expect(keyMap['git.toggle']).toEqual(STANDARD_PRESET['git.toggle']);
 	});
 });

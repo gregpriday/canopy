@@ -6,7 +6,6 @@ import { getExplorerLabel } from './components/WorktreeCard.js';
 import { TreeView } from './components/TreeView.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { ProfileSelector } from './components/ProfileSelector.js';
-import { HelpModal } from './components/HelpModal.js';
 import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
@@ -48,7 +47,6 @@ interface AppProps {
 }
 
 const MODAL_CLOSE_PRIORITY: ModalId[] = [
-  'help',
   'command-palette',
   'worktree',
   'profile-selector',
@@ -272,7 +270,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [activeWorktreeChanges, gitStatus]);
 
   const isWorktreePanelOpen = activeModals.has('worktree');
-  const showHelpModal = activeModals.has('help');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isFuzzySearchOpen = activeModals.has('fuzzy-search');
   const isCommandPaletteOpen = activeModals.has('command-palette');
@@ -1164,7 +1161,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onRefresh: anyModalOpen ? undefined : () => {
       events.emit('sys:refresh');
     },
-    onOpenHelp: undefined,
     onQuit: handleQuit,
     onForceExit: handleQuit,
     onWarnExit: () => {
@@ -1270,10 +1266,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onClose={() => events.emit('ui:modal:close', { id: 'worktree' })}
           />
         )}
-        <HelpModal
-          visible={showHelpModal}
-          onClose={() => events.emit('ui:modal:close', { id: 'help' })}
-        />
         <FuzzySearchModal
           visible={isFuzzySearchOpen}
           searchQuery={fuzzySearchQuery}

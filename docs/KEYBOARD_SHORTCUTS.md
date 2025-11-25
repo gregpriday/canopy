@@ -36,15 +36,13 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 | `/` | Open command palette (slash commands) |
 | `1-9` | Open quick link by shortcut number |
 | `Esc` | Close modals and overlays (see priority below) |
-| `?` | Toggle help modal (keyboard shortcuts reference) |
 
 **Esc Key Priority:**
-1. Help modal → closes if open
-2. Context menu → closes if open
-3. Command palette → closes if open
-4. Worktree panel → closes if open
-5. Profile selector modal → closes if open
-6. Recent activity modal → closes if open
+1. Context menu → closes if open
+2. Command palette → closes if open
+3. Worktree panel → closes if open
+4. Profile selector modal → closes if open
+5. Recent activity modal → closes if open
 
 ### Display & Settings
 
@@ -129,21 +127,12 @@ See [Slash Commands](./SLASH_COMMANDS.md) for configuration and usage.
 | `Enter` | Switch to selected worktree |
 | `Esc` | Close panel without switching |
 
-### Help Modal
-
-| Key | Action |
-|-----|--------|
-| `?` | Toggle help on/off |
-| `Esc` | Close help |
-| `q` | Close help |
-
 ## Global Keys
 
 These keys work regardless of mode or modal state:
 
 | Key | Action |
 |-----|--------|
-| `?` | Toggle help modal |
 | `Ctrl+C` | Force quit |
 
 ## Tips
