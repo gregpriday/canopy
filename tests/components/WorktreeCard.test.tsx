@@ -205,6 +205,29 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       // Should say "1 file" not "1 files"
       expect(lastFrame()).toContain('1 file');
     });
+
+    it('shows "No uncommitted changes" for clean worktrees instead of zero stats', () => {
+      const wt = createCleanWorktree();
+      const { lastFrame } = renderWithTheme(
+        <WorktreeCard
+          worktree={wt}
+          changes={createEmptyChanges()}
+          mood="stable"
+          isFocused={false}
+          isExpanded={false}
+          activeRootPath="/repo"
+          onToggleExpand={vi.fn()}
+        />
+      );
+
+      const output = lastFrame();
+      // Should show "No uncommitted changes" instead of "0 files • +0 • -0"
+      expect(output).toContain('No uncommitted changes');
+      // Should NOT show zero stats
+      expect(output).not.toContain('0 files');
+      expect(output).not.toContain('+0');
+      expect(output).not.toContain('-0');
+    });
   });
 
   describe('Row 3: AI Summary / Last Commit', () => {

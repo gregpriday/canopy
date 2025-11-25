@@ -356,11 +356,17 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
         <Text>
           <ActivityTrafficLight timestamp={worktree.lastActivityTimestamp} />
           <Text> </Text>
-          <Text color={palette.text.secondary}>{fileCountLabel}</Text>
-          <Text dimColor> • </Text>
-          <Text color={palette.git.added}>+{totalInsertions}</Text>
-          <Text dimColor> • </Text>
-          <Text color={palette.git.deleted}>-{totalDeletions}</Text>
+          {hasChanges ? (
+            <>
+              <Text color={palette.text.secondary}>{fileCountLabel}</Text>
+              <Text dimColor> • </Text>
+              <Text color={palette.git.added}>+{totalInsertions}</Text>
+              <Text dimColor> • </Text>
+              <Text color={palette.git.deleted}>-{totalDeletions}</Text>
+            </>
+          ) : (
+            <Text color={palette.text.tertiary}>No uncommitted changes</Text>
+          )}
         </Text>
       </Box>
 
