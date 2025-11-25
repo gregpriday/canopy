@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getCommitCount } from '../utils/git.js';
-import { getIssueCount, getPrCount, checkGitHubCli } from '../utils/github.js';
+import { getRepoStats } from '../utils/github.js';
 import { events } from '../services/events.js';
 
 export interface RepositoryStats {
@@ -8,6 +8,7 @@ export interface RepositoryStats {
   issueCount: number | null; // null means GitHub CLI unavailable/error
   prCount: number | null;
   loading: boolean;
+  ghError?: string; // Error message when GitHub CLI check fails
 }
 
 // Polling configuration
@@ -31,6 +32,7 @@ export function useRepositoryStats(cwd: string, enabled: boolean = true): Reposi
     issueCount: null,
     prCount: null,
     loading: true,
+    ghError: undefined,
   });
 
   const lastActivityRef = useRef<number>(Date.now());
@@ -50,30 +52,21 @@ export function useRepositoryStats(cwd: string, enabled: boolean = true): Reposi
       isFetchingRef.current = true;
 
       try {
-        // Run commit count and GitHub CLI check in parallel
-        const [commits, hasGh] = await Promise.all([
+        // Run commit count and GitHub stats in parallel
+        // No separate auth check - getRepoStats handles errors gracefully
+        const [commits, repoResult] = await Promise.all([
           getCommitCount(cwd),
-          checkGitHubCli(cwd)
+          getRepoStats(cwd) // Single GraphQL call, handles auth errors
         ]);
-
-        let issues: number | null = null;
-        let prs: number | null = null;
-
-        // Only fetch GitHub stats if CLI is available
-        if (hasGh) {
-          [issues, prs] = await Promise.all([
-            getIssueCount(cwd),
-            getPrCount(cwd)
-          ]);
-        }
 
         // Only update state if still mounted
         if (isMountedRef.current) {
           setStats({
             commitCount: commits,
-            issueCount: issues,
-            prCount: prs,
-            loading: false
+            issueCount: repoResult.stats?.issueCount ?? null,
+            prCount: repoResult.stats?.prCount ?? null,
+            loading: false,
+            ghError: repoResult.error,
           });
         }
       } catch (error) {

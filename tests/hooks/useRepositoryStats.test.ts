@@ -16,9 +16,7 @@ describe('useRepositoryStats', () => {
 
     // Default mocks
     vi.mocked(gitUtils.getCommitCount).mockResolvedValue(42);
-    vi.mocked(githubUtils.checkGitHubCli).mockResolvedValue(true);
-    vi.mocked(githubUtils.getIssueCount).mockResolvedValue(5);
-    vi.mocked(githubUtils.getPrCount).mockResolvedValue(3);
+    vi.mocked(githubUtils.getRepoStats).mockResolvedValue({ stats: { issueCount: 5, prCount: 3 } });
   });
 
   afterEach(() => {
@@ -46,7 +44,7 @@ describe('useRepositoryStats', () => {
     });
 
     it('handles GitHub CLI unavailable gracefully', async () => {
-      vi.mocked(githubUtils.checkGitHubCli).mockResolvedValue(false);
+      vi.mocked(githubUtils.getRepoStats).mockResolvedValue({ stats: null, error: 'gh CLI not installed' });
 
       const { result } = renderHook(() => useRepositoryStats('/test/path'));
 
@@ -58,6 +56,7 @@ describe('useRepositoryStats', () => {
       expect(result.current.commitCount).toBe(42);
       expect(result.current.issueCount).toBe(null);
       expect(result.current.prCount).toBe(null);
+      expect(result.current.ghError).toBe('gh CLI not installed');
     });
 
     it('handles fetch errors gracefully', async () => {

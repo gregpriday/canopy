@@ -229,7 +229,7 @@ export const Header: React.FC<HeaderProps> = ({
           <Text dimColor>(loading...)</Text>
         )}
         {!stats.loading && stats.issueCount === null && stats.prCount === null && (
-          <Text dimColor>(gh CLI unavailable)</Text>
+          <Text dimColor>({stats.ghError || 'gh CLI unavailable'})</Text>
         )}
       </Box>
     </Box>

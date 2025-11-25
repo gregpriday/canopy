@@ -1,46 +1,104 @@
 import { execa } from 'execa';
 
+export interface RepoStats {
+  issueCount: number;
+  prCount: number;
+}
+
+export interface RepoStatsResult {
+  stats: RepoStats | null;
+  error?: string;
+}
+
 /**
- * Checks if `gh` CLI is installed and authenticated.
+ * Get issue and PR counts using a single GraphQL API call.
+ * Much more efficient than fetching full lists - uses only 1 API call instead of 2.
+ * Handles auth errors gracefully without needing a separate auth check.
+ * @param cwd - Working directory
+ * @returns Issue and PR counts with optional error message
  */
-export async function checkGitHubCli(cwd: string): Promise<boolean> {
+export async function getRepoStats(cwd: string): Promise<RepoStatsResult> {
   try {
-    await execa('gh', ['auth', 'status'], { cwd, stdio: 'ignore' });
-    return true;
-  } catch {
-    return false;
+    // GraphQL query to get both counts in a single API call
+    const query = `
+      query {
+        repository(owner: "{owner}", name: "{repo}") {
+          issues(states: OPEN) { totalCount }
+          pullRequests(states: OPEN) { totalCount }
+        }
+      }
+    `;
+
+    // First get the owner/repo from the current directory
+    const { stdout: repoInfo } = await execa(
+      'gh',
+      ['repo', 'view', '--json', 'owner,name', '-q', '.owner.login + "/" + .name'],
+      { cwd }
+    );
+    const [owner, repo] = repoInfo.trim().split('/');
+
+    if (!owner || !repo) {
+      return { stats: null, error: 'not a GitHub repository' };
+    }
+
+    // Execute the GraphQL query
+    const { stdout } = await execa(
+      'gh',
+      ['api', 'graphql', '-f', `query=${query.replace('{owner}', owner).replace('{repo}', repo)}`],
+      { cwd }
+    );
+
+    const data = JSON.parse(stdout);
+    const repository = data?.data?.repository;
+
+    if (!repository) {
+      return { stats: null, error: 'repository not found' };
+    }
+
+    return {
+      stats: {
+        issueCount: repository.issues?.totalCount ?? 0,
+        prCount: repository.pullRequests?.totalCount ?? 0,
+      },
+    };
+  } catch (error: any) {
+    // Check if gh CLI is not installed
+    if (error.code === 'ENOENT') {
+      return { stats: null, error: 'gh CLI not installed' };
+    }
+
+    // Parse stderr for common errors
+    const stderr = error.stderr || error.message || '';
+
+    if (stderr.includes('auth') || stderr.includes('login') || stderr.includes('token')) {
+      return { stats: null, error: 'gh auth required - run: gh auth login' };
+    }
+    if (stderr.includes('Could not resolve to a Repository')) {
+      return { stats: null, error: 'not a GitHub repository' };
+    }
+    if (stderr.includes('rate limit')) {
+      return { stats: null, error: 'GitHub rate limit exceeded' };
+    }
+
+    // Generic failure
+    return { stats: null, error: 'GitHub API unavailable' };
   }
 }
 
 /**
- * Get the count of open issues in the repository.
- * @param cwd - Working directory
- * @returns Number of open issues, or null if gh CLI is unavailable
+ * @deprecated Use getRepoStats() instead for efficiency (single API call)
  */
 export async function getIssueCount(cwd: string): Promise<number | null> {
-  try {
-    // Use gh api to get issue count - more reliable than parsing JSON list output
-    const { stdout } = await execa('gh', ['issue', 'list', '--state', 'open', '--json', 'number', '--limit', '1000'], { cwd });
-    const issues = JSON.parse(stdout);
-    return Array.isArray(issues) ? issues.length : 0;
-  } catch {
-    return null;
-  }
+  const result = await getRepoStats(cwd);
+  return result.stats?.issueCount ?? null;
 }
 
 /**
- * Get the count of open pull requests in the repository.
- * @param cwd - Working directory
- * @returns Number of open PRs, or null if gh CLI is unavailable
+ * @deprecated Use getRepoStats() instead for efficiency (single API call)
  */
 export async function getPrCount(cwd: string): Promise<number | null> {
-  try {
-    const { stdout } = await execa('gh', ['pr', 'list', '--state', 'open', '--json', 'number', '--limit', '1000'], { cwd });
-    const prs = JSON.parse(stdout);
-    return Array.isArray(prs) ? prs.length : 0;
-  } catch {
-    return null;
-  }
+  const result = await getRepoStats(cwd);
+  return result.stats?.prCount ?? null;
 }
 
 /**
