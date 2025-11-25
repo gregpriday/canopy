@@ -100,36 +100,3 @@ export function fuzzyMatch(query: string, path: string): FuzzyMatchResult | null
 
   return { path, score, matchIndices };
 }
-
-/**
- * Fuzzy matches a query against multiple paths and returns top results sorted by score.
- *
- * @param query - Search query string
- * @param paths - Array of file paths to search
- * @param limit - Maximum number of results to return (default: 20)
- * @returns Array of match results sorted by score (highest first)
- */
-export function fuzzyMatchMultiple(
-  query: string,
-  paths: string[],
-  limit: number = 20
-): FuzzyMatchResult[] {
-  const results: FuzzyMatchResult[] = [];
-
-  for (const path of paths) {
-    const match = fuzzyMatch(query, path);
-    if (match) {
-      results.push(match);
-    }
-  }
-
-  // Sort by score descending, then by path length ascending (prefer shorter paths)
-  results.sort((a, b) => {
-    if (b.score !== a.score) {
-      return b.score - a.score;
-    }
-    return a.path.length - b.path.length;
-  });
-
-  return results.slice(0, limit);
-}

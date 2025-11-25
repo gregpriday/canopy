@@ -124,9 +124,6 @@ vi.mock('../src/services/fuzzySearch.js', () => ({
     { path: '/test/repo/main/src/App.tsx', relativePath: 'src/App.tsx', type: 'file' },
     { path: '/test/repo/main/package.json', relativePath: 'package.json', type: 'file' },
   ]),
-  fuzzyMatchMultiple: vi.fn((files, query) =>
-    files.filter((f: any) => f.relativePath.toLowerCase().includes(query.toLowerCase()))
-  ),
 }));
 
 import App from '../src/App.js';
