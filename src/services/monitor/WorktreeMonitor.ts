@@ -53,6 +53,12 @@ export class WorktreeMonitor extends EventEmitter {
   // Hash-based change detection
   private previousStateHash: string = '';
   private lastSummarizedHash: string | null = null;
+  private lastEmittedState: {
+    summary?: string;
+    modifiedCount?: number;
+    trafficLight?: 'green' | 'yellow' | 'gray';
+    mood?: WorktreeMood;
+  } | null = null;
 
   // Timers
   private trafficLightTimer: NodeJS.Timeout | null = null;
@@ -102,6 +108,10 @@ export class WorktreeMonitor extends EventEmitter {
   /**
    * Start monitoring this worktree.
    * Uses git polling (no file watcher) with hash-based change detection.
+   *
+   * NOTE: Polling is now managed centrally by WorktreeService to prevent
+   * parallel git processes. The monitor only handles initial fetch and
+   * responds to service-initiated polls.
    */
   public async start(): Promise<void> {
     if (this.isRunning) {
@@ -110,17 +120,14 @@ export class WorktreeMonitor extends EventEmitter {
     }
 
     this.isRunning = true;
-    logInfo('Starting WorktreeMonitor (polling-based)', { id: this.id, path: this.path });
+    logInfo('Starting WorktreeMonitor (service-managed polling)', { id: this.id, path: this.path });
 
-    // 1. Perform initial fetch immediately
+    // Perform initial fetch immediately
     // This will trigger summary generation via updateGitStatus
     await this.updateGitStatus(true);
 
-    // 2. Start polling timer ONLY after initial fetch completes
-    // Check isRunning in case stop() was called during the await above
-    if (this.isRunning) {
-      this.startPolling();
-    }
+    // NOTE: We no longer start our own polling timer here.
+    // WorktreeService manages all polling through its serial queue.
   }
 
   /**
@@ -162,6 +169,10 @@ export class WorktreeMonitor extends EventEmitter {
   /**
    * Set the polling interval for git status updates.
    * Used by WorktreeService to adjust intervals based on active/background status.
+   *
+   * NOTE: This method no longer starts internal polling timers. Polling is
+   * managed centrally by WorktreeService to prevent parallel git processes.
+   * The interval value is stored but only used by WorktreeService for scheduling.
    */
   public setPollingInterval(ms: number): void {
     if (this.pollingInterval === ms) {
@@ -169,12 +180,8 @@ export class WorktreeMonitor extends EventEmitter {
     }
 
     this.pollingInterval = ms;
-
-    // Restart polling with new interval if currently running
-    if (this.isRunning) {
-      this.stopPolling();
-      this.startPolling();
-    }
+    // NOTE: We intentionally do NOT restart polling here.
+    // WorktreeService manages all polling through its serial queue.
   }
 
 
@@ -272,6 +279,14 @@ export class WorktreeMonitor extends EventEmitter {
     return oldFile.status !== newFile.status ||
            (oldFile.insertions ?? 0) !== (newFile.insertions ?? 0) ||
            (oldFile.deletions ?? 0) !== (newFile.deletions ?? 0);
+  }
+
+  /**
+   * Public method for WorktreeService to trigger a git status update.
+   * This allows the service to manage polling timing centrally.
+   */
+  public async updateGitStatusFromService(): Promise<void> {
+    await this.updateGitStatus(false);
   }
 
   /**
@@ -647,16 +662,84 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * Emit state update event.
+   * Check if the current state differs meaningfully from the last emitted state.
+   * This prevents unnecessary re-renders when only non-visible data changed.
+   *
+   * Only emit if user-visible fields changed:
+   * - summary
+   * - modifiedCount
+   * - trafficLight
+   * - mood
+   */
+  private shouldEmitUpdate(): boolean {
+    const current = this.state;
+
+    // Always emit on first update
+    if (!this.lastEmittedState) {
+      return true;
+    }
+
+    const prev = this.lastEmittedState;
+
+    // Check user-visible fields only
+    return (
+      prev.summary !== current.summary ||
+      prev.modifiedCount !== current.modifiedCount ||
+      prev.trafficLight !== current.trafficLight ||
+      prev.mood !== current.mood
+    );
+  }
+
+  /**
+   * Emit state update event only if something user-visible changed.
+   * This is a key performance optimization that prevents cascade re-renders.
    */
   private emitUpdate(): void {
+    if (!this.shouldEmitUpdate()) {
+      logDebug('Skipping emit (no visible changes)', { id: this.id });
+      return;
+    }
+
     const state = this.getState();
+
+    // Update last emitted state for next comparison
+    this.lastEmittedState = {
+      summary: state.summary,
+      modifiedCount: state.modifiedCount,
+      trafficLight: state.trafficLight,
+      mood: state.mood,
+    };
+
     logDebug('emitUpdate called', {
       id: this.id,
       summary: state.summary?.substring(0, 50) + '...',
       modifiedCount: state.modifiedCount,
       mood: state.mood,
-      stack: new Error().stack?.split('\n').slice(2, 5).join(' <- ')
+    });
+    this.emit('update', state);
+    events.emit('sys:worktree:update', state);
+  }
+
+  /**
+   * Force emit an update regardless of change detection.
+   * Used for initial load and forced refreshes.
+   */
+  private forceEmitUpdate(): void {
+    const state = this.getState();
+
+    // Update last emitted state
+    this.lastEmittedState = {
+      summary: state.summary,
+      modifiedCount: state.modifiedCount,
+      trafficLight: state.trafficLight,
+      mood: state.mood,
+    };
+
+    logDebug('forceEmitUpdate called', {
+      id: this.id,
+      summary: state.summary?.substring(0, 50) + '...',
+      modifiedCount: state.modifiedCount,
+      mood: state.mood,
     });
     this.emit('update', state);
     events.emit('sys:worktree:update', state);

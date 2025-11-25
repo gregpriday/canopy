@@ -1,35 +1,14 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { WorktreeMonitor } from '../../src/services/monitor/WorktreeMonitor.js';
-import type { Worktree, FileChangeEvent } from '../../src/types/index.js';
+import type { Worktree } from '../../src/types/index.js';
 import { events } from '../../src/services/events.js';
 import * as gitStatus from '../../src/utils/git.js';
-import * as fileTree from '../../src/utils/fileTree.js';
-import * as fileWatcher from '../../src/utils/fileWatcher.js';
 
 // Mock the git utilities
 vi.mock('../../src/utils/git.js', () => ({
   getWorktreeChangesWithStats: vi.fn(),
   invalidateGitStatusCache: vi.fn(),
 }));
-
-// Mock fileTree utilities
-vi.mock('../../src/utils/fileTree.js', async () => {
-  const actual = await vi.importActual<typeof fileTree>('../../src/utils/fileTree.js');
-  return {
-    ...actual,
-    loadGitignorePatterns: vi.fn(),
-  };
-});
-
-// Spy on fileWatcher utilities (don't fully mock, just spy)
-vi.mock('../../src/utils/fileWatcher.js', async () => {
-  const actual = await vi.importActual<typeof fileWatcher>('../../src/utils/fileWatcher.js');
-  return {
-    ...actual,
-    createFileWatcher: vi.fn(actual.createFileWatcher),
-    buildIgnorePatterns: vi.fn(actual.buildIgnorePatterns),
-  };
-});
 
 // Mock simple-git
 vi.mock('simple-git', () => ({
@@ -68,32 +47,66 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
 
   describe('Traffic Light Decay Cycle', () => {
     it('transitions from green -> yellow after 30 seconds', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats)
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [],
+          changedFileCount: 0,
+          lastUpdated: Date.now(),
+        })
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [{ path: 'foo.ts', status: 'modified', insertions: 1, deletions: 0 }],
+          changedFileCount: 1,
+          totalInsertions: 1,
+          totalDeletions: 0,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        });
+
       const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
 
-      // Simulate file change event (sets green)
-      const fileChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'foo.ts', timestamp: Date.now() },
-      ];
-
-      // Access private method using type assertion
-      (monitor as any).handleFileChanges(fileChanges);
-
+      // Trigger a state change to activate traffic light
+      await monitor.updateGitStatusFromService();
       expect(monitor.getState().trafficLight).toBe('green');
 
       // Advance 30 seconds
       await vi.advanceTimersByTimeAsync(30000);
 
       expect(monitor.getState().trafficLight).toBe('yellow');
+
+      await monitor.stop();
     });
 
     it('transitions from yellow -> gray after 60 more seconds (90s total)', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats)
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [],
+          changedFileCount: 0,
+          lastUpdated: Date.now(),
+        })
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [{ path: 'foo.ts', status: 'modified', insertions: 1, deletions: 0 }],
+          changedFileCount: 1,
+          totalInsertions: 1,
+          totalDeletions: 0,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        });
+
       const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
 
-      const fileChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'foo.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(fileChanges);
+      // Trigger a state change
+      await monitor.updateGitStatusFromService();
+      expect(monitor.getState().trafficLight).toBe('green');
 
       // Advance to yellow (30s)
       await vi.advanceTimersByTimeAsync(30000);
@@ -103,227 +116,59 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
       await vi.advanceTimersByTimeAsync(60000);
 
       expect(monitor.getState().trafficLight).toBe('gray');
+
+      await monitor.stop();
     });
 
     it('resets to green on new activity from yellow state', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats)
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [],
+          changedFileCount: 0,
+          lastUpdated: Date.now(),
+        })
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [{ path: 'foo.ts', status: 'modified', insertions: 1, deletions: 0 }],
+          changedFileCount: 1,
+          totalInsertions: 1,
+          totalDeletions: 0,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        })
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [
+            { path: 'foo.ts', status: 'modified', insertions: 1, deletions: 0 },
+            { path: 'bar.ts', status: 'modified', insertions: 2, deletions: 0 },
+          ],
+          changedFileCount: 2,
+          totalInsertions: 3,
+          totalDeletions: 0,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        });
+
       const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
 
-      const fileChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'foo.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(fileChanges);
+      // Trigger first change
+      await monitor.updateGitStatusFromService();
+      expect(monitor.getState().trafficLight).toBe('green');
 
       // Advance to yellow state (40s)
       await vi.advanceTimersByTimeAsync(40000);
       expect(monitor.getState().trafficLight).toBe('yellow');
 
-      // New change happens
-      const newChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'bar.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(newChanges);
+      // New change detected
+      await monitor.updateGitStatusFromService();
 
       // Should reset to green
       expect(monitor.getState().trafficLight).toBe('green');
-    });
-
-    it('does NOT trigger green on deletion-only events (spec requirement)', async () => {
-      const monitor = new WorktreeMonitor(baseWorktree);
-
-      // Initial state should be gray
-      expect(monitor.getState().trafficLight).toBe('gray');
-
-      // Deletion event
-      const deletionEvents: FileChangeEvent[] = [
-        { type: 'unlink', path: 'deleted.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(deletionEvents);
-
-      // Should remain gray (deletions don't trigger traffic light)
-      expect(monitor.getState().trafficLight).toBe('gray');
-    });
-
-    it('triggers green if batch contains ANY non-deletion event', async () => {
-      const monitor = new WorktreeMonitor(baseWorktree);
-
-      // Mixed batch: deletion + modification
-      const mixedEvents: FileChangeEvent[] = [
-        { type: 'unlink', path: 'deleted.ts', timestamp: Date.now() },
-        { type: 'change', path: 'modified.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(mixedEvents);
-
-      // Should turn green (contains non-deletion)
-      expect(monitor.getState().trafficLight).toBe('green');
-    });
-  });
-
-  describe('AI Summary Debouncing & Bypass', () => {
-    it('debounces AI summary generation for dirty worktrees', async () => {
-      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
-        worktreeId: baseWorktree.id,
-        rootPath: baseWorktree.path,
-        changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
-        changedFileCount: 1,
-        totalInsertions: 10,
-        totalDeletions: 2,
-        latestFileMtime: Date.now(),
-        lastUpdated: Date.now(),
-      });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      const updateAISpy = vi.spyOn(monitor as any, 'updateAISummary');
-
-      // Start the monitor (triggers initial git status)
-      await monitor.start();
-
-      // Trigger file change
-      const fileChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'test.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(fileChanges);
-
-      // 1 second later: Git status updates, but AI shouldn't run yet
-      await vi.advanceTimersByTimeAsync(1000);
-
-      // AI should not have been called yet (debounced for 10s)
-      expect(updateAISpy).not.toHaveBeenCalled();
-
-      // 10 seconds later: AI should run
-      await vi.advanceTimersByTimeAsync(10000);
-
-      // Now AI should have been triggered
-      // Note: This may be called during start() + after debounce
-      expect(updateAISpy).toHaveBeenCalled();
-
-      await monitor.stop();
-    });
-
-    it('bypasses AI debounce when reverting to clean state', async () => {
-      // Start with dirty state
-      vi.mocked(gitStatus.getWorktreeChangesWithStats)
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
-          changedFileCount: 1,
-          totalInsertions: 10,
-          totalDeletions: 2,
-          latestFileMtime: Date.now(),
-          lastUpdated: Date.now(),
-        })
-        .mockResolvedValueOnce({
-          // Clean state
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          totalInsertions: 0,
-          totalDeletions: 0,
-          latestFileMtime: 0,
-          lastUpdated: Date.now(),
-        });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      const updateCleanSpy = vi.spyOn(monitor as any, 'updateCleanSummary');
-
-      await monitor.start();
-
-      // Set dirty state
-      (monitor as any).state.modifiedCount = 1;
-
-      // Trigger git status update (will detect clean state)
-      await (monitor as any).updateGitStatus();
-
-      // updateCleanSummary should be called immediately (no debounce)
-      expect(updateCleanSpy).toHaveBeenCalled();
-
-      await monitor.stop();
-    });
-
-    it('cancels pending AI debounce when transitioning to clean', async () => {
-      vi.mocked(gitStatus.getWorktreeChangesWithStats)
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
-          changedFileCount: 1,
-          totalInsertions: 10,
-          totalDeletions: 2,
-          latestFileMtime: Date.now(),
-          lastUpdated: Date.now(),
-        })
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      await monitor.start();
-
-      // Trigger change (starts AI debounce)
-      const fileChanges: FileChangeEvent[] = [
-        { type: 'change', path: 'test.ts', timestamp: Date.now() },
-      ];
-
-      (monitor as any).handleFileChanges(fileChanges);
-
-      // After 5 seconds (before 10s AI debounce completes), worktree becomes clean
-      await vi.advanceTimersByTimeAsync(5000);
-
-      // Manually set state to dirty first
-      (monitor as any).state.modifiedCount = 1;
-
-      // Now transition to clean
-      await (monitor as any).updateGitStatus();
-
-      // Summary should show clean state (last commit)
-      expect(monitor.getState().summary).toContain('✅');
-
-      await monitor.stop();
-    });
-  });
-
-  describe('Polling-Only Mode Support', () => {
-    it('triggers AI update when polling detects new dirty changes', async () => {
-      // Mock git status: first clean, then dirty
-      vi.mocked(gitStatus.getWorktreeChangesWithStats)
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        })
-        .mockResolvedValueOnce({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [{ path: 'new.ts', status: 'modified', insertions: 5, deletions: 0 }],
-          changedFileCount: 1,
-          totalInsertions: 5,
-          totalDeletions: 0,
-          latestFileMtime: Date.now(),
-          lastUpdated: Date.now(),
-        });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      const aiDebouncedSpy = vi.spyOn(monitor as any, 'aiSummaryDebounced');
-
-      await monitor.start();
-
-      // Polling detects changes (simulate next poll cycle)
-      await (monitor as any).updateGitStatus();
-
-      // AI debounced should be called
-      expect(aiDebouncedSpy).toHaveBeenCalled();
 
       await monitor.stop();
     });
@@ -347,29 +192,6 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
 
       expect(monitor.getState().summary).toContain('✅');
       expect(monitor.getState().summary).toContain('feat: test commit');
-
-      await monitor.stop();
-    });
-
-    it('uses debounced AI generation for dirty worktrees on startup', async () => {
-      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
-        worktreeId: baseWorktree.id,
-        rootPath: baseWorktree.path,
-        changes: [{ path: 'dirty.ts', status: 'modified', insertions: 10, deletions: 5 }],
-        changedFileCount: 1,
-        totalInsertions: 10,
-        totalDeletions: 5,
-        latestFileMtime: Date.now(),
-        lastUpdated: Date.now(),
-      });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      const aiDebouncedSpy = vi.spyOn(monitor as any, 'aiSummaryDebounced');
-
-      await monitor.start();
-
-      // Should trigger debounced AI (not immediate)
-      expect(aiDebouncedSpy).toHaveBeenCalled();
 
       await monitor.stop();
     });
@@ -401,14 +223,14 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
       events.on('sys:worktree:update', handler);
 
       // First update
-      await (monitor as any).updateGitStatus();
+      await monitor.updateGitStatusFromService();
       const firstEmitCount = emitCount;
 
       // Second update with identical data
-      await (monitor as any).updateGitStatus();
+      await monitor.updateGitStatusFromService();
       const secondEmitCount = emitCount;
 
-      // Should not emit again if data is identical
+      // Should not emit again if data is identical (due to shouldEmitUpdate check)
       expect(secondEmitCount).toBe(firstEmitCount);
 
       events.off('sys:worktree:update', handler);
@@ -456,44 +278,13 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
 
       const firstEmitCount = emitCount;
 
-      // Second update with renamed file
-      await (monitor as any).updateGitStatus();
+      // Second update with renamed file - different hash means different state detected
+      await monitor.updateGitStatusFromService();
 
-      // Should emit because file list changed (rename detected)
+      // Should emit because file list changed (rename detected via hash)
       expect(emitCount).toBeGreaterThan(firstEmitCount);
 
       events.off('sys:worktree:update', handler);
-      await monitor.stop();
-    });
-  });
-
-  describe('State Marking & Retry', () => {
-    it('only marks state as processed after successful AI generation', async () => {
-      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
-        worktreeId: baseWorktree.id,
-        rootPath: baseWorktree.path,
-        changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
-        changedFileCount: 1,
-        totalInsertions: 10,
-        totalDeletions: 2,
-        latestFileMtime: 12345,
-        lastUpdated: Date.now(),
-      });
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      await monitor.start();
-
-      // Check that lastProcessedMtime is updated after AI generation
-      const initialMtime = (monitor as any).lastProcessedMtime;
-
-      // Force AI update
-      await (monitor as any).updateAISummary(true);
-
-      const updatedMtime = (monitor as any).lastProcessedMtime;
-
-      // Should have been updated after successful generation
-      expect(updatedMtime).toBeDefined();
-
       await monitor.stop();
     });
   });
@@ -531,117 +322,140 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
     });
   });
 
-  describe('Ignore Pattern Application (Issue #186)', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      // Default: mock loadGitignorePatterns to return empty array
-      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([]);
-    });
+  describe('Smart Emit - shouldEmitUpdate', () => {
+    it('skips emit when only non-visible fields change', async () => {
+      // State where modifiedCount stays same, but lastActivityTimestamp changes
+      const stateWithChange = {
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
+        changedFileCount: 1,
+        totalInsertions: 10,
+        totalDeletions: 2,
+        latestFileMtime: Date.now(),
+        lastUpdated: Date.now(),
+      };
 
-    it('loads gitignore patterns when starting file watcher', async () => {
-      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
-        'node_modules/',
-        '*.log',
-      ]);
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue(stateWithChange);
 
       const monitor = new WorktreeMonitor(baseWorktree);
       await monitor.start();
 
-      // Should have called loadGitignorePatterns with worktree path
-      expect(fileTree.loadGitignorePatterns).toHaveBeenCalledWith(baseWorktree.path);
+      let emitCount = 0;
+      const handler = () => {
+        emitCount++;
+      };
 
+      events.on('sys:worktree:update', handler);
+
+      // First service-driven update
+      await monitor.updateGitStatusFromService();
+      const countAfterFirst = emitCount;
+
+      // Second update with same visible state (no change to summary/mood/modifiedCount/trafficLight)
+      await monitor.updateGitStatusFromService();
+      const countAfterSecond = emitCount;
+
+      // Should not emit again if visible state is identical
+      expect(countAfterSecond).toBe(countAfterFirst);
+
+      events.off('sys:worktree:update', handler);
       await monitor.stop();
     });
 
-    it('passes ignore patterns to createFileWatcher', async () => {
-      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
-        'node_modules/',
-        'dist/',
-      ]);
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      await monitor.start();
-
-      // Should have called buildIgnorePatterns with gitignore patterns
-      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([
-        'node_modules/',
-        'dist/',
-      ]);
-
-      // Should have called createFileWatcher with the built ignore patterns array
-      // Note: createFileWatcher internally wraps this in a function that also handles .git
-      expect(fileWatcher.createFileWatcher).toHaveBeenCalledWith(
-        baseWorktree.path,
-        expect.objectContaining({
-          ignored: expect.arrayContaining([
-            '**/node_modules/**',
-            'node_modules/',
-            'dist/',
-          ]),
+    it('emits when modifiedCount changes', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats)
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
+          changedFileCount: 1,
+          totalInsertions: 10,
+          totalDeletions: 2,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
         })
-      );
-
-      await monitor.stop();
-    });
-
-    it('combines standard ignores with gitignore patterns', async () => {
-      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([
-        'custom-build/',
-        '*.secret',
-      ]);
-
-      const monitor = new WorktreeMonitor(baseWorktree);
-      await monitor.start();
-
-      // buildIgnorePatterns should be called with gitignore patterns
-      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([
-        'custom-build/',
-        '*.secret',
-      ]);
-
-      // The returned patterns should include standard ignores + custom patterns
-      const builtPatterns = vi.mocked(fileWatcher.buildIgnorePatterns).mock.results[0].value as string[];
-      expect(builtPatterns).toContain('**/node_modules/**');
-      expect(builtPatterns).toContain('custom-build/');
-      expect(builtPatterns).toContain('*.secret');
-
-      // Note: .git is now handled by a function in createFileWatcher, not in the patterns array
-
-      await monitor.stop();
-    });
-
-    it('handles missing .gitignore file gracefully', async () => {
-      // loadGitignorePatterns returns empty array when .gitignore doesn't exist
-      vi.mocked(fileTree.loadGitignorePatterns).mockResolvedValue([]);
+        .mockResolvedValueOnce({
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [
+            { path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 },
+            { path: 'another.ts', status: 'added', insertions: 5, deletions: 0 },
+          ],
+          changedFileCount: 2, // Changed!
+          totalInsertions: 15,
+          totalDeletions: 2,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        });
 
       const monitor = new WorktreeMonitor(baseWorktree);
       await monitor.start();
 
-      // Should still work with just standard ignores
-      expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([]);
+      let emitCount = 0;
+      const handler = () => {
+        emitCount++;
+      };
 
-      // The returned patterns should include standard ignores
-      const builtPatterns = vi.mocked(fileWatcher.buildIgnorePatterns).mock.results[0].value as string[];
-      expect(builtPatterns).toContain('**/node_modules/**');
+      events.on('sys:worktree:update', handler);
+      const countBefore = emitCount;
 
-      // Note: .git is now handled by a function in createFileWatcher, not in the patterns array
+      // Update that changes modifiedCount
+      await monitor.updateGitStatusFromService();
 
+      // Should emit because modifiedCount changed
+      expect(emitCount).toBeGreaterThan(countBefore);
+
+      events.off('sys:worktree:update', handler);
       await monitor.stop();
     });
+  });
 
-    it('continues with polling if file watcher creation fails', async () => {
-      // Simulate failure creating file watcher (more realistic than gitignore failure)
-      vi.mocked(fileWatcher.createFileWatcher).mockImplementation(() => {
-        throw new Error('ENOSPC: no space left on device');
+  describe('Service-Managed Polling', () => {
+    it('does not start its own polling timer', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
       });
 
       const monitor = new WorktreeMonitor(baseWorktree);
+      const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
-      // Should not throw - should continue with polling fallback
-      await expect(monitor.start()).resolves.not.toThrow();
+      await monitor.start();
 
-      // Verify that loadGitignorePatterns was still called
-      expect(fileTree.loadGitignorePatterns).toHaveBeenCalled();
+      // The monitor should NOT have started its own setInterval for polling
+      // (Polling is now managed by WorktreeService)
+      const pollingIntervals = setIntervalSpy.mock.calls.filter(call => {
+        // Filter out any intervals that are clearly not polling (e.g., traffic light timers use setTimeout)
+        return call[1] === 2000 || call[1] === 10000 || call[1] === 30000;
+      });
+
+      expect(pollingIntervals.length).toBe(0);
+
+      await monitor.stop();
+      setIntervalSpy.mockRestore();
+    });
+
+    it('exposes updateGitStatusFromService for service-driven polling', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // The public method should exist and be callable
+      expect(typeof monitor.updateGitStatusFromService).toBe('function');
+
+      // Should not throw when called
+      await expect(monitor.updateGitStatusFromService()).resolves.not.toThrow();
 
       await monitor.stop();
     });

@@ -1,10 +1,14 @@
 import { WorktreeMonitor, type WorktreeState } from './WorktreeMonitor.js';
 import type { Worktree } from '../../types/index.js';
-import { logInfo, logWarn } from '../../utils/logger.js';
+import { logInfo, logWarn, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
 
 const ACTIVE_WORKTREE_INTERVAL_MS = 2000; // 2s for active worktree (fast polling since no file watcher)
-const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
+const BACKGROUND_WORKTREE_INTERVAL_MS = 30000; // 30s for background worktrees (increased from 10s for performance)
+
+// Serial queue configuration
+const QUEUE_PROCESSING_DELAY_MS = 50; // Delay between queue items to let UI breathe
+const MASTER_POLL_INTERVAL_MS = 500; // Master poll timer interval
 
 /**
  * WorktreeService manages all WorktreeMonitor instances.
@@ -14,6 +18,7 @@ const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
  * - Destroy monitors for removed worktrees
  * - Adjust polling intervals based on active/background status
  * - Forward monitor updates to the global event bus
+ * - **PERFORMANCE**: Serialize git operations through a queue to prevent CPU spikes
  *
  * This service is a singleton and should be accessed via the exported instance.
  */
@@ -31,6 +36,12 @@ class WorktreeService {
   private activeWorktreeId: string | null = null;
   private isSyncing: boolean = false;
   private pendingSync: PendingSyncRequest | null = null;
+
+  // Serial queue for git operations - prevents parallel git spawning
+  private pollQueue: string[] = [];
+  private isProcessingQueue: boolean = false;
+  private masterPollTimer: NodeJS.Timeout | null = null;
+  private lastPollTime = new Map<string, number>(); // Track when each worktree was last polled
 
   /**
    * Initialize or update monitors to match the current worktree list.
@@ -73,6 +84,14 @@ class WorktreeService {
         logInfo('Removing stale WorktreeMonitor', { id });
         await monitor.stop();
         this.monitors.delete(id);
+
+        // Clean up queue state for removed worktree
+        this.lastPollTime.delete(id);
+        const queueIndex = this.pollQueue.indexOf(id);
+        if (queueIndex !== -1) {
+          this.pollQueue.splice(queueIndex, 1);
+        }
+
         // Emit removal event so hooks can clean up cached state
         events.emit('sys:worktree:remove', { worktreeId: id });
       }
@@ -110,6 +129,9 @@ class WorktreeService {
       }
     }
 
+      // Start the master poll timer if not already running
+      this.startMasterPollTimer();
+
       logInfo('WorktreeService sync complete', {
         totalMonitors: this.monitors.size,
         activeWorktreeId,
@@ -130,6 +152,98 @@ class WorktreeService {
           pending.watchingEnabled
         );
       }
+    }
+  }
+
+  /**
+   * Start the master poll timer that schedules git status updates.
+   *
+   * Instead of each monitor having its own timer, we use a single master timer
+   * that cycles through monitors and adds them to a serial queue.
+   * This prevents the "thundering herd" problem where multiple git processes
+   * spawn simultaneously.
+   */
+  private startMasterPollTimer(): void {
+    if (this.masterPollTimer) {
+      return; // Already running
+    }
+
+    logDebug('Starting master poll timer', { intervalMs: MASTER_POLL_INTERVAL_MS });
+
+    this.masterPollTimer = setInterval(() => {
+      this.scheduleDuePolls();
+    }, MASTER_POLL_INTERVAL_MS);
+  }
+
+  /**
+   * Stop the master poll timer.
+   */
+  private stopMasterPollTimer(): void {
+    if (this.masterPollTimer) {
+      clearInterval(this.masterPollTimer);
+      this.masterPollTimer = null;
+      logDebug('Stopped master poll timer');
+    }
+  }
+
+  /**
+   * Check which worktrees are due for polling and add them to the queue.
+   * Active worktree gets polled more frequently than background worktrees.
+   */
+  private scheduleDuePolls(): void {
+    const now = Date.now();
+
+    for (const [id, _monitor] of this.monitors) {
+      const lastPoll = this.lastPollTime.get(id) || 0;
+      const isActive = id === this.activeWorktreeId;
+      const interval = isActive ? ACTIVE_WORKTREE_INTERVAL_MS : BACKGROUND_WORKTREE_INTERVAL_MS;
+
+      if (now - lastPoll >= interval) {
+        // Only add to queue if not already queued
+        if (!this.pollQueue.includes(id)) {
+          this.pollQueue.push(id);
+          logDebug('Queued worktree for polling', { id, isActive });
+        }
+      }
+    }
+
+    // Process the queue
+    this.processQueue();
+  }
+
+  /**
+   * Process the poll queue serially.
+   * Only one git status operation runs at a time to prevent CPU spikes.
+   */
+  private async processQueue(): Promise<void> {
+    if (this.isProcessingQueue || this.pollQueue.length === 0) {
+      return;
+    }
+
+    this.isProcessingQueue = true;
+
+    const worktreeId = this.pollQueue.shift();
+    if (!worktreeId) {
+      this.isProcessingQueue = false;
+      return;
+    }
+
+    const monitor = this.monitors.get(worktreeId);
+    if (monitor) {
+      try {
+        logDebug('Processing queue item', { worktreeId, queueLength: this.pollQueue.length });
+        await monitor.updateGitStatusFromService();
+        this.lastPollTime.set(worktreeId, Date.now());
+      } catch (error) {
+        logWarn('Error processing queue item', { worktreeId, error: (error as Error).message });
+      }
+    }
+
+    this.isProcessingQueue = false;
+
+    // Schedule next item with a small delay to let UI breathe
+    if (this.pollQueue.length > 0) {
+      setTimeout(() => this.processQueue(), QUEUE_PROCESSING_DELAY_MS);
     }
   }
 
@@ -185,6 +299,13 @@ class WorktreeService {
    */
   public async stopAll(): Promise<void> {
     logInfo('Stopping all WorktreeMonitors', { count: this.monitors.size });
+
+    // Stop the master poll timer first
+    this.stopMasterPollTimer();
+
+    // Clear the queue
+    this.pollQueue = [];
+    this.lastPollTime.clear();
 
     const promises = Array.from(this.monitors.values()).map(monitor =>
       monitor.stop()
