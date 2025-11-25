@@ -74,18 +74,6 @@ vi.mock('../src/hooks/useWorktreeSummaries.ts', () => ({
   useWorktreeSummaries: vi.fn((worktrees) => worktrees),
 }));
 
-vi.mock('../src/hooks/useFileTree.js', () => ({
-  useFileTree: vi.fn(() => ({
-    tree: [], // Empty array instead of null to avoid "not iterable" error
-    selectedPath: null,
-    gitOnlyMode: false,
-    refresh: vi.fn(),
-    setSelectedPath: vi.fn(),
-    toggleGitOnlyMode: vi.fn(),
-    expandFolder: vi.fn(),
-    collapseFolder: vi.fn(),
-  })),
-}));
 
 vi.mock('../src/hooks/useGitStatus.js', () => ({
   useGitStatus: vi.fn(() => ({
@@ -107,14 +95,6 @@ vi.mock('../src/hooks/useProjectIdentity.js', () => ({
     title: 'Test Project',
     gradientStart: '#000000',
     gradientEnd: '#FFFFFF'
-  })),
-}));
-
-vi.mock('../src/hooks/useActivity.js', () => ({
-  useActivity: vi.fn(() => ({
-    events: [],
-    addEvent: vi.fn(),
-    clear: vi.fn(),
   })),
 }));
 
@@ -491,56 +471,6 @@ describe('Dashboard Integration Tests', () => {
 
       // Modal should be closed
       expect(lastFrame()).toBeDefined();
-    });
-  });
-
-  describe('View Mode Switching', () => {
-    it('switches to tree mode and back via events', async () => {
-      const { lastFrame } = render(<App cwd="/test/repo" />);
-
-      await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
-      await tick();
-
-      // Initially in dashboard mode - verify WorktreeOverview is shown
-      let frame = lastFrame() || '';
-      expect(frame).toBeDefined();
-
-      // Switch to tree mode
-      events.emit('ui:view:mode', { mode: 'tree' });
-      await tick();
-      await tick();
-
-      // Now in tree mode
-      frame = lastFrame() || '';
-      expect(frame).toBeDefined();
-
-      // Switch back to dashboard
-      events.emit('ui:view:mode', { mode: 'dashboard' });
-      await tick();
-      await tick();
-
-      // Back in dashboard mode
-      frame = lastFrame() || '';
-      expect(frame).toBeDefined();
-    });
-
-    it('maintains state when switching views', async () => {
-      const { lastFrame } = render(<App cwd="/test/repo" />);
-
-      await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
-      await tick();
-
-      const initialFrame = lastFrame();
-
-      // Switch to tree and back
-      events.emit('ui:view:mode', { mode: 'tree' });
-      await tick();
-      events.emit('ui:view:mode', { mode: 'dashboard' });
-      await tick();
-
-      // Worktrees should still be visible
-      const finalFrame = lastFrame() || '';
-      expect(finalFrame).toContain('main');
     });
   });
 

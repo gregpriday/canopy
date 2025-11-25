@@ -22,24 +22,6 @@ export interface CopyPathPayload {
   path: string;
 }
 
-// Navigation Payloads
-export interface NavSelectPayload {
-  path: string;
-}
-export interface NavExpandPayload {
-  path: string;
-}
-export interface NavCollapsePayload {
-  path: string;
-}
-export interface NavMovePayload {
-  direction: 'up' | 'down' | 'left' | 'right' | 'pageUp' | 'pageDown' | 'home' | 'end';
-  amount?: number; // For pageUp/pageDown
-}
-export interface NavToggleExpandPayload {
-  path: string;
-}
-
 export type UIModalOpenPayload = {
   [Id in ModalId]: { id: Id; context?: ModalContextMap[Id] };
 }[ModalId];
@@ -70,14 +52,6 @@ export type CanopyEventMap = {
   'sys:quit': void;
   'sys:config:reload': void;
 
-  'nav:select': NavSelectPayload;
-  'nav:expand': NavExpandPayload;
-  'nav:collapse': NavCollapsePayload;
-  'nav:move': NavMovePayload;
-  'nav:toggle-expand': NavToggleExpandPayload; // Added
-  'nav:clear-selection': void;
-  'nav:primary': void;
-
   'file:open': { path: string };
   'file:copy-tree': CopyTreePayload;
   'file:copy-path': CopyPathPayload;
@@ -87,7 +61,6 @@ export type CanopyEventMap = {
   'ui:filter:clear': void;
   'ui:modal:open': UIModalOpenPayload;
   'ui:modal:close': UIModalClosePayload;
-  'ui:view:mode': { mode: 'dashboard' | 'tree' };
 
   'sys:worktree:switch': { worktreeId: string };
   'sys:worktree:refresh': void;

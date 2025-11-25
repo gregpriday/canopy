@@ -676,40 +676,6 @@ describe('App integration - dashboard mode', () => {
     expect(output?.includes('.gitignore')).toBe(false);
   });
 
-  it('switches from dashboard to tree mode when ui:view:mode event is emitted', async () => {
-    const mockWorktrees = [
-      { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },
-    ];
-
-    vi.mocked(getWorktrees).mockResolvedValue(mockWorktrees);
-    vi.mocked(getCurrentWorktree).mockReturnValue(mockWorktrees[0]);
-    setMonitorState(mockWorktrees);
-
-    const { lastFrame } = render(<App cwd="/project/main" />);
-
-    // Wait for initialization
-    await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
-
-    // Initially in dashboard mode
-    let output = lastFrame();
-    expect(output).toBeDefined();
-    // Dashboard shows worktree cards - should contain worktree name
-    const dashboardOutput = output!;
-    expect(dashboardOutput).toContain('main');
-
-    // Switch to tree mode
-    events.emit('ui:view:mode', { mode: 'tree' });
-
-    // Give it time to process
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Should now be in tree mode - the output should differ from dashboard
-    output = lastFrame();
-    expect(output).toBeDefined();
-    // Verify we still render content (view swap implementation details may vary)
-    expect((output || '').length).toBeGreaterThan(0);
-  });
-
   it('uses focused worktree root when copying from dashboard', async () => {
     const mockWorktrees = [
       { id: '/project/main', path: '/project/main', name: 'main', branch: 'main', isCurrent: true },

@@ -2,7 +2,6 @@ import React, { useState, useCallback, useLayoutEffect } from 'react';
 import { Box, Text, useStdout } from 'ink';
 import Gradient from 'ink-gradient';
 import { measureElement } from 'ink';
-import type { Worktree, CanopyConfig, GitStatus } from '../types/index.js';
 import type { ProjectIdentity } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
@@ -13,19 +12,8 @@ interface HeaderProps {
   cwd: string;
   filterActive: boolean;
   filterQuery: string;
-  currentWorktree?: Worktree | null;
-  worktreeCount?: number;
-  activeWorktreeCount?: number;
-  onWorktreeClick?: () => void;
   identity: ProjectIdentity;
-  config: CanopyConfig;
-  isSwitching?: boolean;
-  gitOnlyMode?: boolean;
-  onToggleGitOnlyMode?: () => void;
-  gitEnabled?: boolean;
-  gitStatus?: Map<string, GitStatus>;
   onOpenGitFox?: () => void;
-  onOpenGitHub?: () => void;
   /** When true, bottom corners connect to command palette below */
   commandPaletteOpen?: boolean;
 }

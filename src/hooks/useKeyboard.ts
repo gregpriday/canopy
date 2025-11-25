@@ -1,11 +1,9 @@
-import { useEffect, useRef, useMemo } from 'react';
-import { useInput, useStdin } from 'ink';
+import { useRef, useMemo } from 'react';
+import { useInput } from 'ink';
 import { events } from '../services/events.js';
-import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
 import { isAction } from '../utils/keyMatcher.js';
 import { getResolvedKeyMap } from '../utils/keyPresets.js';
 import type { CanopyConfig } from '../types/index.js';
-import type { KeyAction } from '../types/keymap.js';
 
 /**
  * Keyboard handlers for various actions.
@@ -13,7 +11,6 @@ import type { KeyAction } from '../types/keymap.js';
  */
 export interface KeyboardHandlers {
   enabled?: boolean;
-  navigationEnabled?: boolean;
   // File/Folder Actions
   onToggleExpand?: () => void;    // Space key
 
@@ -38,12 +35,8 @@ export interface KeyboardHandlers {
   onWarnExit?: () => void;         // Ctrl+C (first press)
 }
 
-// Home/End sequences moved to shared utils/keySequences.ts
-
 export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): void {
-  const { stdin } = useStdin();
   const enabled = handlers.enabled ?? true;
-  const navigationEnabled = handlers.navigationEnabled ?? true;
   // Use ref instead of state to prevent stale closures in useInput callback
   const exitConfirmRef = useRef(false);
   const exitTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,41 +47,7 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
     [config.keys],
   );
 
-  useEffect(() => {
-    if (!stdin) {
-      return undefined;
-    }
-    if (!enabled) {
-      return undefined;
-    }
-
-    const handleData = (data: Buffer | string) => {
-      const chunk = typeof data === 'string' ? data : data.toString();
-
-      if (!navigationEnabled) {
-        return;
-      }
-
-      if (HOME_SEQUENCES.has(chunk)) {
-        events.emit('nav:move', { direction: 'home' });
-        return;
-      }
-
-      if (END_SEQUENCES.has(chunk)) {
-        events.emit('nav:move', { direction: 'end' });
-        return;
-      }
-    };
-
-    stdin.on('data', handleData);
-    return () => {
-      if (typeof stdin.off === 'function') {
-        stdin.off('data', handleData);
-      } else {
-        stdin.removeListener?.('data', handleData);
-      }
-    };
-  }, [stdin, enabled, navigationEnabled]); // Removed handlers.onHome, handlers.onEnd from dependencies
+  // Note: Home/End sequence handling removed with tree view mode
 
   useInput((input, key) => {
     if (!enabled) {
@@ -124,42 +83,8 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
       }
     }
 
-    // Navigation - Using semantic actions
-    if (navigationEnabled && isAction(input, key, 'nav.up', keyMap)) {
-      events.emit('nav:move', { direction: 'up' });
-      return;
-    }
-
-    if (navigationEnabled && isAction(input, key, 'nav.down', keyMap)) {
-      events.emit('nav:move', { direction: 'down' });
-      return;
-    }
-
-    if (navigationEnabled && isAction(input, key, 'nav.left', keyMap)) {
-      events.emit('nav:move', { direction: 'left' });
-      return;
-    }
-
-    if (navigationEnabled && isAction(input, key, 'nav.right', keyMap)) {
-      events.emit('nav:move', { direction: 'right' });
-      return;
-    }
-
-    if (navigationEnabled && isAction(input, key, 'nav.pageUp', keyMap)) {
-      events.emit('nav:move', { direction: 'pageUp' });
-      return;
-    }
-
-    if (navigationEnabled && isAction(input, key, 'nav.pageDown', keyMap)) {
-      events.emit('nav:move', { direction: 'pageDown' });
-      return;
-    }
-
-    // Primary action (Enter/Return)
-    if (navigationEnabled && isAction(input, key, 'nav.primary', keyMap)) {
-      events.emit('nav:primary');
-      return;
-    }
+    // Note: Navigation events (nav:move, nav:primary) removed with tree view mode
+    // Dashboard uses useDashboardNav for its own navigation
 
     // Expand/Collapse (Space)
     if (isAction(input, key, 'nav.expand', keyMap) && handlers.onToggleExpand) {
