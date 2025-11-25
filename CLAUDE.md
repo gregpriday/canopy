@@ -306,12 +306,6 @@ Located in `src/utils/`:
 - `moodColors.ts` - Map `WorktreeMood` to terminal border colors
   - Stable: green, Active: yellow, Error: red, Stale: gray
 
-**AI Context**:
-- `aiContext.ts` - Gather git diff context for AI analysis
-  - Sorts files by modification time (most recent first)
-  - Limits to last 5 changed files for token efficiency
-  - Provides structured context for GPT model consumption
-
 **Visual & UI**:
 - `folderHeatMap.ts` - Folder heat colors based on change intensity
   - Cyan → Yellow → Orange → Red gradient
