@@ -6,11 +6,13 @@ export default defineConfig({
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     globals: true,
     setupFiles: ['./tests/setup.ts'],
+    pool: 'threads',
     poolOptions: {
       threads: {
-        minThreads: 1,
-        maxThreads: 1,
+        isolate: true,
+        singleThread: true,
       },
     },
+    maxConcurrency: 1,
   },
 });

@@ -1,68 +1,58 @@
-/**
- * Global test setup file for Vitest.
- *
- * This file addresses memory leaks in the test suite by ensuring proper cleanup
- * of shared resources between test suites. Without this cleanup, the full test
- * suite exhausts heap memory due to:
- *
- * 1. Event listeners accumulating on the global event bus
- * 2. Git status cache cleanup intervals not being stopped
- * 3. WorktreeService monitors persisting across tests
- * 4. Performance metrics accumulating in memory
- *
- * IMPORTANT: This file uses dynamic imports to avoid loading modules before
- * tests can set up their mocks. Static imports at the top level would cause
- * the real modules to load before vi.mock() declarations take effect.
- *
- * @see https://github.com/gregpriday/canopy/issues/187
- */
-
 import { afterEach, vi } from 'vitest';
+import { cleanup } from 'ink-testing-library';
+
+// Ensure tests run with the expected environment flag.
+process.env.NODE_ENV = 'test';
 
 /**
- * After each test:
- * - Remove all event listeners from the global event bus
- * - Clear git status caches
- * - Stop git cache cleanup interval
- * - Clear performance metrics
- * - Stop all worktree monitors (fire and forget - don't wait)
- * - Clear all timers
- *
- * Note: We use dynamic imports to ensure we get the potentially mocked modules
- * after vi.mock() has been processed. The cleanup functions are called on the
- * actual loaded modules (mocked or real) to ensure cleanup happens regardless.
+ * Globally mock heavy singletons so they never start timers/watchers during unit tests.
+ * Integration tests can opt into real implementations with vi.unmock at the top of the file.
  */
+vi.mock('../src/services/monitor/index.js', () => ({
+  worktreeService: {
+    sync: vi.fn(),
+    refresh: vi.fn(),
+    stopAll: vi.fn(),
+    getMonitor: vi.fn(),
+    getAllStates: vi.fn(() => new Map()),
+  },
+  WorktreeMonitor: vi.fn(),
+}));
+
+vi.mock('../src/utils/git.js', async () => {
+  const actual = await vi.importActual<typeof import('../src/utils/git.js')>('../src/utils/git.js');
+  return {
+    ...actual,
+    startGitStatusCacheCleanup: vi.fn(),
+    stopGitStatusCacheCleanup: vi.fn(),
+  };
+});
+
+vi.mock('../src/utils/perfMetrics.js', () => ({
+  perfMonitor: {
+    recordMetric: vi.fn(),
+    measure: vi.fn((name: string, fn: () => unknown) => fn()),
+    clear: vi.fn(),
+  },
+}));
+
 afterEach(async () => {
-  // NOTE: We intentionally do NOT call events.removeAllListeners() here.
-  // Doing so breaks tests that rely on App component event handlers persisting
-  // across async operations within the same test. The event bus is a singleton
-  // and removing all listeners mid-test causes handlers to be lost.
-  // Event listener cleanup is handled by individual test unmount/cleanup.
+  cleanup();
 
+  // Keep the event bus clean between tests without reloading modules.
   try {
-    const { clearGitStatusCache, stopGitStatusCacheCleanup } = await import('../src/utils/git.js');
-    clearGitStatusCache();
-    stopGitStatusCacheCleanup();
+    const { events } = await import('../src/services/events.js');
+    events.removeAllListeners();
   } catch {
-    // Ignore if module fails to load (might be heavily mocked)
+    // Ignore if module fails to load (e.g., mocked tests)
   }
 
-  try {
-    const { perfMonitor } = await import('../src/utils/perfMetrics.js');
-    perfMonitor.clear();
-  } catch {
-    // Ignore if module fails to load (might be heavily mocked)
-  }
-
-  try {
-    const { worktreeService } = await import('../src/services/monitor/index.js');
-    void worktreeService.stopAll().catch(() => {
-      // Ignore errors during cleanup
-    });
-  } catch {
-    // Ignore if module fails to load (might be heavily mocked)
-  }
-
-  // Clear any pending timers (both fake and real timer queues)
   vi.clearAllTimers();
+  vi.clearAllMocks();
+  vi.useRealTimers();
+
+  // Encourage GC between tests to keep memory stable in long runs.
+  if (typeof global.gc === 'function') {
+    global.gc();
+  }
 });

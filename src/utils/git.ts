@@ -127,15 +127,29 @@ const GIT_WORKTREE_CHANGES_CACHE = new Cache<string, WorktreeChanges>({
   defaultTTL: 5000,
 });
 
-// Periodically clean up expired entries
-const cleanupInterval = setInterval(() => {
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+function runCacheCleanup(): void {
   GIT_STATUS_CACHE.cleanup();
   GIT_WORKTREE_CHANGES_CACHE.cleanup();
-}, 10000); // Every 10 seconds
+}
+
+// Start periodic cache cleanup (no-op if already running)
+export function startGitStatusCacheCleanup(): void {
+  if (cleanupInterval) return;
+  cleanupInterval = setInterval(runCacheCleanup, 10000);
+}
 
 // Allow cleanup to be stopped (for testing)
 export function stopGitStatusCacheCleanup(): void {
-  clearInterval(cleanupInterval);
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  startGitStatusCacheCleanup();
 }
 
 /**
