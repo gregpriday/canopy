@@ -8,8 +8,8 @@ import { logWarn } from '../utils/logger.js';
 import { events } from '../services/events.js';
 import type { Worktree, WorktreeChanges } from '../types/index.js';
 
-const ACTIVE_WORKTREE_INTERVAL_MS = 1500;
-const BACKGROUND_WORKTREE_INTERVAL_MS = 10000;
+const ACTIVE_WORKTREE_INTERVAL_MS = 5000; // 5s for active worktree
+const BACKGROUND_WORKTREE_INTERVAL_MS = 300000; // 5 minutes for background worktrees (PERF: reduced CPU usage)
 
 export interface UseMultiWorktreeStatusReturn {
   worktreeChanges: Map<string, WorktreeChanges>;

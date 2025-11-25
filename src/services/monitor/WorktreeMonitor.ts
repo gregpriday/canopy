@@ -63,7 +63,7 @@ export class WorktreeMonitor extends EventEmitter {
 
   // Polling timer for git status (fallback when file watching is disabled)
   private pollingTimer: NodeJS.Timeout | null = null;
-  private pollingInterval: number = 1500; // Default 1.5s, can be adjusted by WorktreeService
+  private pollingInterval: number = 5000; // Default 5s, can be adjusted by WorktreeService (5s active, 60s background)
 
   // Flags
   private isRunning: boolean = false;
@@ -234,6 +234,48 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
+   * Enable or disable file watching for this worktree.
+   * PERF: Background worktrees should disable watching to reduce CPU usage.
+   * Only the active worktree needs real-time file watching.
+   *
+   * @param enabled - Whether to enable file watching
+   */
+  public async setWatchingEnabled(enabled: boolean): Promise<void> {
+    if (this.watchingEnabled === enabled) {
+      return;
+    }
+
+    this.watchingEnabled = enabled;
+
+    if (!this.isRunning) {
+      return; // Will be applied when start() is called
+    }
+
+    if (enabled && !this.watcher) {
+      // Start watching
+      const gitIgnores = await loadGitignorePatterns(this.path);
+      const ignoredPatterns = buildIgnorePatterns(gitIgnores);
+
+      try {
+        this.watcher = createFileWatcher(this.path, {
+          ignored: ignoredPatterns,
+          onBatch: (events) => this.handleFileChanges(events),
+          onError: (error) => this.handleWatcherError(error),
+        });
+        this.watcher.start();
+        logInfo('File watcher started for worktree', { id: this.id });
+      } catch (error) {
+        logError('Failed to start file watcher', error as Error, { id: this.id });
+      }
+    } else if (!enabled && this.watcher) {
+      // Stop watching
+      await this.watcher.stop();
+      this.watcher = null;
+      logInfo('File watcher stopped for worktree (background mode)', { id: this.id });
+    }
+  }
+
+  /**
    * Force refresh of git status and AI summary.
    */
   public async refresh(forceAI: boolean = false): Promise<void> {
@@ -264,9 +306,24 @@ export class WorktreeMonitor extends EventEmitter {
       this.setTrafficLight('green');
     }
 
-    // Emit change event for activity tracking
+    // PERF: Emit change events for activity tracking with limits to prevent flooding
+    // During npm install, thousands of files change - we only need to track a representative sample
+    // for UI activity indicators. The full list is handled by git status polling.
+    const MAX_EVENTS_PER_BATCH = 50;
+    let emittedCount = 0;
+
     for (const event of fileChanges) {
+      // Skip deletion events for activity tracking (they don't need visual highlighting)
+      if (event.type === 'unlink' || event.type === 'unlinkDir') {
+        continue;
+      }
+
+      if (emittedCount >= MAX_EVENTS_PER_BATCH) {
+        break; // Stop emitting after limit reached
+      }
+
       events.emit('watcher:change', { type: event.type, path: event.path });
+      emittedCount++;
     }
 
     if (isActiveRun) {

@@ -260,14 +260,45 @@ export async function getWorktreeChangesWithStats(
     }
   }
 
+  // PERF: Limit the number of files we calculate stats for to prevent CPU hang
+  // on massive changesets (e.g., accidental package-lock.json deletion in monorepo)
+  const MAX_FILES_FOR_NUMSTAT = 100;
+
   try {
     const git: SimpleGit = simpleGit(cwd);
     const status: StatusResult = await git.status();
     const gitRoot = realpathSync((await git.revparse(['--show-toplevel'])).trim());
 
+    // Collect all tracked changed files for numstat (excludes untracked)
+    const trackedChangedFiles = [
+      ...status.modified,
+      ...status.created,
+      ...status.deleted,
+      ...status.renamed.map(r => r.to),
+    ];
+
     let diffOutput = '';
+    let statsLimited = false;
+
     try {
-      diffOutput = await git.diff(['--numstat', 'HEAD']);
+      if (trackedChangedFiles.length === 0) {
+        // No tracked changes - skip numstat entirely
+        diffOutput = '';
+      } else if (trackedChangedFiles.length <= MAX_FILES_FOR_NUMSTAT) {
+        // Small changeset - run numstat on all files
+        diffOutput = await git.diff(['--numstat', 'HEAD']);
+      } else {
+        // PERF: Large changeset - only run numstat on first N files to prevent CPU hang
+        // The remaining files will show stats as 0/0 but will still appear in the list
+        statsLimited = true;
+        const limitedFiles = trackedChangedFiles.slice(0, MAX_FILES_FOR_NUMSTAT);
+        diffOutput = await git.diff(['--numstat', 'HEAD', '--', ...limitedFiles]);
+        logWarn('Large changeset detected; limiting numstat to first 100 files', {
+          cwd,
+          totalFiles: trackedChangedFiles.length,
+          limitedTo: MAX_FILES_FOR_NUMSTAT,
+        });
+      }
     } catch (error) {
       logWarn('Failed to read numstat diff; continuing without line stats', {
         cwd,
@@ -381,11 +412,25 @@ export async function getWorktreeChangesWithStats(
 
     // Process untracked files in parallel with bounded concurrency (max 10 at once)
     // to avoid blocking on filesystem reads while preventing memory issues
+    // PERF: Also limit total untracked files processed to prevent CPU hang on massive repos
     const untrackedFiles = status.not_added;
+    const MAX_UNTRACKED_FILES = 200; // Limit untracked file processing
     const concurrencyLimit = 10;
 
-    for (let i = 0; i < untrackedFiles.length; i += concurrencyLimit) {
-      const batch = untrackedFiles.slice(i, i + concurrencyLimit);
+    const limitedUntrackedFiles = untrackedFiles.length > MAX_UNTRACKED_FILES
+      ? untrackedFiles.slice(0, MAX_UNTRACKED_FILES)
+      : untrackedFiles;
+
+    if (untrackedFiles.length > MAX_UNTRACKED_FILES) {
+      logWarn('Large number of untracked files; limiting to first 200', {
+        cwd,
+        totalUntracked: untrackedFiles.length,
+        limitedTo: MAX_UNTRACKED_FILES,
+      });
+    }
+
+    for (let i = 0; i < limitedUntrackedFiles.length; i += concurrencyLimit) {
+      const batch = limitedUntrackedFiles.slice(i, i + concurrencyLimit);
       await Promise.all(batch.map(file => addChange(file, 'untracked')));
     }
 

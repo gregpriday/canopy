@@ -22,7 +22,7 @@ import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
 import { execa } from 'execa';
 import { openGitHubRepo } from './utils/github.js';
-import { useWatcher } from './hooks/useWatcher.js';
+// PERF: Removed useWatcher - WorktreeMonitor handles file watching for all worktrees
 import path from 'path';
 import { useGitStatus } from './hooks/useGitStatus.js';
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
@@ -361,8 +361,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Listen for sys:refresh events
   useEffect(() => {
     return events.on('sys:refresh', () => {
-      refreshGitStatus(); // Refresh git status
-      void worktreeService.refresh(); // Refresh all worktree monitors
+      // Optimization: Only refresh the UI-critical status here.
+      // The background WorktreeService has its own polling loop and will
+      // pick up changes on its next tick (or via its own watcher).
+      refreshGitStatus();
+
+      // REMOVED: void worktreeService.refresh();
+      // We don't need to force-refresh ALL worktrees every time a file changes
+      // in the current one. The active monitor will handle it.
+
       // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
     });
   }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
@@ -420,7 +427,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Centralized CopyTree listener
   useCopyTree(activeRootPath, effectiveConfig);
 
-  useWatcher(treeRootPath, effectiveConfig, !!noWatch);
+  // PERF: Removed useWatcher call - WorktreeMonitor already watches all worktrees.
+  // This eliminates the "double watch" issue where both useWatcher and WorktreeMonitor
+  // were watching the active worktree simultaneously, doubling CPU usage.
 
   // Calculate git status filter based on git-only mode
   const gitStatusFilter = gitOnlyMode

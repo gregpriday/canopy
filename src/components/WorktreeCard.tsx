@@ -82,7 +82,8 @@ function formatRelativePath(targetPath: string, rootPath: string): string {
   }
 }
 
-const FileChangeRow: React.FC<{
+// PERF: Memoized to prevent re-renders when other files in the list change
+const FileChangeRow = React.memo<{
   change: FileChangeDetail;
   rootPath: string;
   accentColors: {
@@ -91,7 +92,7 @@ const FileChangeRow: React.FC<{
     modified: string;
     muted: string;
   };
-}> = ({ change, rootPath, accentColors }) => {
+}>(({ change, rootPath, accentColors }) => {
   const additionsLabel =
     change.insertions === null ? '---' : `+${change.insertions}`;
   const deletionsLabel =
@@ -121,7 +122,7 @@ const FileChangeRow: React.FC<{
       </Box>
     </Box>
   );
-};
+});
 
 const ActionButton: React.FC<{
   id: string;
@@ -197,7 +198,9 @@ const ActionButton: React.FC<{
   );
 };
 
-export const WorktreeCard: React.FC<WorktreeCardProps> = ({
+// PERF: Wrapped in React.memo to prevent unnecessary re-renders when parent state changes
+// but this card's props haven't changed (e.g., notification state changes in App.tsx)
+const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   worktree,
   changes,
   mood,
@@ -441,3 +444,32 @@ export const WorktreeCard: React.FC<WorktreeCardProps> = ({
     </Box>
   );
 };
+
+// PERF: Export memoized component with custom comparison to prevent unnecessary re-renders
+export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps) => {
+  // Shallow compare scalar props
+  if (prevProps.isFocused !== nextProps.isFocused) return false;
+  if (prevProps.isExpanded !== nextProps.isExpanded) return false;
+  if (prevProps.mood !== nextProps.mood) return false;
+  if (prevProps.trafficLight !== nextProps.trafficLight) return false;
+  if (prevProps.activeRootPath !== nextProps.activeRootPath) return false;
+
+  // Compare worktree identity and content
+  const prevWt = prevProps.worktree;
+  const nextWt = nextProps.worktree;
+  if (prevWt.id !== nextWt.id) return false;
+  if (prevWt.summary !== nextWt.summary) return false;
+  if (prevWt.summaryLoading !== nextWt.summaryLoading) return false;
+  if (prevWt.modifiedCount !== nextWt.modifiedCount) return false;
+
+  // Compare changes (check count and latest mtime for quick equality)
+  const prevChanges = prevProps.changes;
+  const nextChanges = nextProps.changes;
+  if (prevChanges.changedFileCount !== nextChanges.changedFileCount) return false;
+  if (prevChanges.latestFileMtime !== nextChanges.latestFileMtime) return false;
+  if (prevChanges.totalInsertions !== nextChanges.totalInsertions) return false;
+  if (prevChanges.totalDeletions !== nextChanges.totalDeletions) return false;
+
+  // Callbacks are stable (created with useCallback in parent)
+  return true;
+});
