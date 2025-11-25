@@ -384,5 +384,203 @@ describe('AI Worktree Service', () => {
       // Worktrees should have summaries
       expect(worktrees.every(wt => wt.summaryLoading === false)).toBe(true);
     });
+
+    it('should NOT call onUpdate during loading phase to prevent summary flash', async () => {
+      const worktrees: Worktree[] = [
+        {
+          id: '/path/to/feature',
+          path: '/path/to/feature',
+          name: 'feature',
+          branch: 'feature/auth',
+          isCurrent: true,
+          summary: '🔧 Existing AI summary that should persist'
+        }
+      ];
+
+      mockGit.status.mockResolvedValue({
+        modified: ['file.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("change")');
+
+      mockCreate.mockResolvedValue({
+        output_text: JSON.stringify({ summary: '🔒 New AI summary' })
+      });
+
+      const updates: Worktree[] = [];
+      const updateCallback = vi.fn((wt: Worktree) => {
+        updates.push({ ...wt });
+      });
+
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
+
+      // The first update should NOT have summaryLoading: true with undefined summary
+      // Instead, onUpdate should only be called once when summary is ready
+      expect(updates.length).toBe(1);
+      expect(updates[0].summaryLoading).toBe(false);
+      expect(updates[0].summary).toBe('🔒 New AI summary');
+    });
+
+    it('should preserve existing summary when new generation fails', async () => {
+      const existingSummary = '🔧 Existing AI summary that should persist';
+      const worktrees: Worktree[] = [
+        {
+          id: '/path/to/feature',
+          path: '/path/to/feature',
+          name: 'feature',
+          branch: 'feature/auth',
+          isCurrent: true,
+          summary: existingSummary
+        }
+      ];
+
+      mockGit.status.mockResolvedValue({
+        modified: ['file.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("change")');
+
+      // AI call fails
+      mockCreate.mockRejectedValue(new Error('API error'));
+
+      const updateCallback = vi.fn();
+
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
+
+      // Summary should be preserved or have a fallback, but not be undefined
+      expect(worktrees[0].summary).toBeDefined();
+      expect(worktrees[0].summary).not.toBe('');
+      expect(worktrees[0].summaryLoading).toBe(false);
+    });
+
+    it('should not overwrite existing summary with undefined during refresh', async () => {
+      const existingSummary = '🎨 Building beautiful UI components';
+      const worktrees: Worktree[] = [
+        {
+          id: '/path/to/ui',
+          path: '/path/to/ui',
+          name: 'ui-feature',
+          branch: 'feature/ui',
+          isCurrent: true,
+          summary: existingSummary,
+          summaryLoading: false
+        }
+      ];
+
+      mockGit.status.mockResolvedValue({
+        modified: ['src/components/Button.tsx'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+export const Button = () => <button>Click</button>');
+
+      mockCreate.mockResolvedValue({
+        output_text: JSON.stringify({ summary: '🔘 Adding new button component' })
+      });
+
+      // Track all state transitions
+      const stateHistory: { summary: string | undefined; loading: boolean }[] = [];
+      const updateCallback = vi.fn((wt: Worktree) => {
+        stateHistory.push({
+          summary: wt.summary,
+          loading: wt.summaryLoading ?? false
+        });
+      });
+
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
+
+      // Verify no state where summary is undefined/cleared while loading
+      const badState = stateHistory.find(s => s.loading && !s.summary);
+      expect(badState).toBeUndefined();
+
+      // Final state should have the new summary
+      expect(worktrees[0].summary).toBe('🔘 Adding new button component');
+      expect(worktrees[0].summaryLoading).toBe(false);
+    });
+
+    it('should handle initial load (no prior summary) correctly', async () => {
+      // Worktree with no existing summary - simulates first load
+      const worktrees: Worktree[] = [
+        {
+          id: '/path/to/new',
+          path: '/path/to/new',
+          name: 'new-feature',
+          branch: 'feature/new',
+          isCurrent: true
+          // No summary property - initial state
+        }
+      ];
+
+      mockGit.status.mockResolvedValue({
+        modified: ['src/index.ts'],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.diff.mockResolvedValue('@@ -1 +1 @@\n+console.log("initial")');
+
+      mockCreate.mockResolvedValue({
+        output_text: JSON.stringify({ summary: '🚀 Starting new feature' })
+      });
+
+      const updateCallback = vi.fn();
+
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
+
+      // Should receive the AI-generated summary
+      expect(worktrees[0].summary).toBe('🚀 Starting new feature');
+      expect(worktrees[0].summaryLoading).toBe(false);
+      // Callback should be called once when summary is ready
+      expect(updateCallback).toHaveBeenCalledTimes(1);
+    });
+
+    it('should handle clean worktree transition (dirty->clean)', async () => {
+      // Worktree that was dirty but is now clean (user committed changes)
+      const worktrees: Worktree[] = [
+        {
+          id: '/path/to/committed',
+          path: '/path/to/committed',
+          name: 'committed',
+          branch: 'feature/done',
+          isCurrent: true,
+          summary: '🔧 Previous AI summary from dirty state'
+        }
+      ];
+
+      // Now the worktree is clean
+      mockGit.status.mockResolvedValue({
+        modified: [],
+        created: [],
+        deleted: [],
+        renamed: [],
+        not_added: []
+      });
+
+      mockGit.log.mockResolvedValue({
+        latest: { message: 'feat: completed the feature\n\nDetails here' }
+      });
+
+      const updateCallback = vi.fn();
+
+      await enrichWorktreesWithSummaries(worktrees, 'main', undefined, updateCallback);
+
+      // Should transition to showing the commit message
+      expect(worktrees[0].summary).toBe('✅ feat: completed the feature');
+      expect(worktrees[0].modifiedCount).toBe(0);
+      expect(worktrees[0].summaryLoading).toBe(false);
+    });
   });
 });
