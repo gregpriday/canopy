@@ -5,7 +5,6 @@ import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.j
 import { getExplorerLabel } from './components/WorktreeCard.js';
 import { TreeView } from './components/TreeView.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
-import { ProfileSelector } from './components/ProfileSelector.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';

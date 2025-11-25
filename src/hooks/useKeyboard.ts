@@ -20,7 +20,6 @@ export interface KeyboardHandlers {
   // Worktree Actions
   onNextWorktree?: () => void;      // w key
   onOpenWorktreePanel?: () => void; // Shift+W key
-  onOpenProfileSelector?: () => void; // p key
 
   // Command/Filter Actions
   onClearFilter?: () => void;     // Escape when filter active
@@ -176,15 +175,6 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
 
     if (isAction(input, key, 'worktree.panel', keyMap)) {
       events.emit('ui:modal:open', { id: 'worktree' });
-      return;
-    }
-
-    if (input === 'p') {
-      if (handlers.onOpenProfileSelector) {
-        handlers.onOpenProfileSelector();
-      } else {
-        events.emit('ui:modal:open', { id: 'profile-selector' });
-      }
       return;
     }
 

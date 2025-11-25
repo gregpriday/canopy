@@ -13,7 +13,6 @@ export interface DashboardNavProps {
   onToggleExpand: (worktreeId: string) => void;
   onCopyTree: (worktreeId: string) => void;
   onOpenEditor: (worktreeId: string) => void;
-  onOpenProfileSelector: (worktreeId: string) => void;
 }
 
 export interface DashboardNavResult {
@@ -31,7 +30,6 @@ export function useDashboardNav({
   onToggleExpand,
   onCopyTree,
   onOpenEditor,
-  onOpenProfileSelector,
 }: DashboardNavProps): DashboardNavResult {
   const [visibleStart, setVisibleStart] = useState(0);
 
@@ -133,11 +131,6 @@ export function useDashboardNav({
         return;
       }
 
-      if (input === 'p') {
-        onOpenProfileSelector(id);
-        return;
-      }
-
       if (input === ' ') {
         toggleExpansion(id, 'toggle');
         return;
@@ -152,7 +145,7 @@ export function useDashboardNav({
         toggleExpansion(id, 'collapse');
       }
     },
-    [onCopyTree, onOpenEditor, onOpenProfileSelector, resolveFocused, toggleExpansion]
+    [onCopyTree, onOpenEditor, resolveFocused, toggleExpansion]
   );
 
   useInput(
