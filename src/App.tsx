@@ -3,20 +3,16 @@ import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { getExplorerLabel } from './components/WorktreeCard.js';
-import { TreeView } from './components/TreeView.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, TreeNode, GitStatus, WorktreeChanges } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, GitStatus, WorktreeChanges } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
-import { useFileTree } from './hooks/useFileTree.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
 import { useQuickLinks } from './hooks/useQuickLinks.js';
 import { useAppLifecycle } from './hooks/useAppLifecycle.js';
-import { useViewportHeight } from './hooks/useViewportHeight.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
-import { countTotalFiles } from './utils/fileTree.js';
 import { copyFilePath } from './utils/clipboard.js';
 import { execa } from 'execa';
 import { openGitHubRepo } from './utils/github.js';
@@ -25,7 +21,6 @@ import path from 'path';
 // PERF: Removed useGitStatus - WorktreeMonitor provides git status for all worktrees
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
-import { useActivity } from './hooks/useActivity.js';
 import { worktreeService } from './services/monitor/index.js';
 import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
@@ -113,12 +108,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, [createNotification]);
 
-  // Listen for view mode changes
-  useEffect(() => {
-    return events.on('ui:view:mode', ({ mode }) => {
-      setViewMode(mode);
-    });
-  }, []);
 
   // Listen for file:open events
   useEffect(() => {
@@ -146,7 +135,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const [focusedWorktreeId, setFocusedWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [expandedWorktreeIds, setExpandedWorktreeIds] = useState<Set<string>>(new Set());
-  const selectedPathRef = useRef<string | null>(null);
   const [lastCopyProfile, setLastCopyProfile] = useState<string>(initialCopyProfile || 'default');
 
   useEffect(() => {
@@ -168,22 +156,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     return map;
   }, [worktreeStates]);
 
-  // Mutable initial selection state for session restoration during worktree switches
-  const [initialSelection, setInitialSelection] = useState<{
-    selectedPath: string | null;
-    expandedFolders: Set<string>;
-  }>({
-    selectedPath: initialSelectedPath,
-    expandedFolders: initialExpandedFolders,
-  });
-
-  // View mode state - dashboard is default
-  const [viewMode, setViewMode] = useState<'dashboard' | 'tree'>('dashboard');
-
-  // Git-only view mode state
-  const [gitOnlyMode, setGitOnlyMode] = useState<boolean>(initialGitOnlyMode);
-  // Cache the expansion state before entering git-only mode for restoration on exit
-  const previousExpandedFoldersRef = useRef<Set<string> | null>(null);
 
   // Track latest requested worktree to prevent race conditions during rapid switches
   const latestWorktreeSwitchRef = useRef<string | null>(null);
@@ -197,8 +169,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Listen for file:copy-path events
   useEffect(() => {
     return events.on('file:copy-path', async (payload) => {
-      const pathToCopy = payload.path || selectedPathRef.current;
-      if (!pathToCopy) return;
+      if (!payload.path) return;
+      const pathToCopy = payload.path;
 
       try {
         // Normalize paths to absolute (copyFilePath requires absolute paths)
@@ -278,7 +250,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const overlayRows = (notifications.length > 0 ? notifications.length * 2 : 0);
   // Reserve header + overlays + 1 extra row for the safety margin
   const reservedRows = headerRows + overlayRows + 1;
-  const viewportHeight = useViewportHeight(reservedRows);
   const dashboardViewportSize = useMemo(() => {
     const available = Math.max(1, height - reservedRows);
     return Math.max(3, Math.floor(available / 5));
@@ -341,13 +312,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     };
   }, []);
 
-  // UseViewportHeight must be declared before useFileTree
-  // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
-  // Note: sys:refresh is handled by WorktreeMonitor and useFileTree internally.
+  // Note: sys:refresh is handled by WorktreeMonitor internally.
   // PERF: Removed useGitStatus refresh call - WorktreeMonitor handles git status updates.
-
-  // Initialize Activity Hook for temporal styling
-  const { activeFiles } = useActivity();
 
   const projectIdentity = useProjectIdentity(activeRootPath);
 
@@ -368,54 +334,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     return undefined;
   }, [projectIdentity]);
 
-  // Derive tree root path based on view mode
-  // In tree mode, use focused worktree path; in dashboard mode, use active worktree path
-  const treeRootPath = useMemo(() => {
-    if (viewMode === 'tree' && focusedWorktreeId) {
-      const focusedWorktree = worktreesWithStatus.find(wt => wt.id === focusedWorktreeId);
-      return focusedWorktree?.path || activeRootPath;
-    }
-    return activeRootPath;
-  }, [viewMode, focusedWorktreeId, worktreesWithStatus, activeRootPath]);
-
-  // Update active worktree when tree mode switches to a different focused worktree
-  useEffect(() => {
-    if (viewMode === 'tree' && focusedWorktreeId && focusedWorktreeId !== activeWorktreeId) {
-      const focusedWorktree = worktreesWithStatus.find(wt => wt.id === focusedWorktreeId);
-      if (focusedWorktree) {
-        setActiveWorktreeId(focusedWorktree.id);
-        setActiveRootPath(focusedWorktree.path);
-      }
-    }
-  }, [viewMode, focusedWorktreeId, activeWorktreeId, worktreesWithStatus]);
-
   // Centralized CopyTree listener
   useCopyTree(activeRootPath, effectiveConfig);
-
-  // PERF: Removed useWatcher call - WorktreeMonitor already watches all worktrees.
-  // This eliminates the "double watch" issue where both useWatcher and WorktreeMonitor
-  // were watching the active worktree simultaneously, doubling CPU usage.
-
-  // Calculate git status filter based on git-only mode
-  const gitStatusFilter = gitOnlyMode
-    ? (['modified', 'added', 'deleted', 'untracked'] as GitStatus[])
-    : null;
-
-  const { tree: fileTree, rawTree, expandedFolders, selectedPath } = useFileTree({
-    rootPath: treeRootPath,
-    config: effectiveConfig,
-    filterQuery: filterActive ? filterQuery : null,
-    gitStatusMap: effectiveGitStatus,
-    gitStatusFilter,
-    initialSelectedPath: initialSelection.selectedPath,
-    initialExpandedFolders: initialSelection.expandedFolders,
-    viewportHeight,
-    navigationEnabled: viewMode === 'tree',
-  });
-
-  useEffect(() => {
-    selectedPathRef.current = selectedPath;
-  }, [selectedPath]);
 
   const handleDismissNotification = useCallback((id: string) => {
     setNotifications(prev => prev.filter(notification => notification.id !== id));
@@ -567,11 +487,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   useEffect(() => {
     return () => {
       if (activeWorktreeId) {
-        const expandedSnapshot = expandedFolders ? Array.from(expandedFolders) : [];
         void saveSessionState(activeWorktreeId, {
-          selectedPath,
-          expandedFolders: expandedSnapshot,
-          gitOnlyMode,
           lastCopyProfile,
           timestamp: Date.now(),
         }).catch((err) => {
@@ -579,7 +495,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         });
       }
     };
-  }, [activeWorktreeId, expandedFolders, gitOnlyMode, lastCopyProfile, selectedPath]);
+  }, [activeWorktreeId, lastCopyProfile]);
 
   useEffect(() => {
     const unsubscribeFilterSet = events.on('ui:filter:set', ({ query }) => {
@@ -598,79 +514,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     };
   }, []);
 
-  // Helper function to collect all folder paths from a tree
-  const collectAllFolderPaths = useCallback((tree: TreeNode[]): string[] => {
-    const paths: string[] = [];
-    function traverse(nodes: TreeNode[]) {
-      for (const node of nodes) {
-        if (node.type === 'directory') {
-          paths.push(node.path);
-          if (node.children) {
-            traverse(node.children);
-          }
-        }
-      }
-    }
-    traverse(tree);
-    return paths;
-  }, []);
-
-  // Handle git-only mode toggle
-  const handleToggleGitOnlyMode = useCallback(() => {
-    if (!gitOnlyMode) {
-      // Entering git-only mode
-
-      // Safety check: if we have a large changeset (>100 files), don't auto-expand
-      const changedFilesCount = fileTree.length > 0 ? countTotalFiles(fileTree) : 0;
-
-      if (changedFilesCount > 100) {
-        // Large changeset - skip auto-expansion for performance
-        setGitOnlyMode(true);
-        events.emit('ui:notify', {
-          type: 'warning',
-          message: 'Large changeset detected. Folders collapsed for performance.',
-        });
-      } else {
-        // Cache current expansion state
-        previousExpandedFoldersRef.current = new Set(expandedFolders);
-
-        // Auto-expand all folders in the current tree
-        const allFolderPaths = collectAllFolderPaths(fileTree);
-
-        // Update expanded folders via event system
-        allFolderPaths.forEach(folderPath => {
-          events.emit('nav:expand', { path: folderPath });
-        });
-
-        setGitOnlyMode(true);
-        events.emit('ui:notify', {
-          type: 'info',
-          message: 'Git-only view enabled',
-        });
-      }
-    } else {
-      // Exiting git-only mode - restore previous expansion state
-      if (previousExpandedFoldersRef.current) {
-        // First collapse all folders
-        Array.from(expandedFolders ?? []).forEach(folderPath => {
-          events.emit('nav:collapse', { path: folderPath });
-        });
-
-        // Then restore the cached expansion state
-        Array.from(previousExpandedFoldersRef.current).forEach(folderPath => {
-          events.emit('nav:expand', { path: folderPath });
-        });
-
-        previousExpandedFoldersRef.current = null;
-      }
-
-      setGitOnlyMode(false);
-      events.emit('ui:notify', {
-        type: 'info',
-        message: 'All files view enabled',
-      });
-    }
-  }, [gitOnlyMode, fileTree, expandedFolders, collectAllFolderPaths]);
 
   const handleClearFilter = () => {
     const closeModalByPriority = () => {
@@ -694,9 +537,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         type: 'info',
         message: 'Filter cleared',
       });
-    } else {
-      // No modals open and no filter active - clear selection
-      events.emit('nav:clear-selection');
     }
   };
 
@@ -757,9 +597,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       if (activeWorktreeId) {
         try {
           await saveSessionState(activeWorktreeId, {
-            selectedPath,
-            expandedFolders: Array.from(expandedFolders ?? []),
-            gitOnlyMode,
             lastCopyProfile,
             timestamp: Date.now(),
           });
@@ -786,19 +623,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         return; // A newer switch is in progress, don't apply stale state
       }
 
-      const nextSelectedPath = session?.selectedPath ?? null;
-      const nextExpandedFolders = new Set(session?.expandedFolders ?? []);
-      const nextGitOnlyMode = session?.gitOnlyMode ?? false;
       const nextCopyProfile = session?.lastCopyProfile ?? 'default';
 
       // 4. Update all state atomically
       setActiveWorktreeId(targetWorktree.id);
       setActiveRootPath(targetWorktree.path);
-      setInitialSelection({
-        selectedPath: nextSelectedPath,
-        expandedFolders: nextExpandedFolders,
-      });
-      setGitOnlyMode(nextGitOnlyMode);
       setLastCopyProfile(nextCopyProfile);
 
       // 5. Reset transient UI state
@@ -827,7 +656,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
+  }, [activeWorktreeId, formatWorktreeSwitchMessage, lastCopyProfile]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
@@ -959,9 +788,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     // Save session state before exiting
     if (activeWorktreeId) {
       await saveSessionState(activeWorktreeId, {
-        selectedPath,
-        expandedFolders: Array.from(expandedFolders ?? []),
-        gitOnlyMode,
         lastCopyProfile,
         timestamp: Date.now(),
       }).catch((err) => {
@@ -987,7 +813,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     worktrees: sortedWorktrees,
     focusedWorktreeId,
     expandedWorktreeIds,
-    isModalOpen: anyModalOpen || viewMode !== 'dashboard', // Disable dashboard nav when not in dashboard mode
+    isModalOpen: anyModalOpen,
     viewportSize: dashboardViewportSize,
     onFocusChange: setFocusedWorktreeId,
     onToggleExpand: handleToggleExpandWorktree,
@@ -1017,9 +843,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         }
       }
 
-      if (viewMode !== 'dashboard') {
-        return;
-      }
       if (input === 'f') {
         handleOpenGitFox();
       }
@@ -1028,15 +851,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   );
 
   useKeyboard({
-    navigationEnabled: viewMode === 'tree',
-
     onClearFilter: handleClearFilter,
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
 
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
-    onToggleGitOnlyMode: anyModalOpen ? undefined : handleToggleGitOnlyMode,
 
     onOpenCopyTreeBuilder: anyModalOpen ? undefined : handleOpenCopyTreeBuilder,
 
@@ -1083,19 +903,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           cwd={cwd}
           filterActive={filterActive}
           filterQuery={filterQuery}
-          currentWorktree={currentWorktree}
-          worktreeCount={worktreesWithStatus.length}
-          activeWorktreeCount={activeWorktreeCount}
-          onWorktreeClick={() => events.emit('ui:modal:open', { id: 'worktree' })}
           identity={projectIdentity}
-          config={effectiveConfig}
-          isSwitching={isSwitchingWorktree}
-          gitOnlyMode={gitOnlyMode}
-          onToggleGitOnlyMode={handleToggleGitOnlyMode}
-          gitEnabled={gitEnabled}
-          gitStatus={effectiveGitStatus}
           onOpenGitFox={handleOpenGitFox}
-          onOpenGitHub={handleOpenGitHub}
           commandPaletteOpen={isCommandPaletteOpen}
         />
         {/* Command palette renders as full-width overlay under header */}
@@ -1106,31 +915,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
         />
         <Box flexGrow={1} marginTop={isCommandPaletteOpen ? 0 : 1}>
-          {viewMode === 'dashboard' ? (
-            <WorktreeOverview
-              worktrees={sortedWorktrees}
-              worktreeChanges={worktreeChanges}
-              activeWorktreeId={activeWorktreeId}
-              activeRootPath={activeRootPath}
-              focusedWorktreeId={focusedWorktreeId}
-              expandedWorktreeIds={expandedWorktreeIds}
-              visibleStart={visibleStart}
-              visibleEnd={visibleEnd}
-              onToggleExpand={handleToggleExpandWorktree}
-              onCopyTree={handleCopyTreeForWorktree}
-              onOpenEditor={handleOpenWorktreeEditor}
-              onOpenExplorer={handleOpenWorktreeExplorer}
-            />
-          ) : (
-            <TreeView
-              fileTree={fileTree}
-              selectedPath={selectedPath}
-              config={effectiveConfig}
-              expandedPaths={expandedFolders}
-              viewportHeight={viewportHeight}
-              activeFiles={activeFiles}
-            />
-          )}
+          <WorktreeOverview
+            worktrees={sortedWorktrees}
+            worktreeChanges={worktreeChanges}
+            activeWorktreeId={activeWorktreeId}
+            activeRootPath={activeRootPath}
+            focusedWorktreeId={focusedWorktreeId}
+            expandedWorktreeIds={expandedWorktreeIds}
+            visibleStart={visibleStart}
+            visibleEnd={visibleEnd}
+            onToggleExpand={handleToggleExpandWorktree}
+            onCopyTree={handleCopyTreeForWorktree}
+            onOpenEditor={handleOpenWorktreeEditor}
+            onOpenExplorer={handleOpenWorktreeExplorer}
+          />
         </Box>
         {isWorktreePanelOpen && (
           <WorktreePanel

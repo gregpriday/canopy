@@ -1,7 +1,5 @@
 export type GitStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'ignored' | 'renamed';
 
-export type FileType = 'file' | 'directory';
-
 export type NotificationType = 'info' | 'success' | 'error' | 'warning';
 
 export interface FileChangeDetail {
@@ -26,19 +24,6 @@ export interface WorktreeChanges {
 }
 
 export type WorktreeMood = 'stable' | 'active' | 'stale' | 'error';
-
-export interface TreeNode {
-  name: string;
-  path: string;
-  type: FileType;
-  size?: number;
-  modified?: Date;
-  gitStatus?: GitStatus;
-  children?: TreeNode[];
-  expanded?: boolean;
-  depth: number;
-  recursiveGitCount?: number; // Added: Tracks total changes in subtree
-}
 
 export interface Notification {
   id: string;
@@ -182,15 +167,8 @@ export interface CanopyConfig {
 }
 
 export interface CanopyState {
-  fileTree: TreeNode[];
-  expandedFolders: Set<string>;
-  selectedPath: string | null;
-  cursorPosition: number;
-  showPreview: boolean;
-  showHelp: boolean;
   filterActive: boolean;
   filterQuery: string;
-  filteredPaths: string[];
   gitStatus: Map<string, GitStatus>;
   gitEnabled: boolean;
   notification: Notification | null;

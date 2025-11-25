@@ -20,9 +20,9 @@ export interface InitialState {
  * Per-worktree session state persisted between runs
  */
 export interface SessionState {
-  selectedPath: string | null;
-  expandedFolders: string[];  // Array for JSON serialization
-  gitOnlyMode?: boolean;      // Git-only view mode preference
+  selectedPath?: string | null;   // Legacy field, no longer used
+  expandedFolders?: string[];     // Legacy field, no longer used
+  gitOnlyMode?: boolean;          // Legacy field, no longer used
   timestamp: number;
   lastCopyProfile?: string;
 }
@@ -129,26 +129,29 @@ export async function loadSessionState(
       return null;
     }
 
-    const hasValidSelectedPath =
-      Object.prototype.hasOwnProperty.call(raw, 'selectedPath') &&
-      (raw.selectedPath === null || typeof raw.selectedPath === 'string');
-
-    const expandedFoldersValid =
-      Array.isArray(raw.expandedFolders) &&
-      raw.expandedFolders.every((folder: unknown) => typeof folder === 'string');
-
     const timestampValid =
       typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp);
 
-    // Optional gitOnlyMode field - only validate if present
+    // All legacy tree-related fields are now optional (selectedPath, expandedFolders, gitOnlyMode)
+    const selectedPathValid =
+      !Object.prototype.hasOwnProperty.call(raw, 'selectedPath') ||
+      raw.selectedPath === null ||
+      typeof raw.selectedPath === 'string';
+
+    const expandedFoldersValid =
+      !Object.prototype.hasOwnProperty.call(raw, 'expandedFolders') ||
+      (Array.isArray(raw.expandedFolders) &&
+        raw.expandedFolders.every((folder: unknown) => typeof folder === 'string'));
+
     const gitOnlyModeValid =
       !Object.prototype.hasOwnProperty.call(raw, 'gitOnlyMode') ||
       typeof raw.gitOnlyMode === 'boolean';
+
     const lastCopyProfileValid =
       !Object.prototype.hasOwnProperty.call(raw, 'lastCopyProfile') ||
       typeof raw.lastCopyProfile === 'string';
 
-    if (!hasValidSelectedPath || !expandedFoldersValid || !timestampValid || !gitOnlyModeValid || !lastCopyProfileValid) {
+    if (!timestampValid || !selectedPathValid || !expandedFoldersValid || !gitOnlyModeValid || !lastCopyProfileValid) {
       console.warn('Invalid session state format, ignoring');
       return null;
     }
