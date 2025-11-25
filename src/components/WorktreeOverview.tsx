@@ -6,6 +6,13 @@ import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 import { devServerManager } from '../services/server/index.js';
 import { events } from '../services/events.js';
 
+export interface DevServerConfig {
+  /** Enable/disable dev server feature entirely */
+  enabled: boolean;
+  /** Custom command override (applies to all worktrees) */
+  command?: string;
+}
+
 export interface WorktreeOverviewProps {
   worktrees: Worktree[];
   worktreeChanges: Map<string, WorktreeChanges>;
@@ -19,6 +26,8 @@ export interface WorktreeOverviewProps {
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
   onOpenExplorer: (id: string) => void;
+  /** Dev server configuration */
+  devServerConfig?: DevServerConfig;
 }
 
 const MOOD_PRIORITY: Record<WorktreeMood, number> = {
@@ -81,7 +90,10 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onCopyTree,
   onOpenEditor,
   onOpenExplorer,
+  devServerConfig,
 }) => {
+  // Check if dev server feature is enabled (default: true)
+  const devServerEnabled = devServerConfig?.enabled ?? true;
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
   const start = Math.max(0, visibleStart ?? 0);
   const end = visibleEnd ?? sorted.length;
@@ -91,14 +103,38 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   const [serverStates, setServerStates] = useState<Map<string, DevServerState>>(new Map());
   const [devScriptCache, setDevScriptCache] = useState<Map<string, boolean>>(new Map());
 
-  // Check for dev scripts on mount and when worktrees change
+  // Check for dev scripts asynchronously to avoid blocking UI
   useEffect(() => {
-    const cache = new Map<string, boolean>();
-    for (const wt of worktrees) {
-      cache.set(wt.id, devServerManager.hasDevScript(wt.path));
+    // Skip if dev server feature is disabled
+    if (!devServerEnabled) {
+      setDevScriptCache(new Map());
+      return;
     }
-    setDevScriptCache(cache);
-  }, [worktrees]);
+
+    let cancelled = false;
+
+    const checkDevScripts = async () => {
+      // Pre-warm the cache for all worktrees in parallel
+      const paths = worktrees.map(wt => wt.path);
+      await devServerManager.warmCache(paths);
+
+      if (cancelled) return;
+
+      // Now build the cache map from the warmed cache
+      const cache = new Map<string, boolean>();
+      for (const wt of worktrees) {
+        // This will now be a cache hit (synchronous)
+        cache.set(wt.id, devServerManager.hasDevScript(wt.path));
+      }
+      setDevScriptCache(cache);
+    };
+
+    void checkDevScripts();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [worktrees, devServerEnabled]);
 
   // Subscribe to server state updates
   useEffect(() => {
@@ -118,8 +154,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
 
   // Handler for toggling server state
   const handleToggleServer = useCallback((worktreeId: string, worktreePath: string) => {
-    void devServerManager.toggle(worktreeId, worktreePath);
-  }, []);
+    // Pass custom command from config if provided
+    void devServerManager.toggle(worktreeId, worktreePath, devServerConfig?.command);
+  }, [devServerConfig?.command]);
 
   const clickRegionsRef = React.useRef(
     new Map<
@@ -167,7 +204,8 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
           rootPath: worktree.path,
         };
 
-        const hasDevScript = devScriptCache.get(worktree.id) ?? false;
+        // Only show dev script indicator if feature is enabled
+        const hasDevScript = devServerEnabled && (devScriptCache.get(worktree.id) ?? false);
         const serverState = serverStates.get(worktree.id) ?? {
           worktreeId: worktree.id,
           status: 'stopped' as const,
