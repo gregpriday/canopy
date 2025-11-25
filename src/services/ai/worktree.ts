@@ -519,10 +519,13 @@ export async function enrichWorktreesWithSummaries(
   worktreeChangesMap?: Map<string, import('../../types/index.js').WorktreeChanges>,
   onUpdate?: (worktree: Worktree) => void
 ): Promise<void> {
-  // Mark all as loading
+  // Mark all as loading while preserving existing summaries
+  // This prevents the "flash" where summary disappears during refresh
   for (const wt of worktrees) {
     wt.summaryLoading = true;
-    if (onUpdate) onUpdate(wt);
+    // Don't call onUpdate here - we want to preserve the existing summary
+    // in the UI until the new one is ready. The summary field is preserved
+    // because we only set summaryLoading, not summary itself.
   }
 
   // Generate summaries in parallel (but don't await - let them complete in background)

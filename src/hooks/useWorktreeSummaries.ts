@@ -68,7 +68,16 @@ export function useWorktreeSummaries(
     isEnrichingRef.current = true;
     try {
       const handleUpdate = (updated: Worktree) => {
-        setEnrichedWorktrees(prev => prev.map(p => (p.id === updated.id ? { ...p, ...updated } : p)));
+        setEnrichedWorktrees(prev => prev.map(p => {
+          if (p.id !== updated.id) return p;
+          // Preserve existing summary if updated doesn't have one
+          // This prevents the "flash" where summary disappears during refresh
+          return {
+            ...p,
+            ...updated,
+            summary: updated.summary ?? p.summary,
+          };
+        }));
 
         const changes = currentChanges?.get(updated.id);
         const newMtime =
