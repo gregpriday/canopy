@@ -360,6 +360,7 @@ export function buildIgnorePatterns(customIgnores: string[] = []): string[] {
 	// so even if patterns leak, traffic lights won't activate for ignored files.
 	const standardIgnores = [
 		'**/node_modules/**',
+		'**/.git/**',
 		'**/.DS_Store',
 		'**/dist/**',
 		'**/build/**',

@@ -114,7 +114,7 @@ class TypedEventBus {
   private debugEnabled = process.env.CANOPY_DEBUG_EVENTS === '1';
 
   constructor() {
-    this.bus.setMaxListeners(50);
+    this.bus.setMaxListeners(100);
   }
 
   // Subscribe
@@ -150,6 +150,10 @@ class TypedEventBus {
       console.log('[events]', event, args[0]);
     }
     this.bus.emit(event, ...(args as any[]));
+  }
+
+  removeAllListeners() {
+    this.bus.removeAllListeners();
   }
 }
 

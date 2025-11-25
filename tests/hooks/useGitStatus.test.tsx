@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
 import { useGitStatus } from '../../src/hooks/useGitStatus.js';
 import * as gitUtils from '../../src/utils/git.js';
 import fs from 'fs-extra';
@@ -28,14 +28,22 @@ describe('useGitStatus', () => {
 	});
 
 	afterEach(async () => {
+		cleanup();
 		vi.restoreAllMocks();
 		vi.useRealTimers(); // Ensure we're back to real timers after each test
 		await fs.remove(testRepoPath);
 		await fs.remove(nonRepoPath);
 	});
 
-	it('initializes with empty git status', () => {
+	it('initializes with empty git status', async () => {
+		vi.mocked(gitUtils.isGitRepository).mockResolvedValue(false);
+		vi.mocked(gitUtils.getGitStatusCached).mockResolvedValue(new Map());
+
 		const { result } = renderHook(() => useGitStatus(testRepoPath, true));
+
+		await waitFor(() => {
+			expect(result.current.isLoading).toBe(false);
+		});
 
 		expect(result.current.gitStatus).toBeInstanceOf(Map);
 		expect(result.current.gitStatus.size).toBe(0);
@@ -109,7 +117,9 @@ describe('useGitStatus', () => {
 		);
 
 		// Call refresh - it will debounce for 100ms with real timers
-		result.current.refresh();
+		act(() => {
+			result.current.refresh();
+		});
 
 		// Wait for debounce + fetch to complete
 		await waitFor(() => {
@@ -133,11 +143,13 @@ describe('useGitStatus', () => {
 		vi.clearAllMocks();
 
 		// Call refresh 5 times rapidly
-		result.current.refresh();
-		result.current.refresh();
-		result.current.refresh();
-		result.current.refresh();
-		result.current.refresh();
+		act(() => {
+			result.current.refresh();
+			result.current.refresh();
+			result.current.refresh();
+			result.current.refresh();
+			result.current.refresh();
+		});
 
 		// Wait for debounce to complete
 		await waitFor(() => {
@@ -165,7 +177,9 @@ describe('useGitStatus', () => {
 
 		vi.clearAllMocks();
 
-		result.current.refresh();
+		act(() => {
+			result.current.refresh();
+		});
 
 		// Wait 250ms - should NOT have called yet (debounce is 500ms)
 		await new Promise(resolve => setTimeout(resolve, 250));

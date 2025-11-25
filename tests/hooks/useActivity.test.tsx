@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor, cleanup } from '@testing-library/react';
+import { renderHook, waitFor, cleanup, act } from '@testing-library/react';
 import { useActivity, getTemporalState } from '../../src/hooks/useActivity.ts';
 import { events } from '../../src/services/events.ts';
+
+const emitChange = (file: string) => act(() => events.emit('watcher:change', { path: file }));
+const advance = (ms: number) => act(() => { vi.advanceTimersByTime(ms); });
 
 describe('useActivity', () => {
 	beforeEach(() => {
@@ -23,7 +26,7 @@ describe('useActivity', () => {
 		expect(result.current.isIdle).toBe(true);
 
 		// Emit a file change event
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		// Wait for throttled update
 		await waitFor(() => {
@@ -38,8 +41,8 @@ describe('useActivity', () => {
 		// Simulate npm install - 100 file changes in rapid succession
 		const start = Date.now();
 		for (let i = 0; i < 100; i++) {
-			events.emit('watcher:change', { path: `/repo/file${i}.ts` });
-			vi.advanceTimersByTime(5); // 5ms between events = 200 events/sec
+			emitChange(`/repo/file${i}.ts`);
+			advance(5); // 5ms between events = 200 events/sec
 		}
 
 		// Should have throttled to ~200ms intervals
@@ -48,7 +51,7 @@ describe('useActivity', () => {
 		});
 
 		// All events should eventually be processed (via pending buffer)
-		vi.advanceTimersByTime(1000);
+		advance(1000);
 		await waitFor(() => {
 			expect(result.current.activeFiles.size).toBe(100);
 		});
@@ -58,12 +61,12 @@ describe('useActivity', () => {
 		const { result } = renderHook(() => useActivity());
 
 		// Emit multiple events within throttle window
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
-		events.emit('watcher:change', { path: '/repo/file2.ts' });
-		events.emit('watcher:change', { path: '/repo/file3.ts' });
+		emitChange('/repo/file1.ts');
+		emitChange('/repo/file2.ts');
+		emitChange('/repo/file3.ts');
 
 		// Advance past throttle window
-		vi.advanceTimersByTime(250);
+		advance(250);
 
 		await waitFor(() => {
 			expect(result.current.activeFiles.size).toBe(3);
@@ -78,8 +81,8 @@ describe('useActivity', () => {
 
 		// Emit events continuously every 100ms (faster than 200ms throttle)
 		for (let i = 0; i < 15; i++) {
-			events.emit('watcher:change', { path: `/repo/file${i}.ts` });
-			vi.advanceTimersByTime(100);
+			emitChange(`/repo/file${i}.ts`);
+			advance(100);
 		}
 
 		// Despite continuous events, maxWait should force an update at 1000ms
@@ -91,14 +94,14 @@ describe('useActivity', () => {
 	it('cleans up stale entries after 10 seconds (cooldown duration)', async () => {
 		const { result } = renderHook(() => useActivity());
 
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		await waitFor(() => {
 			expect(result.current.activeFiles.size).toBe(1);
 		});
 
 		// Advance past cooldown duration (10s)
-		vi.advanceTimersByTime(11000);
+		advance(11000);
 
 		// Cleanup timer runs every 2s, so advance another 2s
 		await waitFor(() => {
@@ -109,7 +112,7 @@ describe('useActivity', () => {
 	it('only creates new Map when pruning is needed (optimization)', async () => {
 		const { result } = renderHook(() => useActivity());
 
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		await waitFor(() => {
 			expect(result.current.activeFiles.size).toBe(1);
@@ -118,13 +121,13 @@ describe('useActivity', () => {
 		const mapBefore = result.current.activeFiles;
 
 		// Advance only 1 second (not enough to trigger pruning)
-		vi.advanceTimersByTime(3000);
+		advance(3000);
 
 		// Map should be the same reference (no new Map created)
 		expect(result.current.activeFiles).toBe(mapBefore);
 
 		// Now advance past cooldown
-		vi.advanceTimersByTime(8000);
+		advance(8000);
 
 		// Now a new Map should be created
 		await waitFor(() => {
@@ -136,14 +139,14 @@ describe('useActivity', () => {
 	it('detects idle state after 60 seconds of no activity', async () => {
 		const { result } = renderHook(() => useActivity());
 
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		await waitFor(() => {
 			expect(result.current.isIdle).toBe(false);
 		});
 
 		// Advance 61 seconds + cleanup interval (2s) to ensure timer fires
-		vi.advanceTimersByTime(63000);
+		advance(63000);
 
 		await waitFor(() => {
 			expect(result.current.isIdle).toBe(true);
@@ -154,14 +157,14 @@ describe('useActivity', () => {
 		const { result } = renderHook(() => useActivity());
 
 		// Go idle - advance past 60s threshold + cleanup interval
-		vi.advanceTimersByTime(63000);
+		advance(63000);
 
 		await waitFor(() => {
 			expect(result.current.isIdle).toBe(true);
 		});
 
 		// New activity
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		await waitFor(() => {
 			expect(result.current.isIdle).toBe(false);
@@ -171,19 +174,19 @@ describe('useActivity', () => {
 	it('cancels debounce on unmount to prevent memory leaks', async () => {
 		const { unmount } = renderHook(() => useActivity());
 
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		// Unmount before throttle completes
 		unmount();
 
 		// Should not throw or cause warnings
-		vi.advanceTimersByTime(1000);
+		advance(1000);
 	});
 
 	it('unsubscribes from events on unmount', async () => {
 		const { result, unmount } = renderHook(() => useActivity());
 
-		events.emit('watcher:change', { path: '/repo/file1.ts' });
+		emitChange('/repo/file1.ts');
 
 		await waitFor(() => {
 			expect(result.current.activeFiles.size).toBe(1);
@@ -192,9 +195,9 @@ describe('useActivity', () => {
 		unmount();
 
 		// Emit after unmount - should not update
-		events.emit('watcher:change', { path: '/repo/file2.ts' });
+		emitChange('/repo/file2.ts');
 
-		vi.advanceTimersByTime(1000);
+		advance(1000);
 
 		// Size should still be 1 (no new events processed)
 		expect(result.current.activeFiles.size).toBe(1);

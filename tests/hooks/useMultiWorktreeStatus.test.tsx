@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor, cleanup } from '@testing-library/react';
+import { renderHook, waitFor, cleanup, act } from '@testing-library/react';
 import { useMultiWorktreeStatus } from '../../src/hooks/useMultiWorktreeStatus.ts';
 import type { Worktree } from '../../src/types/index.js';
 import * as gitUtils from '../../src/utils/git.js';
@@ -71,14 +71,18 @@ describe('useMultiWorktreeStatus', () => {
 		});
 
 		// Active worktree polls at 5s, background at 60s
-		vi.advanceTimersByTime(6000);
+		act(() => {
+			vi.advanceTimersByTime(6000);
+		});
 
 		// Active worktree should refresh again (at 5s) before background interval (60s) elapses
 		await waitFor(() => {
 			expect(callCounts.active).toBeGreaterThan(callCounts.background);
 		});
 
-		vi.advanceTimersByTime(55000);
+		act(() => {
+			vi.advanceTimersByTime(55000);
+		});
 
 		// Background worktree should now refresh (at 60s total)
 		await waitFor(() => {

@@ -8,7 +8,7 @@ import { debounce } from '../utils/debounce.js';
 const ACTIVITY_DURATION = 2000;  // The Flash: 0-2s
 const COOLDOWN_DURATION = 10000; // The Cooldown: 2-10s
 const IDLE_THRESHOLD = 60000;    // The Idle State: >60s
-const UPDATE_THROTTLE_MS = 200;  // Limit visual updates to 5fps
+const UPDATE_THROTTLE_MS = 67;   // Limit visual updates to 15fps
 const CLEANUP_INTERVAL_MS = 2000; // Run cleanup every 2s (only when active)
 
 export interface ActivityState {
@@ -23,7 +23,7 @@ export interface ActivityState {
  * Automatically cleans up stale entries and detects idle state.
  *
  * Performance optimizations:
- * - Throttles UI updates to 5fps (200ms) to prevent excessive re-renders
+ * - Throttles UI updates to 15fps (67ms) to prevent excessive re-renders
  * - Cleanup interval only runs when there are active files to track
  * - Stops running entirely when idle (no CPU usage when inactive)
  *
@@ -59,7 +59,7 @@ export function useActivity(): ActivityState {
         // Optimization: Don't create new Map unless we actually delete something
         let needsPrune = false;
         for (const timestamp of prev.values()) {
-          if (now - timestamp > COOLDOWN_DURATION) {
+          if (now - timestamp >= COOLDOWN_DURATION) {
             needsPrune = true;
             break;
           }
@@ -70,7 +70,7 @@ export function useActivity(): ActivityState {
         // If we need to prune, create the new map now
         const next = new Map(prev);
         for (const [filePath, timestamp] of next.entries()) {
-          if (now - timestamp > COOLDOWN_DURATION) {
+          if (now - timestamp >= COOLDOWN_DURATION) {
             next.delete(filePath);
           }
         }
@@ -106,7 +106,7 @@ export function useActivity(): ActivityState {
   }, []);
 
   // Throttled flush function to update React state
-  // FIX: Use maxWait equal to UPDATE_THROTTLE_MS to ensure consistent 5fps updates
+  // FIX: Use maxWait equal to UPDATE_THROTTLE_MS to ensure consistent 15fps updates
   // even under sustained event traffic (e.g., npm install). Previously maxWait: 1000
   // caused updates to fire only once per second during continuous events.
   const flushUpdates = useCallback(

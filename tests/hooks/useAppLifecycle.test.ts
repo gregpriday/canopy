@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, waitFor, act } from '@testing-library/react';
+import { renderHook, waitFor, act, cleanup } from '@testing-library/react';
 import { useAppLifecycle } from '../../src/hooks/useAppLifecycle.js';
 import * as config from '../../src/utils/config.js';
 import * as worktree from '../../src/utils/worktree.js';
 import * as state from '../../src/utils/state.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
+import { events } from '../../src/services/events.js';
 
 // Mock modules
 vi.mock('../../src/utils/config.js');
@@ -25,9 +26,11 @@ describe('useAppLifecycle', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    cleanup();
+    events.removeAllListeners();
   });
 
-  it('starts in initializing status', () => {
+  it('starts in initializing status', async () => {
     vi.mocked(config.loadConfig).mockResolvedValue(DEFAULT_CONFIG);
     vi.mocked(worktree.getWorktrees).mockResolvedValue([]);
 
@@ -36,6 +39,9 @@ describe('useAppLifecycle', () => {
     );
 
     expect(result.current.status).toBe('initializing');
+    await waitFor(() => {
+      expect(result.current.status).toBe('ready');
+    });
   });
 
   it('transitions to ready status after successful initialization', async () => {
@@ -221,7 +227,9 @@ describe('useAppLifecycle', () => {
     );
 
     // Wait for initial ready (resolve first config load)
-    resolveConfig!(DEFAULT_CONFIG);
+    act(() => {
+      resolveConfig!(DEFAULT_CONFIG);
+    });
     await waitFor(() => {
       expect(result.current.status).toBe('ready');
     });
@@ -244,8 +252,12 @@ describe('useAppLifecycle', () => {
     });
 
     // Resolve the config to complete initialization
-    resolveConfig!(DEFAULT_CONFIG);
-    await reinitPromise;
+    act(() => {
+      resolveConfig!(DEFAULT_CONFIG);
+    });
+    await act(async () => {
+      await reinitPromise;
+    });
 
     // Should be back to ready
     await waitFor(() => {
@@ -275,9 +287,13 @@ describe('useAppLifecycle', () => {
     });
 
     // Resolve config
-    resolveConfig!();
+    act(() => {
+      resolveConfig!();
+    });
 
-    await Promise.all([firstInit, secondInit]);
+    await act(async () => {
+      await Promise.all([firstInit, secondInit]);
+    });
 
     // Config should only have been loaded once due to guard
     expect(config.loadConfig).toHaveBeenCalledTimes(1);

@@ -103,6 +103,7 @@ export async function generateWorktreeSummary(
   const git = simpleGit(worktreePath);
   let modifiedCount = 0;
   let promptContext = '';
+  const mechanicalNewFiles: string[] = [];
 
   try {
     const status = await git.status();
@@ -134,19 +135,14 @@ export async function generateWorktreeSummary(
           };
         }
       } catch (e) {
-        // Git log failed - return null to let WorktreeMonitor handle it
+        // Git log failed - fall through to fallback
       }
 
-      // No commits - return null, WorktreeMonitor will handle fallback
-      return null;
-    }
-
-    // --- AI GENERATION SECTION STARTS HERE ---
-    // Check for AI client before attempting generation
-    const client = getAIClient();
-    if (!client) {
-      // If we have changes but no AI, return null so UI shows "No summary available"
-      return null;
+      const branchLabel = branchName || 'worktree';
+      return {
+        summary: `Clean: ${branchLabel}`,
+        modifiedCount: 0
+      };
     }
 
     // Note: We used to skip "trivial" single-file changes, but users want AI summaries
@@ -247,6 +243,15 @@ export async function generateWorktreeSummary(
     // Sort by score descending
     scoredFiles.sort((a, b) => b.score - a.score);
 
+    // If all changes were ignored by scoring (e.g., binary assets), surface a mechanical summary
+    if (scoredFiles.length === 0 && createdFiles.length > 0) {
+      const target = path.basename(createdFiles[0]);
+      return {
+        summary: `📝 Created ${target}`,
+        modifiedCount
+      };
+    }
+
     // Tiered context: Tier 1 (top 3-5 files with rich diffs), Tier 2 (next 5-10 with light summaries)
     const TIER_1_COUNT = scoredFiles.length <= 3 ? scoredFiles.length : Math.min(5, scoredFiles.length);
     const TIER_2_COUNT = Math.min(10, scoredFiles.length - TIER_1_COUNT);
@@ -297,8 +302,22 @@ export async function generateWorktreeSummary(
         let diff = '';
 
         if (file.isNew) {
-          // Skeletonize new files
-          const content = await fs.readFile(file.path, 'utf8');
+          // Skeletonize new files and short-circuit to mechanical summaries for empty/binary additions
+          let content: string | null = null;
+          try {
+            content = await fs.readFile(file.path, 'utf8');
+          } catch {
+            content = null;
+          }
+
+          const isEmpty = content !== null && content.trim().length === 0;
+          const isLikelyBinary = /\.(png|jpe?g|gif|bmp|svg|ico|webp|heic|avif|bin)$/i.test(file.relPath);
+
+          if (isEmpty || isLikelyBinary || content === null) {
+            mechanicalNewFiles.push(file.relPath);
+            continue;
+          }
+
           const lines = content.split('\n');
 
           const skeleton = lines
@@ -308,6 +327,7 @@ export async function generateWorktreeSummary(
 
           // For empty files (no structural content), skip - don't add to prompt
           if (!skeleton) {
+            mechanicalNewFiles.push(file.relPath);
             continue;
           }
           diff = `NEW FILE STRUCTURE:\n${skeleton}`;
@@ -361,6 +381,23 @@ export async function generateWorktreeSummary(
       promptContext = fileList.slice(0, 5).join('\n');
 
       // If still no context (shouldn't happen), this will be handled by AI with just file names
+    }
+
+    const onlyMechanical = mechanicalNewFiles.length > 0 && mechanicalNewFiles.length === modifiedCount;
+    if (onlyMechanical) {
+      const target = path.basename(mechanicalNewFiles[0]);
+      return {
+        summary: `📝 Created ${target}`,
+        modifiedCount
+      };
+    }
+
+    // --- AI GENERATION SECTION STARTS HERE ---
+    // Check for AI client before attempting generation
+    const client = getAIClient();
+    if (!client) {
+      // If we have changes but no AI, return null so UI shows "No summary available"
+      return null;
     }
 
     const callModel = async (): Promise<WorktreeSummary> => {
@@ -447,8 +484,11 @@ Examples:
         type: 'error',
         message: `AI summary failed: ${getUserMessage(error)}`
       });
-      // Return null - WorktreeMonitor will show last commit as fallback
-      return null;
+      const branchLabel = branchName || 'worktree';
+      return {
+        summary: `${branchLabel} (analysis unavailable)`,
+        modifiedCount
+      };
     }
   } catch (error) {
     console.error('[canopy] generateWorktreeSummary failed', error);
@@ -456,8 +496,11 @@ Examples:
       type: 'error',
       message: `Worktree summary error: ${getUserMessage(error)}`
     });
-    // Return null - WorktreeMonitor will show last commit as fallback
-    return null;
+    const branchLabel = branchName || 'worktree';
+    return {
+      summary: `${branchLabel} (git unavailable)`,
+      modifiedCount: 0
+    };
   }
 }
 
