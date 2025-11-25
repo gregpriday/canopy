@@ -7,7 +7,6 @@ import { TreeView } from './components/TreeView.js';
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { ProfileSelector } from './components/ProfileSelector.js';
 import { HelpModal } from './components/HelpModal.js';
-import { FuzzySearchModal } from './components/FuzzySearchModal.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
@@ -145,7 +144,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   // Filter state - initialize from CLI if provided
   const [filterActive, setFilterActive] = useState(!!initialFilter);
   const [filterQuery, setFilterQuery] = useState(initialFilter || '');
-  const [fuzzySearchQuery, setFuzzySearchQuery] = useState('');
 
   // Active worktree state (can change via user actions)
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
@@ -274,7 +272,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const isWorktreePanelOpen = activeModals.has('worktree');
   const showHelpModal = activeModals.has('help');
   const isProfileSelectorOpen = activeModals.has('profile-selector');
-  const isFuzzySearchOpen = activeModals.has('fuzzy-search');
   const isCommandPaletteOpen = activeModals.has('command-palette');
 
   // Quick links hook for slash commands and keyboard shortcuts
@@ -289,13 +286,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     const available = Math.max(1, height - reservedRows);
     return Math.max(3, Math.floor(available / 5));
   }, [height, reservedRows]);
-
-  // Reset fuzzy search query when modal closes
-  useEffect(() => {
-    if (!isFuzzySearchOpen) {
-      setFuzzySearchQuery('');
-    }
-  }, [isFuzzySearchOpen]);
 
   const worktreesRef = useRef<Worktree[]>([]);
   worktreesRef.current = worktreesWithStatus;
@@ -995,55 +985,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
   }, [handleSwitchWorktree, worktreesWithStatus]);
 
-  // Handle fuzzy search result selection
-  const handleFuzzySearchResult = useCallback(async (relativePath: string, action: 'copy' | 'open') => {
-    // Close the modal
-    events.emit('ui:modal:close', { id: 'fuzzy-search' });
-
-    // Convert relative path to absolute based on the focused or active worktree
-    const targetWorktree = focusedWorktreeId
-      ? worktreesWithStatus.find(wt => wt.id === focusedWorktreeId)
-      : currentWorktree;
-
-    if (!targetWorktree) {
-      events.emit('ui:notify', {
-        type: 'error',
-        message: 'No worktree selected'
-      });
-      return;
-    }
-
-    const absolutePath = path.join(targetWorktree.path, relativePath);
-
-    try {
-      if (action === 'copy') {
-        // Copy path to clipboard (copy as relative path)
-        await copyFilePath(absolutePath, targetWorktree.path, true);
-        events.emit('ui:notify', {
-          type: 'success',
-          message: `Copied: ${relativePath}`,
-        });
-      } else {
-        // Open file
-        await openFile(absolutePath, config);
-        events.emit('ui:notify', {
-          type: 'success',
-          message: `Opened: ${relativePath}`,
-        });
-      }
-    } catch (error) {
-      events.emit('ui:notify', {
-        type: 'error',
-        message: `Failed to ${action} file: ${(error as Error).message}`,
-      });
-    }
-  }, [activeRootPath, config, currentWorktree, focusedWorktreeId, worktreesWithStatus]);
-
-  // handleOpenSelectedFile removed
-
-  // handleCopySelectedPath removed
-
-
   const handleToggleGitStatus = () => {
     setShowGitMarkers(!showGitMarkers);
     events.emit('ui:notify', {
@@ -1078,10 +1019,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       type: 'info',
       message: 'CopyTree builder coming in Phase 2',
     });
-  };
-
-  const handleOpenFilter = () => {
-    events.emit('ui:modal:open', { id: 'fuzzy-search', context: { initialQuery: '' } });
   };
 
   const handleOpenProfileSelectorForFocused = useCallback(() => {
@@ -1148,9 +1085,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   useKeyboard({
     navigationEnabled: viewMode === 'tree',
 
-    onOpenFilter: anyModalOpen ? undefined : handleOpenFilter,
-    // Don't clear filter when fuzzy search is open (let it handle Escape itself)
-    onClearFilter: isFuzzySearchOpen ? undefined : handleClearFilter,
+    onClearFilter: handleClearFilter,
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
@@ -1273,16 +1208,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         <HelpModal
           visible={showHelpModal}
           onClose={() => events.emit('ui:modal:close', { id: 'help' })}
-        />
-        <FuzzySearchModal
-          visible={isFuzzySearchOpen}
-          searchQuery={fuzzySearchQuery}
-          worktrees={worktreesWithStatus}
-          focusedWorktreeId={focusedWorktreeId}
-          config={config}
-          onSelectResult={handleFuzzySearchResult}
-          onClose={() => events.emit('ui:modal:close', { id: 'fuzzy-search' })}
-          onQueryChange={setFuzzySearchQuery}
         />
         {notifications.length > 0 && (
           <Box flexDirection="column" width="100%">

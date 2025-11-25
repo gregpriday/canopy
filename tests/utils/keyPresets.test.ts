@@ -23,7 +23,6 @@ describe('STANDARD_PRESET', () => {
 			'file.copyTree',
 			'ui.refresh',
 			'ui.help',
-			'ui.filter',
 			'ui.escape',
 			'git.toggle',
 			'worktree.next',
@@ -47,7 +46,6 @@ describe('STANDARD_PRESET', () => {
 	});
 
 	it('includes standard keybindings', () => {
-		expect(STANDARD_PRESET['ui.filter']).toEqual(['ctrl+f']);
 		expect(STANDARD_PRESET['app.quit']).toEqual(['q']);
 		expect(STANDARD_PRESET['ui.help']).toEqual(['?']);
 	});
@@ -119,11 +117,11 @@ describe('getResolvedKeyMap', () => {
 		const keyMap = getResolvedKeyMap({
 			preset: 'vim',
 			overrides: {
-				'ui.filter': ['ctrl+s'],
+				'ui.help': ['ctrl+h'],
 			},
 		});
 
-		expect(keyMap['ui.filter']).toEqual(['ctrl+s']);
+		expect(keyMap['ui.help']).toEqual(['ctrl+h']);
 		// Vim keys should be preserved
 		expect(keyMap['nav.up']).toEqual(VIM_PRESET['nav.up']);
 	});
@@ -143,13 +141,13 @@ describe('getResolvedKeyMap', () => {
 		const keyMap = getResolvedKeyMap({
 			overrides: {
 				'app.quit': ['ctrl+q'],
-				'ui.filter': ['ctrl+s'],
+				'ui.help': ['ctrl+h'],
 				'nav.up': ['w'],
 			},
 		});
 
 		expect(keyMap['app.quit']).toEqual(['ctrl+q']);
-		expect(keyMap['ui.filter']).toEqual(['ctrl+s']);
+		expect(keyMap['ui.help']).toEqual(['ctrl+h']);
 		expect(keyMap['nav.up']).toEqual(['w']);
 	});
 

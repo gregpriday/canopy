@@ -23,7 +23,6 @@ export interface KeyboardHandlers {
   onOpenProfileSelector?: () => void; // p key
 
   // Command/Filter Actions
-  onOpenFilter?: () => void;      // Ctrl+F
   onClearFilter?: () => void;     // Escape when filter active
 
   // Git Actions
@@ -191,14 +190,6 @@ export function useKeyboard(handlers: KeyboardHandlers, config: CanopyConfig): v
     }
 
     // Filter Actions
-    if (isAction(input, key, 'ui.filter', keyMap)) {
-      if (handlers.onOpenFilter) {
-        handlers.onOpenFilter();
-        return;
-      }
-      return;
-    }
-
     if ((key.escape || isAction(input, key, 'ui.escape', keyMap)) && handlers.onClearFilter) {
       handlers.onClearFilter();
       return;

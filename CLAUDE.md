@@ -15,7 +15,7 @@ Canopy is a **Worktree Context Dashboard** built with Ink (React for CLIs). It's
 - Activity mood indicator (active/stable/stale/error)
 - One-keystroke actions: CopyTree, profile selector, editor launch
 
-**Traditional file browsing is available via fuzzy search** (press `Ctrl+F` to search for files across all worktrees).
+**Traditional file browsing is available via tree mode** (accessible via the `/tree` command).
 
 ## AI Model Conventions
 This project utilizes the **GPT-5** model family for AI-driven features. The following model identifiers are valid and actively used in this codebase:
@@ -185,7 +185,6 @@ Components in `src/components/` follow Ink's React-based model:
 - `TreeNode.tsx` / `FileNode.tsx` / `FolderNode.tsx` - Node rendering with git status icons
 
 **Interactive Elements**:
-- `FuzzySearchModal.tsx` - Fuzzy search across all worktrees (press `Ctrl+F`)
 - `ProfileSelector.tsx` - CopyTree profile picker (press `p` key)
 - `ContextMenu.tsx` - Right-click/keyboard-triggered context menu for file actions
 - `WorktreePanel.tsx` - Worktree switcher modal (press `W` key)
@@ -293,7 +292,6 @@ Located in `src/utils/`:
 **File Operations**:
 - `fileOpener.ts` - Open files in configured editor with extension-based overrides
 - `clipboard.ts` - Copy file paths (absolute/relative) to clipboard
-- `fileSearch.ts` - File search utilities for fuzzy search modal
 - `fileIcons.ts` - File type to icon mapping (visual file identification)
 
 **Worktree & Mood**:
@@ -327,7 +325,7 @@ Located in `src/utils/`:
 - `time.ts` - Time formatting utilities (relative times, durations)
 
 **Search & Matching**:
-- `fuzzyMatch.ts` - Fuzzy matching algorithm for file search
+- `fuzzyMatch.ts` - Fuzzy matching algorithm for command palette
   - Flexible substring matching with scoring
   - Case-insensitive with preference for case matches
 
@@ -485,9 +483,8 @@ npm run test:watch
 - `W` - Open worktree panel (full list)
 - `g` - Toggle git status visibility
 
-**Search & Help**:
-- `Ctrl+F` - Open fuzzy search (find files across all worktrees)
-- `Esc` - Close modals/search (priority: help → profile selector → fuzzy search → worktree panel)
+**Help & Navigation**:
+- `Esc` - Close modals (priority: help → command palette → worktree panel → profile selector)
 - `?` - Toggle help modal
 
 **Legacy Tree Mode**:
