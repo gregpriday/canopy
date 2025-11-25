@@ -243,6 +243,23 @@ function parseNumstat(diffOutput: string, gitRoot: string): Map<string, DiffStat
 }
 
 /**
+ * Get total commit count for the current branch.
+ * @param cwd - Working directory
+ * @returns Number of commits in the current branch history
+ */
+export async function getCommitCount(cwd: string): Promise<number> {
+  try {
+    const git = simpleGit(cwd);
+    // 'HEAD' counts all commits in history of current branch
+    const count = await git.raw(['rev-list', '--count', 'HEAD']);
+    return parseInt(count.trim(), 10);
+  } catch (error) {
+    logWarn('Failed to get commit count', { cwd, error: (error as Error).message });
+    return 0;
+  }
+}
+
+/**
  * Fetch worktree changes enriched with insertion/deletion counts.
  * Includes caching with the same TTL as basic status.
  */

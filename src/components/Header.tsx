@@ -6,6 +6,8 @@ import type { Worktree, CanopyConfig, GitStatus } from '../types/index.js';
 import type { ProjectIdentity } from '../services/ai/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
+import { useRepositoryStats } from '../hooks/useRepositoryStats.js';
+import { openGitHubUrl } from '../utils/github.js';
 
 interface HeaderProps {
   cwd: string;
@@ -29,23 +31,25 @@ interface HeaderProps {
 const HeaderButton: React.FC<{
   id: string;
   label: string;
-  color: string;
+  color?: string;
+  dimColor?: boolean;
   onPress?: () => void;
   registerRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
     handler?: () => void
   ) => void;
-}> = ({ id, label, color, onPress, registerRegion }) => {
+}> = ({ id, label, color, dimColor, onPress, registerRegion }) => {
   const ref = React.useRef<import('ink').DOMElement | null>(null);
   const [isPressed, setIsPressed] = useState(false);
+  const { palette } = useTheme();
 
   // Wrapper to handle visual flash + action
   const handlePress = useCallback(() => {
-    if (isPressed) return;
+    if (isPressed || !onPress) return;
 
     setIsPressed(true);
-    onPress?.();
+    onPress();
 
     setTimeout(() => {
       setIsPressed(false);
@@ -84,7 +88,7 @@ const HeaderButton: React.FC<{
     registerRegion(id, bounds, handlePress);
 
     return () => registerRegion(id, undefined, handlePress);
-  }, [registerRegion, id, label, color, onPress, handlePress]);
+  }, [registerRegion, id, onPress, handlePress]);
 
   return (
     <Box
@@ -93,24 +97,25 @@ const HeaderButton: React.FC<{
       // @ts-ignore
       onClick={handlePress}
     >
-      <Text color={isPressed ? 'black' : color} bold>
-        [{label}]
+      <Text
+        color={isPressed ? 'black' : (color || palette.text.secondary)}
+        dimColor={!isPressed && dimColor}
+      >
+        {label}
       </Text>
     </Box>
   );
 };
 
 export const Header: React.FC<HeaderProps> = ({
+  cwd,
   filterActive,
   filterQuery,
-  worktreeCount = 0,
-  activeWorktreeCount = 0,
   identity,
-  gitStatus = new Map(), // retained for prop compatibility
   onOpenGitFox,
-  onOpenGitHub,
 }) => {
   const { palette } = useTheme();
+  const stats = useRepositoryStats(cwd);
 
   const gradient = {
     start: identity.gradientStart,
@@ -154,6 +159,10 @@ export const Header: React.FC<HeaderProps> = ({
     },
   });
 
+  // Handlers for different click actions
+  const handleOpenIssues = useCallback(() => openGitHubUrl(cwd, 'issues'), [cwd]);
+  const handleOpenPRs = useCallback(() => openGitHubUrl(cwd, 'pulls'), [cwd]);
+
   return (
     <Box
       borderStyle="single"
@@ -162,6 +171,7 @@ export const Header: React.FC<HeaderProps> = ({
       justifyContent="space-between"
       width="100%"
     >
+      {/* Left side: Project Identity & Filter */}
       <Box>
         {identity.emoji && <Text>{identity.emoji} </Text>}
         <Gradient colors={[gradient.start, gradient.end]}>
@@ -177,24 +187,50 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </Box>
 
-      <Box gap={1}>
-        {/* GitFox Button */}
-        <HeaderButton
-          id="header-gitfox"
-          label="GitFox"
-          color={palette.text.secondary}
-          onPress={onOpenGitFox}
-          registerRegion={registerClickRegion}
-        />
+      {/* Right side: Stats Bar (no gaps) */}
+      <Box>
+        {/* GitFox / Commits */}
+        {stats.commitCount > 0 && (
+          <HeaderButton
+            id="header-commits"
+            label={`[${stats.commitCount} commits]`}
+            color={palette.text.secondary}
+            dimColor={true}
+            onPress={onOpenGitFox}
+            registerRegion={registerClickRegion}
+          />
+        )}
 
-        {/* GitHub Button */}
-        <HeaderButton
-          id="header-github"
-          label="GitHub"
-          color={palette.text.secondary}
-          onPress={onOpenGitHub}
-          registerRegion={registerClickRegion}
-        />
+        {/* GitHub Stats */}
+        {stats.issueCount !== null && (
+          <HeaderButton
+            id="header-issues"
+            label={`[${stats.issueCount} issues]`}
+            color={palette.text.secondary}
+            dimColor={true}
+            onPress={handleOpenIssues}
+            registerRegion={registerClickRegion}
+          />
+        )}
+
+        {stats.prCount !== null && (
+          <HeaderButton
+            id="header-prs"
+            label={`[${stats.prCount} PRs]`}
+            color={palette.text.secondary}
+            dimColor={true}
+            onPress={handleOpenPRs}
+            registerRegion={registerClickRegion}
+          />
+        )}
+
+        {/* Loading indicator or fallback if gh CLI not found */}
+        {stats.loading && (
+          <Text dimColor>(loading...)</Text>
+        )}
+        {!stats.loading && stats.issueCount === null && stats.prCount === null && (
+          <Text dimColor>(gh CLI unavailable)</Text>
+        )}
       </Box>
     </Box>
   );
