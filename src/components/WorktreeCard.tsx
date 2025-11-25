@@ -4,6 +4,7 @@ import path from 'node:path';
 import { homedir } from 'node:os';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
+import { ActivityTrafficLight } from './ActivityTrafficLight.js';
 
 /**
  * Get OS-specific file manager label
@@ -219,27 +220,9 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   // Memoize explorer label for performance
   const explorerLabel = useMemo(() => getExplorerLabel(), []);
 
-  // Map traffic light state to palette colors
-  const trafficColor = useMemo(() => {
-    switch (trafficLight) {
-      case 'green': return palette.git.added;      // Bright Green (active development)
-      case 'yellow': return palette.git.modified;  // Gold/Yellow (agent thinking)
-      case 'gray': return palette.text.tertiary;   // Dim Gray (idle/complete)
-    }
-  }, [trafficLight, palette]);
-
-  // Use traffic light for border color (spec requirement)
-  const borderColor = useMemo(() => {
-    switch (trafficLight) {
-      case 'green':
-        return palette.git.added; // Green for recent activity (0-30s)
-      case 'yellow':
-        return palette.git.modified; // Yellow for cooling down (30-90s)
-      case 'gray':
-      default:
-        return palette.chrome.border; // Gray for idle (>90s)
-    }
-  }, [trafficLight, palette]);
+  // Use consistent border color that works in dark mode
+  // Traffic light is displayed separately via the indicator dot
+  const borderColor = palette.text.tertiary; // Medium gray (#808080) - visible but not too prominent
 
   const borderStyle = isFocused ? 'double' : 'round';
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
@@ -373,7 +356,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
       {/* Row 2: Statistics Bar with Traffic Light */}
       <Box marginTop={0} marginBottom={0}>
         <Text>
-          <Text color={trafficColor}>● </Text>
+          <ActivityTrafficLight timestamp={worktree.lastActivityTimestamp} />
+          <Text> </Text>
           <Text color={palette.text.secondary}>{fileCountLabel}</Text>
           <Text dimColor> • </Text>
           <Text color={palette.git.added}>+{totalInsertions}</Text>

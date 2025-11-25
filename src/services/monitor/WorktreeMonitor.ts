@@ -1,17 +1,12 @@
 import { EventEmitter } from 'events';
+import { createHash } from 'crypto';
 import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.js';
-import { createFileWatcher, type FileWatcher, type FileChangeEvent, buildIgnorePatterns } from '../../utils/fileWatcher.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
-import { debounce, type DebouncedFunction } from '../../utils/debounce.js';
 import { logWarn, logError, logInfo } from '../../utils/logger.js';
-import { loadGitignorePatterns } from '../../utils/fileTree.js';
 import { events } from '../events.js';
 
-const GIT_STATUS_DEBOUNCE_MS = 1000; // Update git status 1s after file changes
-const AI_SUMMARY_DEBOUNCE_MS = 10000; // Update AI summary 10s after file changes
-const AI_SUMMARY_MIN_INTERVAL_MS = AI_SUMMARY_DEBOUNCE_MS / 2; // Hard throttle: minimum 5s between AI calls
 const TRAFFIC_LIGHT_GREEN_DURATION = 30000; // Green state: 0-30 seconds after file change
 const TRAFFIC_LIGHT_YELLOW_DURATION = 60000; // Yellow state: additional 60 seconds (30-90s total)
 
@@ -53,33 +48,26 @@ export class WorktreeMonitor extends EventEmitter {
   public readonly isCurrent: boolean;
 
   private state: WorktreeState;
-  private watcher: FileWatcher | null = null;
-  private gitStatusDebounced: DebouncedFunction<() => Promise<void>>;
-  private aiSummaryDebounced: DebouncedFunction<() => Promise<void>>;
   private mainBranch: string;
 
-  // Timers for traffic light transitions
-  private trafficLightTimer: NodeJS.Timeout | null = null;
+  // Hash-based change detection
+  private previousStateHash: string = '';
+  private lastSummarizedHash: string | null = null;
 
-  // Polling timer for git status (fallback when file watching is disabled)
+  // Timers
+  private trafficLightTimer: NodeJS.Timeout | null = null;
   private pollingTimer: NodeJS.Timeout | null = null;
-  private pollingInterval: number = 5000; // Default 5s, can be adjusted by WorktreeService (5s active, 60s background)
+  private aiUpdateTimer: NodeJS.Timeout | null = null;
+
+  // Configuration
+  private pollingInterval: number = 2000; // Default 2s for active worktree
+  private readonly AI_BUFFER_DELAY = 14000; // 14 seconds (7 cycles * 2s)
 
   // Flags
   private isRunning: boolean = false;
-  private watchingEnabled: boolean = true;
-
-  // Throttling: Track last AI request to prevent cascade
-  private lastAIRequestTime: number = 0;
-
-  // Track last processed state to avoid redundant AI calls
-  private lastProcessedMtime: number = -1; // -1 = never processed
-  private lastProcessedChangeCount: number = -1;
-
-  // Prevent concurrent AI processing
   private isGeneratingSummary: boolean = false;
 
-  constructor(worktree: Worktree, mainBranch: string = 'main', watchingEnabled: boolean = true) {
+  constructor(worktree: Worktree, mainBranch: string = 'main') {
     super();
 
     this.id = worktree.id;
@@ -88,7 +76,6 @@ export class WorktreeMonitor extends EventEmitter {
     this.branch = worktree.branch;
     this.isCurrent = worktree.isCurrent;
     this.mainBranch = mainBranch;
-    this.watchingEnabled = watchingEnabled;
 
     // Initialize state
     this.state = {
@@ -108,22 +95,11 @@ export class WorktreeMonitor extends EventEmitter {
       lastActivityTimestamp: null,
       isActive: false,
     };
-
-    // Create debounced update functions
-    this.gitStatusDebounced = debounce(
-      () => this.updateGitStatus(),
-      GIT_STATUS_DEBOUNCE_MS
-    );
-
-    this.aiSummaryDebounced = debounce(
-      () => this.updateAISummary(),
-      AI_SUMMARY_DEBOUNCE_MS
-    );
   }
 
   /**
    * Start monitoring this worktree.
-   * Initializes file watcher and performs initial git status fetch.
+   * Uses git polling (no file watcher) with hash-based change detection.
    */
   public async start(): Promise<void> {
     if (this.isRunning) {
@@ -132,29 +108,9 @@ export class WorktreeMonitor extends EventEmitter {
     }
 
     this.isRunning = true;
-    logInfo('Starting WorktreeMonitor', { id: this.id, path: this.path });
+    logInfo('Starting WorktreeMonitor (polling-based)', { id: this.id, path: this.path });
 
-    // Start file watcher if enabled
-    if (this.watchingEnabled) {
-      // Load ignore patterns (Standard + .gitignore) to prevent noise
-      // Note: loadGitignorePatterns handles its own errors and returns [] on failure
-      const gitIgnores = await loadGitignorePatterns(this.path);
-      const ignoredPatterns = buildIgnorePatterns(gitIgnores);
-
-      try {
-        this.watcher = createFileWatcher(this.path, {
-          ignored: ignoredPatterns,
-          onBatch: (events) => this.handleFileChanges(events),
-          onError: (error) => this.handleWatcherError(error),
-        });
-        this.watcher.start();
-      } catch (error) {
-        logError('Failed to start file watcher', error as Error, { id: this.id });
-        // Continue without watching - will fall back to polling
-      }
-    }
-
-    // Start polling timer (works even if watching is enabled as a backup)
+    // Start polling timer
     this.startPolling();
 
     // Initial fetch and AI summary generation
@@ -168,16 +124,15 @@ export class WorktreeMonitor extends EventEmitter {
         // Clean worktrees: Generate immediately (fast git log, no AI)
         await this.updateCleanSummary();
       } else {
-        // Dirty worktrees: Use debounced generation to prevent API burst on startup
-        // This gives user time to review the UI before generating all summaries
-        this.aiSummaryDebounced();
+        // Dirty worktrees: Schedule buffer to prevent API burst on startup
+        this.scheduleAISummary();
       }
     }
   }
 
   /**
    * Stop monitoring this worktree.
-   * Cleans up file watcher, timers, and event listeners.
+   * Cleans up timers and event listeners.
    */
   public async stop(): Promise<void> {
     if (!this.isRunning) {
@@ -187,22 +142,18 @@ export class WorktreeMonitor extends EventEmitter {
     this.isRunning = false;
     logInfo('Stopping WorktreeMonitor', { id: this.id });
 
-    // Stop file watcher
-    if (this.watcher) {
-      await this.watcher.stop();
-      this.watcher = null;
-    }
-
     // Clear timers
     this.stopPolling();
+
     if (this.trafficLightTimer) {
       clearTimeout(this.trafficLightTimer);
       this.trafficLightTimer = null;
     }
 
-    // Cancel debounced functions
-    this.gitStatusDebounced.cancel();
-    this.aiSummaryDebounced.cancel();
+    if (this.aiUpdateTimer) {
+      clearTimeout(this.aiUpdateTimer);
+      this.aiUpdateTimer = null;
+    }
 
     // Remove all event listeners
     this.removeAllListeners();
@@ -233,47 +184,6 @@ export class WorktreeMonitor extends EventEmitter {
     }
   }
 
-  /**
-   * Enable or disable file watching for this worktree.
-   * PERF: Background worktrees should disable watching to reduce CPU usage.
-   * Only the active worktree needs real-time file watching.
-   *
-   * @param enabled - Whether to enable file watching
-   */
-  public async setWatchingEnabled(enabled: boolean): Promise<void> {
-    if (this.watchingEnabled === enabled) {
-      return;
-    }
-
-    this.watchingEnabled = enabled;
-
-    if (!this.isRunning) {
-      return; // Will be applied when start() is called
-    }
-
-    if (enabled && !this.watcher) {
-      // Start watching
-      const gitIgnores = await loadGitignorePatterns(this.path);
-      const ignoredPatterns = buildIgnorePatterns(gitIgnores);
-
-      try {
-        this.watcher = createFileWatcher(this.path, {
-          ignored: ignoredPatterns,
-          onBatch: (events) => this.handleFileChanges(events),
-          onError: (error) => this.handleWatcherError(error),
-        });
-        this.watcher.start();
-        logInfo('File watcher started for worktree', { id: this.id });
-      } catch (error) {
-        logError('Failed to start file watcher', error as Error, { id: this.id });
-      }
-    } else if (!enabled && this.watcher) {
-      // Stop watching
-      await this.watcher.stop();
-      this.watcher = null;
-      logInfo('File watcher stopped for worktree (background mode)', { id: this.id });
-    }
-  }
 
   /**
    * Force refresh of git status and AI summary.
@@ -281,79 +191,100 @@ export class WorktreeMonitor extends EventEmitter {
   public async refresh(forceAI: boolean = false): Promise<void> {
     await this.updateGitStatus(true);
     if (forceAI) {
+      // Bypass buffer for forced refresh
       await this.updateAISummary(true);
     }
   }
 
   /**
-   * Handle file change events from the watcher.
+   * Calculate a stable hash of the current git state.
+   * This hash represents the exact state of all tracked files and their changes.
+   *
+   * @param changes - Current worktree changes from git
+   * @returns MD5 hash of the changes
    */
-  private handleFileChanges(fileChanges: FileChangeEvent[]): void {
-    // Allow manual invocations (tests/polling) even when monitor is not started
-    const isActiveRun = this.isRunning;
+  private calculateStateHash(changes: WorktreeChanges): string {
+    // Create a lightweight signature: Path + Status + Insertions + Deletions
+    // Sort by path to ensure order doesn't affect hash
+    const signature = changes.changes
+      .sort((a, b) => a.path.localeCompare(b.path))
+      .map(f => `${f.path}:${f.status}:${f.insertions || 0}:${f.deletions || 0}`)
+      .join('|');
 
-    // Update activity timestamp
-    this.state.lastActivityTimestamp = Date.now();
-    this.state.isActive = true;
+    return createHash('md5').update(signature).digest('hex');
+  }
 
-    // Set traffic light to green (active) ONLY if batch contains non-deletion events
-    // Per spec: "File deletions currently do NOT trigger traffic light changes"
-    const hasNonDeletionEvents = fileChanges.some(
-      event => event.type !== 'unlink' && event.type !== 'unlinkDir'
-    );
-
-    if (hasNonDeletionEvents) {
-      this.setTrafficLight('green');
+  /**
+   * Emit file activity events to replace watcher events.
+   * This maintains UI compatibility with useActivity.ts and other components
+   * that expect real-time file change notifications.
+   *
+   * @param newState - New worktree changes
+   * @param oldState - Previous worktree changes (nullable)
+   */
+  private emitFileActivityEvents(newState: WorktreeChanges, oldState: WorktreeChanges | null): void {
+    if (!oldState) {
+      // First load - emit all changed files
+      for (const change of newState.changes.slice(0, 50)) { // Limit to 50 for performance
+        events.emit('watcher:change', {
+          type: change.status === 'added' ? 'add' : 'change',
+          path: change.path
+        });
+      }
+      return;
     }
 
-    // PERF: Emit change events for activity tracking with limits to prevent flooding
-    // During npm install, thousands of files change - we only need to track a representative sample
-    // for UI activity indicators. The full list is handled by git status polling.
-    const MAX_EVENTS_PER_BATCH = 50;
+    // Compare old vs new to find what changed
+    const oldPaths = new Set(oldState.changes.map(c => c.path));
+    const newPaths = new Set(newState.changes.map(c => c.path));
+
+    // Find added/modified files
     let emittedCount = 0;
+    const MAX_EVENTS = 50;
 
-    for (const event of fileChanges) {
-      // Skip deletion events for activity tracking (they don't need visual highlighting)
-      if (event.type === 'unlink' || event.type === 'unlinkDir') {
-        continue;
+    for (const change of newState.changes) {
+      if (emittedCount >= MAX_EVENTS) break;
+
+      const wasTracked = oldPaths.has(change.path);
+      if (!wasTracked || this.hasFileChanged(change, oldState)) {
+        events.emit('watcher:change', {
+          type: wasTracked ? 'change' : 'add',
+          path: change.path
+        });
+        emittedCount++;
       }
-
-      if (emittedCount >= MAX_EVENTS_PER_BATCH) {
-        break; // Stop emitting after limit reached
-      }
-
-      events.emit('watcher:change', { type: event.type, path: event.path });
-      emittedCount++;
     }
 
-    if (isActiveRun) {
-      // Queue git status update (debounced)
-      this.gitStatusDebounced();
+    // Find deleted files
+    for (const oldChange of oldState.changes) {
+      if (emittedCount >= MAX_EVENTS) break;
 
-      // Queue AI summary update (debounced with longer delay)
-      this.aiSummaryDebounced();
+      if (!newPaths.has(oldChange.path)) {
+        events.emit('watcher:change', {
+          type: 'unlink',
+          path: oldChange.path
+        });
+        emittedCount++;
+      }
     }
   }
 
   /**
-   * Handle file watcher errors.
+   * Check if a file has changed between states.
    */
-  private handleWatcherError(error: Error): void {
-    logError('File watcher error in WorktreeMonitor', error, { id: this.id });
+  private hasFileChanged(newFile: {path: string; status: string; insertions?: number | null; deletions?: number | null}, oldState: WorktreeChanges): boolean {
+    const oldFile = oldState.changes.find(c => c.path === newFile.path);
+    if (!oldFile) return true;
 
-    // Set mood to error
-    this.state.mood = 'error';
-    this.emitUpdate();
-
-    // Emit global notification
-    events.emit('ui:notify', {
-      type: 'warning',
-      message: `File watching failed for ${this.name}: ${error.message}`,
-    });
+    return oldFile.status !== newFile.status ||
+           (oldFile.insertions ?? 0) !== (newFile.insertions ?? 0) ||
+           (oldFile.deletions ?? 0) !== (newFile.deletions ?? 0);
   }
 
   /**
-   * Update git status for this worktree.
+   * Update git status for this worktree using hash-based change detection.
+   * This replaces the file watcher approach with a simpler polling model where
+   * git itself is the source of truth for what changed.
    */
   private async updateGitStatus(forceRefresh: boolean = false): Promise<void> {
     if (!this.isRunning) {
@@ -372,55 +303,83 @@ export class WorktreeMonitor extends EventEmitter {
         return;
       }
 
-      // PERFORMANCE FIX: Deep equality check to prevent render loops
-      // The git util returns a new object every time, so strictly checking references fails.
-      const prevChanges = this.state.worktreeChanges;
+      // HASH-BASED CHANGE DETECTION
+      // Calculate stable hash of the current git state
+      const currentHash = this.calculateStateHash(newChanges);
 
-      // Compare both aggregate stats AND the actual change list to catch renames, mode changes, etc.
-      const isUnchanged = prevChanges &&
-        prevChanges.changedFileCount === newChanges.changedFileCount &&
-        prevChanges.latestFileMtime === newChanges.latestFileMtime &&
-        prevChanges.totalInsertions === newChanges.totalInsertions &&
-        prevChanges.totalDeletions === newChanges.totalDeletions &&
-        this.areChangeListsEqual(prevChanges.changes, newChanges.changes);
+      // Check if the git state actually changed
+      const stateChanged = currentHash !== this.previousStateHash;
 
-      if (isUnchanged && !forceRefresh) {
-        return; // Stop propagation if data is effectively same
+      if (!stateChanged && !forceRefresh) {
+        return; // No changes detected, skip update
       }
 
-      // Update state (both the full worktreeChanges and the inherited changes array)
+      // Store previous state before updating
+      const prevChanges = this.state.worktreeChanges;
+
+      // Update state
       this.state.worktreeChanges = newChanges;
       this.state.changes = newChanges.changes;
       this.state.modifiedCount = newChanges.changedFileCount;
 
-      // Logic: Transition from Dirty -> Clean
+      // TRAFFIC LIGHT ACTIVATION
+      // If hash changed (and not first load), something happened - activate traffic light
+      if (stateChanged && this.previousStateHash !== '') {
+        // Update timestamp and set green (even if reverting to clean)
+        // Reverting IS activity - the user/agent did work
+        this.state.lastActivityTimestamp = Date.now();
+        this.state.isActive = true;
+        this.setTrafficLight('green');
+
+        // Emit file activity events for UI (replaces watcher events)
+        this.emitFileActivityEvents(newChanges, prevChanges);
+      }
+
+      // Update the hash for next comparison
+      this.previousStateHash = currentHash;
+
+      // Handle clean/dirty transitions
       const wasClean = prevChanges ? prevChanges.changedFileCount === 0 : false;
       const isNowClean = newChanges.changedFileCount === 0;
 
-      // If transitioned to clean, update summary immediately with last commit
-      // Don't use updateAISummary because it might be blocked by isGeneratingSummary
       if (!wasClean && isNowClean) {
-        // Cancel pending debounced AI update
-        this.aiSummaryDebounced.cancel();
-        // Get clean summary directly (fast git log call, no AI)
+        // Transitioned to clean: Cancel buffer and update immediately
+        if (this.aiUpdateTimer) {
+          clearTimeout(this.aiUpdateTimer);
+          this.aiUpdateTimer = null;
+        }
+        // Clear AI hash so next dirty state forces regeneration
+        this.lastSummarizedHash = null;
         await this.updateCleanSummary();
+      } else if (newChanges.changedFileCount > 0 && stateChanged) {
+        // Dirty and state changed
+        // If we just became dirty from clean, show loading indicator immediately
+        if (wasClean) {
+          this.state.summaryLoading = true;
+        }
+        // Schedule AI summary (buffered)
+        this.scheduleAISummary();
       }
 
       // Update mood based on changes
       await this.updateMood();
 
-      // If clean, transition traffic light to gray
-      if (isNowClean) {
+      // If clean, ensure traffic light goes gray (overrides green from above)
+      // This handles the case where we reverted all changes
+      if (isNowClean && stateChanged) {
         this.setTrafficLight('gray');
         this.state.isActive = false;
-      } else if (!isUnchanged) {
-        // For polling-only mode: if we detected new dirty changes, queue AI update
-        // This ensures AI summaries update even without file watcher events
-        this.aiSummaryDebounced();
       }
 
       this.emitUpdate();
     } catch (error) {
+      // Handle index.lock collision gracefully (don't set mood to error)
+      const errorMessage = (error as Error).message || '';
+      if (errorMessage.includes('index.lock')) {
+        logWarn('Git index locked, skipping this poll cycle', { id: this.id });
+        return; // Silent skip - wait for next poll
+      }
+
       logError('Failed to update git status', error as Error, { id: this.id });
       this.state.mood = 'error';
       this.emitUpdate();
@@ -449,6 +408,7 @@ export class WorktreeMonitor extends EventEmitter {
           const firstLine = lastCommitMsg.split('\n')[0].trim();
           this.state.summary = `✅ ${firstLine}`;
           this.state.modifiedCount = 0;
+          this.state.summaryLoading = false;
           this.emitUpdate();
           return;
         }
@@ -459,10 +419,26 @@ export class WorktreeMonitor extends EventEmitter {
       // Edge case: no commits exist yet
       this.state.summary = this.branch ? `Clean: ${this.branch}` : 'No changes';
       this.state.modifiedCount = 0;
+      this.state.summaryLoading = false;
       this.emitUpdate();
     } catch (error) {
       logError('Failed to fetch clean summary', error as Error, { id: this.id });
     }
+  }
+
+  /**
+   * Schedule AI summary generation with a fixed buffer.
+   * Ignores calls if a timer is already active.
+   */
+  private scheduleAISummary(): void {
+    if (this.aiUpdateTimer) {
+      return; // Already buffered
+    }
+
+    this.aiUpdateTimer = setTimeout(() => {
+      this.aiUpdateTimer = null;
+      void this.updateAISummary();
+    }, this.AI_BUFFER_DELAY);
   }
 
   /**
@@ -478,29 +454,19 @@ export class WorktreeMonitor extends EventEmitter {
       return;
     }
 
-    const currentMtime = this.state.worktreeChanges.latestFileMtime ?? 0;
-    const currentCount = this.state.worktreeChanges.changedFileCount;
+    const currentHash = this.calculateStateHash(this.state.worktreeChanges);
 
     // Dedup logic: don't run AI on exact same state unless forced
-    if (!forceUpdate &&
-        this.lastProcessedMtime === currentMtime &&
-        this.lastProcessedChangeCount === currentCount) {
-      return;
-    }
-
-    // Throttle logic
-    const now = Date.now();
-    if (!forceUpdate && (now - this.lastAIRequestTime < AI_SUMMARY_MIN_INTERVAL_MS)) {
+    if (!forceUpdate && this.lastSummarizedHash === currentHash) {
+      this.state.summaryLoading = false;
+      this.emitUpdate();
       return;
     }
 
     this.isGeneratingSummary = true;
 
     try {
-      this.lastAIRequestTime = now;
-
       this.state.summaryLoading = true;
-      this.setTrafficLight('yellow');
       this.emitUpdate();
 
       const result = await generateWorktreeSummary(
@@ -516,10 +482,8 @@ export class WorktreeMonitor extends EventEmitter {
         this.state.summary = result.summary;
         this.state.modifiedCount = result.modifiedCount;
 
-        // Only mark as processed AFTER successful generation
-        // This allows retry if generation fails
-        this.lastProcessedMtime = currentMtime;
-        this.lastProcessedChangeCount = currentCount;
+        // Mark as processed
+        this.lastSummarizedHash = currentHash;
       }
 
       this.state.summaryLoading = false;
@@ -535,29 +499,6 @@ export class WorktreeMonitor extends EventEmitter {
     }
   }
 
-  /**
-   * Compare two change lists for equality.
-   * Checks if both lists contain the same files with the same statuses.
-   */
-  private areChangeListsEqual(
-    list1: Array<{ path: string; status: string }> | undefined,
-    list2: Array<{ path: string; status: string }> | undefined
-  ): boolean {
-    if (!list1 || !list2) return list1 === list2;
-    if (list1.length !== list2.length) return false;
-
-    // Create a map of path -> status for quick lookup
-    const map1 = new Map(list1.map(c => [c.path, c.status]));
-
-    // Check if all entries in list2 match list1
-    for (const change of list2) {
-      if (map1.get(change.path) !== change.status) {
-        return false;
-      }
-    }
-
-    return true;
-  }
 
   /**
    * Update worktree mood categorization.

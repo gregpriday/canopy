@@ -193,7 +193,21 @@ export function createFileWatcher(
 				},
 
 				// Patterns to ignore
-				ignored,
+				// STRATEGY: Two-layer filtering for performance and correctness
+				// 1. File watcher blocks node_modules, dist, .git, etc. (prevents CPU spike)
+				// 2. Git status is the source of truth (catches any leaks)
+				ignored: Array.isArray(ignored)
+					? [
+							// Always include .git blocking (glob patterns don't reliably match root .git/)
+							(filePath: string) => {
+								const relativePath = path.relative(rootPath, filePath);
+								const normalizedPath = relativePath.split(path.sep).join('/');
+								return normalizedPath === '.git' || normalizedPath.startsWith('.git/');
+							},
+							// Include user-provided patterns
+							...ignored
+					  ]
+					: ignored,
 
 				// Use polling mode for reliable file watching (configurable)
 				usePolling,
@@ -341,10 +355,11 @@ export function createFileWatcher(
  */
 export function buildIgnorePatterns(customIgnores: string[] = []): string[] {
 	// Base ignored patterns for Chokidar
-	// Note: Chokidar performs better with glob strings than regex for paths
+	// Note: These are for performance - they reduce watcher load for the file tree view.
+	// The WorktreeMonitor uses git status as the source of truth for changes,
+	// so even if patterns leak, traffic lights won't activate for ignored files.
 	const standardIgnores = [
 		'**/node_modules/**',
-		'**/.git/**',
 		'**/.DS_Store',
 		'**/dist/**',
 		'**/build/**',

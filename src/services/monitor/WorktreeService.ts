@@ -3,8 +3,8 @@ import type { Worktree } from '../../types/index.js';
 import { logInfo, logWarn } from '../../utils/logger.js';
 import { events } from '../events.js';
 
-const ACTIVE_WORKTREE_INTERVAL_MS = 5000; // 5s for active worktree
-const BACKGROUND_WORKTREE_INTERVAL_MS = 300000; // 5 minutes for background worktrees (PERF: reduced from 60s)
+const ACTIVE_WORKTREE_INTERVAL_MS = 2000; // 2s for active worktree (fast polling since no file watcher)
+const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
 
 /**
  * WorktreeService manages all WorktreeMonitor instances.
@@ -71,19 +71,11 @@ class WorktreeService {
           : BACKGROUND_WORKTREE_INTERVAL_MS;
 
         existingMonitor.setPollingInterval(interval);
-
-        // PERF: Only active worktree should have file watching enabled
-        // Background worktrees rely solely on polling to reduce CPU usage
-        const shouldWatch = watchingEnabled && isActive;
-        await existingMonitor.setWatchingEnabled(shouldWatch);
       } else {
         // Create new monitor
         logInfo('Creating new WorktreeMonitor', { id: wt.id, path: wt.path });
 
-        // PERF: Only enable file watching for active worktree
-        // Background worktrees use polling only (5 minute intervals)
-        const shouldWatch = watchingEnabled && isActive;
-        const monitor = new WorktreeMonitor(wt, mainBranch, shouldWatch);
+        const monitor = new WorktreeMonitor(wt, mainBranch);
 
         // Set initial polling interval
         const interval = isActive

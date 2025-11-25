@@ -568,13 +568,15 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
         'dist/',
       ]);
 
-      // Should have called createFileWatcher with ignored patterns
+      // Should have called createFileWatcher with the built ignore patterns array
+      // Note: createFileWatcher internally wraps this in a function that also handles .git
       expect(fileWatcher.createFileWatcher).toHaveBeenCalledWith(
         baseWorktree.path,
         expect.objectContaining({
           ignored: expect.arrayContaining([
             '**/node_modules/**',
-            '**/.git/**',
+            'node_modules/',
+            'dist/',
           ]),
         })
       );
@@ -597,14 +599,13 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
         '*.secret',
       ]);
 
-      // Result should include both standard and custom patterns
-      const call = vi.mocked(fileWatcher.createFileWatcher).mock.calls[0];
-      const ignoredPatterns = call[1].ignored as string[];
+      // The returned patterns should include standard ignores + custom patterns
+      const builtPatterns = vi.mocked(fileWatcher.buildIgnorePatterns).mock.results[0].value as string[];
+      expect(builtPatterns).toContain('**/node_modules/**');
+      expect(builtPatterns).toContain('custom-build/');
+      expect(builtPatterns).toContain('*.secret');
 
-      expect(ignoredPatterns).toContain('**/node_modules/**');
-      expect(ignoredPatterns).toContain('**/.git/**');
-      expect(ignoredPatterns).toContain('custom-build/');
-      expect(ignoredPatterns).toContain('*.secret');
+      // Note: .git is now handled by a function in createFileWatcher, not in the patterns array
 
       await monitor.stop();
     });
@@ -619,12 +620,11 @@ describe('WorktreeMonitor - State Machine & Timing Logic', () => {
       // Should still work with just standard ignores
       expect(fileWatcher.buildIgnorePatterns).toHaveBeenCalledWith([]);
 
-      const call = vi.mocked(fileWatcher.createFileWatcher).mock.calls[0];
-      const ignoredPatterns = call[1].ignored as string[];
+      // The returned patterns should include standard ignores
+      const builtPatterns = vi.mocked(fileWatcher.buildIgnorePatterns).mock.results[0].value as string[];
+      expect(builtPatterns).toContain('**/node_modules/**');
 
-      // Should still have standard ignores
-      expect(ignoredPatterns).toContain('**/node_modules/**');
-      expect(ignoredPatterns).toContain('**/.git/**');
+      // Note: .git is now handled by a function in createFileWatcher, not in the patterns array
 
       await monitor.stop();
     });
