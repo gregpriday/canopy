@@ -34,7 +34,7 @@ Running `git status` across multiple worktrees or constantly checking different 
 │ ║ A src/hooks/useDashboardNav.ts                   ║ │
 │ ║ ... and 9 more                                   ║ │
 │ ║                                                   ║ │
-│ ║ [space] toggle • [c] copy • [p] profile • [↵] open │
+│ ║ [space] toggle • [c] copy • [s] server • [↵] open  │
 │ ╚══════════════════════════════════════════════════╝ │
 │                                                      │
 │ ┌────────────────────────────────────────────────┐   │
@@ -62,7 +62,7 @@ Running `git status` across multiple worktrees or constantly checking different 
 - **Worktree name and branch** with activity mood indicator
 - **AI-generated summary** of what's happening (e.g., "Implementing authentication")
 - **Changed files only** with git status markers (M/A/D)
-- **One-keystroke actions**: CopyTree context, profile selector, editor launch
+- **One-keystroke actions**: Copy context, open in editor
 
 **Traditional file browsing available when needed via fuzzy search** (press `/` to search for any file across all worktrees).
 
@@ -85,19 +85,7 @@ Worktrees are automatically categorized by activity level:
 Each project gets a unique visual identity with AI-generated emoji and gradient colors based on the project name. This helps visually distinguish worktrees at a glance and adds personality to your dashboard.
 
 ### One-Keystroke Context Extraction
-Press `c` on any worktree to copy its changed files to your clipboard via CopyTree integration. Press `p` to open the profile selector and choose from configured CopyTree profiles for different AI context formats.
-
-**CopyTree profiles** let you define preset CLI argument combinations in `.canopy.json`:
-
-```json
-{
-  "copytreeProfiles": {
-    "default": { "args": ["-r"], "description": "Standard recursive scan" },
-    "tests": { "args": ["--filter", "tests/**", "-r"], "description": "Tests only" },
-    "minimal": { "args": ["--tree-only"], "description": "Structure only" }
-  }
-}
-```
+Press `c` on any worktree to copy its changed files to your clipboard via CopyTree integration. The copied context is formatted for AI agents, giving them exactly the files they need to understand your current work.
 
 ### VS Code Integration
 Press `Enter` on any worktree card to open it in VS Code (or your configured editor). The editor opens in the worktree's root directory, preserving your context.
@@ -194,8 +182,7 @@ canopy --no-git
 - `Home/End` - Jump to first/last worktree
 
 **Worktree Actions:**
-- `c` - Copy changed files via CopyTree (default profile)
-- `p` - Open CopyTree profile selector
+- `c` - Copy changed files via CopyTree
 - `s` - Toggle dev server (start/stop)
 - `Enter` - Open worktree in VS Code/editor
 - `w` - Cycle to next worktree
@@ -226,10 +213,6 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
   "editorArgs": ["-r"],
   "showGitStatus": true,
   "refreshDebounce": 100,
-  "copytreeProfiles": {
-    "default": { "args": ["-r"], "description": "Standard recursive scan" },
-    "tests": { "args": ["--filter", "tests/**/*.ts", "-r"], "description": "Tests only" }
-  },
   "devServer": {
     "enabled": true,
     "autoStart": false,
@@ -254,7 +237,6 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
 
 - **`editor`** - Command to open files (default: `code`)
 - **`editorArgs`** - Arguments for the editor (default: `["-r"]`)
-- **`copytreeProfiles`** - CopyTree profile presets (each profile has `args` array and optional `description`)
 - **`showGitStatus`** - Display git status indicators (default: `true`)
 - **`refreshDebounce`** - File watcher debounce in ms (default: `100`)
 - **`ui.compactMode`** - Compact display mode (default: `true`)
@@ -265,7 +247,6 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
 - **`quickLinks.enabled`** - Enable quick links feature (default: `true`)
 - **`quickLinks.links`** - Array of link objects with `label`, `url`, optional `shortcut` (1-9), and optional `command`
 
-See [docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md) for detailed CopyTree profile documentation.
 See [docs/DEV_SERVER.md](docs/DEV_SERVER.md) for dev server configuration.
 
 ## Why This Matters
@@ -311,7 +292,6 @@ npm run typecheck
 - **[SPEC.md](SPEC.md)** - Complete technical specification and architecture
 - **[CLAUDE.md](CLAUDE.md)** - AI agent development instructions
 - **[docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md)** - Full keyboard reference
-- **[docs/COPYTREE_INTEGRATION.md](docs/COPYTREE_INTEGRATION.md)** - CopyTree profiles and context extraction
 - **[docs/DEV_SERVER.md](docs/DEV_SERVER.md)** - Dev server management and configuration
 
 ## License
