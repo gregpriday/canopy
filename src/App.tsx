@@ -22,7 +22,7 @@ import { execa } from 'execa';
 import { openGitHubRepo } from './utils/github.js';
 // PERF: Removed useWatcher - WorktreeMonitor handles file watching for all worktrees
 import path from 'path';
-import { useGitStatus } from './hooks/useGitStatus.js';
+// PERF: Removed useGitStatus - WorktreeMonitor provides git status for all worktrees
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
 import { useActivity } from './hooks/useActivity.js';
@@ -47,7 +47,6 @@ interface AppProps {
 const MODAL_CLOSE_PRIORITY: ModalId[] = [
   'command-palette',
   'worktree',
-  'profile-selector',
 ];
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
@@ -225,11 +224,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     [config, showGitMarkers]
   );
 
-  const { gitStatus, gitEnabled, refresh: refreshGitStatus, clear: clearGitStatus, isLoading: isGitLoading } = useGitStatus(
-    activeRootPath,
-    noGit ? false : config.showGitStatus,
-    config.refreshDebounce,
-  );
+  // PERF: Removed useGitStatus hook - WorktreeMonitor provides git status
+  // gitEnabled is now derived from whether the active worktree has been monitored
+  const gitEnabled = useMemo(() => {
+    if (noGit) return false;
+    // Check if the active worktree is being monitored (not just any worktree)
+    return activeWorktreeId ? worktreeStates.has(activeWorktreeId) : worktreeStates.size > 0;
+  }, [noGit, worktreeStates, activeWorktreeId]);
 
   const worktreesWithStatus = useMemo(() => {
     return enrichedWorktrees.map(wt => {
@@ -259,15 +260,15 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     [activeWorktreeId, worktreeChanges]
   );
 
+  // Git status for tree view - derived entirely from WorktreeMonitor via worktreeStates
   const effectiveGitStatus = useMemo(() => {
     if (activeWorktreeChanges?.changes) {
       return new Map(activeWorktreeChanges.changes.map(change => [change.path, change.status] as const));
     }
-    return gitStatus;
-  }, [activeWorktreeChanges, gitStatus]);
+    return new Map();
+  }, [activeWorktreeChanges]);
 
   const isWorktreePanelOpen = activeModals.has('worktree');
-  const isProfileSelectorOpen = activeModals.has('profile-selector');
   const isCommandPaletteOpen = activeModals.has('command-palette');
 
   // Quick links hook for slash commands and keyboard shortcuts
@@ -342,21 +343,8 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // UseViewportHeight must be declared before useFileTree
   // Reserve a fixed layout height to avoid viewport thrashing when footer content changes
-  // Listen for sys:refresh events
-  useEffect(() => {
-    return events.on('sys:refresh', () => {
-      // Optimization: Only refresh the UI-critical status here.
-      // The background WorktreeService has its own polling loop and will
-      // pick up changes on its next tick (or via its own watcher).
-      refreshGitStatus();
-
-      // REMOVED: void worktreeService.refresh();
-      // We don't need to force-refresh ALL worktrees every time a file changes
-      // in the current one. The active monitor will handle it.
-
-      // useFileTree is already subscribed to sys:refresh internally, so no direct call to refreshTree needed here.
-    });
-  }, [refreshGitStatus]); // Dependency on refreshGitStatus to ensure latest function is called
+  // Note: sys:refresh is handled by WorktreeMonitor and useFileTree internally.
+  // PERF: Removed useGitStatus refresh call - WorktreeMonitor handles git status updates.
 
   // Initialize Activity Hook for temporal styling
   const { activeFiles } = useActivity();
@@ -520,29 +508,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     setLastCopyProfile(resolvedProfile);
   }, [lastCopyProfile, sortedWorktrees]);
-
-  const handleOpenProfileSelector = useCallback((id: string) => {
-    const target = sortedWorktrees.find(wt => wt.id === id);
-    if (!target) {
-      return;
-    }
-    setActiveModals((prev) => {
-      const next = new Set(prev);
-      next.add('profile-selector');
-      return next;
-    });
-    setModalContext((prev) => ({
-      ...prev,
-      'profile-selector': { worktreeId: target.id },
-    }));
-    events.emit('ui:modal:open', { id: 'profile-selector', context: { worktreeId: target.id } });
-  }, [sortedWorktrees]);
-
-  const handleProfileSelect = useCallback((profileName: string) => {
-    setLastCopyProfile(profileName);
-    events.emit('ui:notify', { type: 'info', message: `Active profile: ${profileName}` });
-    events.emit('ui:modal:close', { id: 'profile-selector' });
-  }, []);
 
   const handleCommandPaletteExecute = useCallback((command: { name: string; action: () => void }) => {
     events.emit('ui:modal:close', { id: 'command-palette' });
@@ -839,8 +804,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       // 5. Reset transient UI state
       setFilterActive(false);
       setFilterQuery('');
-      clearGitStatus();
-      // Note: WorktreeService handles its own state refresh
+      // PERF: Removed clearGitStatus() - WorktreeService handles git status per-worktree
 
       // 6. Notify user of success
       events.emit('ui:modal:close', { id: 'worktree' });
@@ -863,7 +827,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         setIsSwitchingWorktree(false);
       }
     }
-  }, [activeWorktreeId, clearGitStatus, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
+  }, [activeWorktreeId, expandedFolders, formatWorktreeSwitchMessage, gitOnlyMode, lastCopyProfile, selectedPath]);
 
   useEffect(() => {
     return events.on('sys:worktree:switch', async ({ worktreeId }) => {
@@ -1005,7 +969,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       });
     }
 
-    clearGitStatus();
+    // PERF: Removed clearGitStatus() - WorktreeService cleans up on stopAll()
     clearTerminalScreen();
     exit();
   };
@@ -1016,17 +980,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       message: 'CopyTree builder coming in Phase 2',
     });
   };
-
-  const handleOpenProfileSelectorForFocused = useCallback(() => {
-    const targetId =
-      focusedWorktreeId ||
-      activeWorktreeId ||
-      sortedWorktrees[0]?.id;
-    if (!targetId) {
-      return;
-    }
-    handleOpenProfileSelector(targetId);
-  }, [activeWorktreeId, focusedWorktreeId, handleOpenProfileSelector, sortedWorktrees]);
 
   const anyModalOpen = activeModals.size > 0;
 
@@ -1040,7 +993,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onToggleExpand: handleToggleExpandWorktree,
     onCopyTree: handleCopyTreeForWorktree,
     onOpenEditor: handleOpenWorktreeEditor,
-    onOpenProfileSelector: handleOpenProfileSelector,
   });
 
   useInput(
@@ -1068,9 +1020,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       if (viewMode !== 'dashboard') {
         return;
       }
-      if (input === 'p') {
-        handleOpenProfileSelectorForFocused();
-      }
       if (input === 'f') {
         handleOpenGitFox();
       }
@@ -1085,8 +1034,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
     onNextWorktree: anyModalOpen ? undefined : handleNextWorktree,
     onOpenWorktreePanel: undefined,
-    onOpenProfileSelector: anyModalOpen ? undefined : handleOpenProfileSelectorForFocused,
-
     onToggleGitStatus: anyModalOpen ? undefined : handleToggleGitStatus,
     onToggleGitOnlyMode: anyModalOpen ? undefined : handleToggleGitOnlyMode,
 
@@ -1158,16 +1105,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
         />
         <Box flexGrow={1} marginTop={isCommandPaletteOpen ? 0 : 1}>
-          {isProfileSelectorOpen ? (
-            <Box flexDirection="row" justifyContent="center">
-              <ProfileSelector
-                profiles={config.copytreeProfiles || {}}
-                currentProfile={lastCopyProfile}
-                onSelect={handleProfileSelect}
-                onClose={() => events.emit('ui:modal:close', { id: 'profile-selector' })}
-              />
-            </Box>
-          ) : viewMode === 'dashboard' ? (
+          {viewMode === 'dashboard' ? (
             <WorktreeOverview
               worktrees={sortedWorktrees}
               worktreeChanges={worktreeChanges}
