@@ -27,7 +27,7 @@ export const STANDARD_PRESET: Record<KeyAction, string[]> = {
 	'git.toggle': ['g'],
 	'worktree.next': ['w'],
 	'worktree.panel': ['W'],
-	'app.quit': ['q'],
+	'app.quit': ['escape'],
 	'app.forceQuit': ['ctrl+c'],
 };
 

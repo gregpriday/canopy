@@ -579,7 +579,11 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         type: 'info',
         message: 'Filter cleared',
       });
+      return;
     }
+
+    // No modal or filter active - quit the app
+    handleQuit();
   };
 
   const handleNextWorktree = () => {
@@ -952,7 +956,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     onRefresh: anyModalOpen ? undefined : () => {
       events.emit('sys:refresh');
     },
-    onQuit: handleQuit,
+    onQuit: anyModalOpen ? undefined : handleQuit,
     onForceExit: handleQuit,
     onWarnExit: () => {
       events.emit('ui:notify', {

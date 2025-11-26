@@ -13,7 +13,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && npm run copy-themes",
+    "build": "tsc && chmod +x dist/cli.js && npm run copy-themes",
     "copy-themes": "mkdir -p dist/theme/bundled && cp src/theme/bundled/*.json dist/theme/bundled/",
     "dev": "tsc --watch",
     "start": "tsx src/cli.ts",
