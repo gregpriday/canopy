@@ -300,10 +300,12 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         worktrees,
         activeWorktreeId,
         'main', // mainBranch - could be made configurable
-        !noWatch
+        !noWatch,
+        config.monitor,
+        config.ai
       );
     }
-  }, [worktrees, activeWorktreeId, lifecycleStatus, noWatch]);
+  }, [worktrees, activeWorktreeId, lifecycleStatus, noWatch, config.monitor, config.ai]);
 
   // Teardown Effect: Clean up all monitors only on unmount
   // This runs once when the component unmounts, not on every dependency change

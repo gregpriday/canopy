@@ -851,3 +851,339 @@ describe('loadConfig - worktree-aware loading', () => {
     expect(config.editor).toBe('local-editor');
   });
 });
+
+// Monitor and AI config tests
+describe('loadConfig - monitor and ai config', () => {
+  let tempDir: string;
+  let originalXdgConfigHome: string | undefined;
+
+  beforeEach(async () => {
+    tempDir = path.join(os.tmpdir(), `canopy-monitor-ai-test-${Date.now()}`);
+    await fs.ensureDir(tempDir);
+
+    // Mock XDG_CONFIG_HOME to avoid picking up real global config
+    originalXdgConfigHome = process.env.XDG_CONFIG_HOME;
+    process.env.XDG_CONFIG_HOME = path.join(tempDir, 'fake-xdg-config');
+  });
+
+  afterEach(async () => {
+    // Restore original XDG_CONFIG_HOME
+    if (originalXdgConfigHome !== undefined) {
+      process.env.XDG_CONFIG_HOME = originalXdgConfigHome;
+    } else {
+      delete process.env.XDG_CONFIG_HOME;
+    }
+
+    await fs.remove(tempDir);
+  });
+
+  // Monitor config tests
+  describe('monitor config', () => {
+    it('accepts valid monitor config with all fields', async () => {
+      const validConfig = {
+        monitor: {
+          pollIntervalActive: 5000,
+          pollIntervalBackground: 30000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
+
+      const config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(5000);
+      expect(config.monitor?.pollIntervalBackground).toBe(30000);
+    });
+
+    it('accepts valid monitor config with only pollIntervalActive', async () => {
+      const validConfig = {
+        monitor: {
+          pollIntervalActive: 3000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
+
+      const config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(3000);
+      expect(config.monitor?.pollIntervalBackground).toBe(DEFAULT_CONFIG.monitor?.pollIntervalBackground);
+    });
+
+    it('accepts valid monitor config with only pollIntervalBackground', async () => {
+      const validConfig = {
+        monitor: {
+          pollIntervalBackground: 60000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
+
+      const config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(DEFAULT_CONFIG.monitor?.pollIntervalActive);
+      expect(config.monitor?.pollIntervalBackground).toBe(60000);
+    });
+
+    it('rejects pollIntervalActive below minimum (500ms)', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalActive: 400,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalActive must be at least 500ms');
+    });
+
+    it('rejects pollIntervalActive above maximum (60000ms)', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalActive: 70000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalActive must be at most 60000ms');
+    });
+
+    it('rejects pollIntervalBackground below minimum (5000ms)', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalBackground: 3000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalBackground must be at least 5000ms');
+    });
+
+    it('rejects pollIntervalBackground above maximum (300000ms)', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalBackground: 400000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalBackground must be at most 300000ms');
+    });
+
+    it('rejects non-number pollIntervalActive', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalActive: 'fast',
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalActive must be a number');
+    });
+
+    it('rejects non-number pollIntervalBackground', async () => {
+      const invalidConfig = {
+        monitor: {
+          pollIntervalBackground: true,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('pollIntervalBackground must be a number');
+    });
+
+    it('rejects monitor that is not an object', async () => {
+      const invalidConfig = {
+        monitor: 'invalid',
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.monitor must be an object');
+    });
+
+    it('rejects monitor that is null', async () => {
+      const invalidConfig = {
+        monitor: null,
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.monitor must be an object');
+    });
+
+    it('rejects monitor that is an array', async () => {
+      const invalidConfig = {
+        monitor: [5000, 30000],
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.monitor must be an object');
+    });
+
+    it('accepts boundary values for pollIntervalActive', async () => {
+      // Test minimum boundary
+      const minConfig = {
+        monitor: {
+          pollIntervalActive: 500,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), minConfig);
+
+      let config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(500);
+
+      // Test maximum boundary
+      const maxConfig = {
+        monitor: {
+          pollIntervalActive: 60000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), maxConfig);
+
+      config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(60000);
+    });
+
+    it('accepts boundary values for pollIntervalBackground', async () => {
+      // Test minimum boundary
+      const minConfig = {
+        monitor: {
+          pollIntervalBackground: 5000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), minConfig);
+
+      let config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalBackground).toBe(5000);
+
+      // Test maximum boundary
+      const maxConfig = {
+        monitor: {
+          pollIntervalBackground: 300000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), maxConfig);
+
+      config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalBackground).toBe(300000);
+    });
+  });
+
+  // AI config tests
+  describe('ai config', () => {
+    it('accepts valid ai config', async () => {
+      const validConfig = {
+        ai: {
+          summaryDebounceMs: 15000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
+
+      const config = await loadConfig(tempDir);
+      expect(config.ai?.summaryDebounceMs).toBe(15000);
+    });
+
+    it('rejects summaryDebounceMs below minimum (1000ms)', async () => {
+      const invalidConfig = {
+        ai: {
+          summaryDebounceMs: 500,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('summaryDebounceMs must be at least 1000ms');
+    });
+
+    it('rejects summaryDebounceMs above maximum (60000ms)', async () => {
+      const invalidConfig = {
+        ai: {
+          summaryDebounceMs: 120000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('summaryDebounceMs must be at most 60000ms');
+    });
+
+    it('rejects non-number summaryDebounceMs', async () => {
+      const invalidConfig = {
+        ai: {
+          summaryDebounceMs: 'slow',
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('summaryDebounceMs must be a number');
+    });
+
+    it('rejects ai that is not an object', async () => {
+      const invalidConfig = {
+        ai: 'invalid',
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.ai must be an object');
+    });
+
+    it('rejects ai that is null', async () => {
+      const invalidConfig = {
+        ai: null,
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.ai must be an object');
+    });
+
+    it('rejects ai that is an array', async () => {
+      const invalidConfig = {
+        ai: [15000],
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), invalidConfig);
+
+      await expect(loadConfig(tempDir)).rejects.toThrow('config.ai must be an object');
+    });
+
+    it('accepts boundary values for summaryDebounceMs', async () => {
+      // Test minimum boundary
+      const minConfig = {
+        ai: {
+          summaryDebounceMs: 1000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), minConfig);
+
+      let config = await loadConfig(tempDir);
+      expect(config.ai?.summaryDebounceMs).toBe(1000);
+
+      // Test maximum boundary
+      const maxConfig = {
+        ai: {
+          summaryDebounceMs: 60000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), maxConfig);
+
+      config = await loadConfig(tempDir);
+      expect(config.ai?.summaryDebounceMs).toBe(60000);
+    });
+  });
+
+  // Combined tests
+  describe('monitor and ai config combined', () => {
+    it('accepts both monitor and ai config together', async () => {
+      const validConfig = {
+        monitor: {
+          pollIntervalActive: 5000,
+          pollIntervalBackground: 30000,
+        },
+        ai: {
+          summaryDebounceMs: 15000,
+        },
+      };
+      await fs.writeJSON(path.join(tempDir, '.canopy.json'), validConfig);
+
+      const config = await loadConfig(tempDir);
+      expect(config.monitor?.pollIntervalActive).toBe(5000);
+      expect(config.monitor?.pollIntervalBackground).toBe(30000);
+      expect(config.ai?.summaryDebounceMs).toBe(15000);
+    });
+
+    it('uses defaults when monitor and ai not specified', async () => {
+      const config = await loadConfig(tempDir);
+      expect(config.monitor).toEqual(DEFAULT_CONFIG.monitor);
+      expect(config.ai).toEqual(DEFAULT_CONFIG.ai);
+    });
+  });
+});

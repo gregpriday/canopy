@@ -231,6 +231,32 @@ function mergeConfigs(...configs: Partial<CanopyConfig>[]): CanopyConfig {
         continue;
       }
 
+      if (
+        typedKey === 'monitor' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        merged[typedKey] = {
+          ...merged.monitor,
+          ...value,
+        } as typeof merged.monitor;
+        continue;
+      }
+
+      if (
+        typedKey === 'ai' &&
+        value &&
+        typeof value === 'object' &&
+        !Array.isArray(value)
+      ) {
+        merged[typedKey] = {
+          ...merged.ai,
+          ...value,
+        } as typeof merged.ai;
+        continue;
+      }
+
       (merged as any)[typedKey] = value;
     }
   }
@@ -514,6 +540,53 @@ function validateConfig(config: unknown): CanopyConfig {
               usedCommands.add(link.command);
             }
           }
+        }
+      }
+    }
+  }
+
+  // Validate monitor config (optional field)
+  if (c.monitor !== undefined) {
+    if (!c.monitor || typeof c.monitor !== 'object' || Array.isArray(c.monitor)) {
+      errors.push('config.monitor must be an object');
+    } else {
+      // Validate pollIntervalActive (optional, min: 500, max: 60000)
+      if (c.monitor.pollIntervalActive !== undefined) {
+        if (typeof c.monitor.pollIntervalActive !== 'number') {
+          errors.push('config.monitor.pollIntervalActive must be a number');
+        } else if (c.monitor.pollIntervalActive < 500) {
+          errors.push('config.monitor.pollIntervalActive must be at least 500ms');
+        } else if (c.monitor.pollIntervalActive > 60000) {
+          errors.push('config.monitor.pollIntervalActive must be at most 60000ms');
+        }
+      }
+
+      // Validate pollIntervalBackground (optional, min: 5000, max: 300000)
+      if (c.monitor.pollIntervalBackground !== undefined) {
+        if (typeof c.monitor.pollIntervalBackground !== 'number') {
+          errors.push('config.monitor.pollIntervalBackground must be a number');
+        } else if (c.monitor.pollIntervalBackground < 5000) {
+          errors.push('config.monitor.pollIntervalBackground must be at least 5000ms');
+        } else if (c.monitor.pollIntervalBackground > 300000) {
+          errors.push('config.monitor.pollIntervalBackground must be at most 300000ms');
+        }
+      }
+    }
+  }
+
+  // Validate ai config (optional field)
+  if (c.ai !== undefined) {
+    if (!c.ai || typeof c.ai !== 'object' || Array.isArray(c.ai)) {
+      errors.push('config.ai must be an object');
+    } else {
+      // Validate summaryDebounceMs (optional, min: 1000, max: 60000)
+      if (c.ai.summaryDebounceMs !== undefined) {
+        if (typeof c.ai.summaryDebounceMs !== 'number') {
+          errors.push('config.ai.summaryDebounceMs must be a number');
+        } else if (c.ai.summaryDebounceMs < 1000) {
+          errors.push('config.ai.summaryDebounceMs must be at least 1000ms');
+        } else if (c.ai.summaryDebounceMs > 60000) {
+          errors.push('config.ai.summaryDebounceMs must be at most 60000ms');
         }
       }
     }

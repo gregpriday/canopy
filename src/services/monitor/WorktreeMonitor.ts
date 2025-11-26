@@ -1,12 +1,16 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
 import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.js';
+import { DEFAULT_CONFIG } from '../../types/index.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
 import { WorktreeRemovedError } from '../../utils/errorTypes.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
+
+// Default AI debounce (used when config is not provided)
+const DEFAULT_AI_DEBOUNCE_MS = DEFAULT_CONFIG.ai?.summaryDebounceMs ?? 10000;
 
 /**
  * Represents the complete state of a monitored worktree.
@@ -54,7 +58,7 @@ export class WorktreeMonitor extends EventEmitter {
 
   // Configuration
   private pollingInterval: number = 2000; // Default 2s for active worktree
-  private readonly AI_BUFFER_DELAY = 14000; // 14 seconds (7 cycles * 2s)
+  private aiBufferDelay: number = DEFAULT_AI_DEBOUNCE_MS; // Configurable AI debounce
 
   // Flags
   private isRunning: boolean = false;
@@ -160,6 +164,28 @@ export class WorktreeMonitor extends EventEmitter {
     if (this.isRunning) {
       this.stopPolling();
       this.startPolling();
+    }
+  }
+
+  /**
+   * Set the AI buffer delay for summary generation.
+   * Used by WorktreeService to apply user-configured debounce settings.
+   * Cancels any pending AI timer so the new delay takes effect immediately.
+   */
+  public setAIBufferDelay(ms: number): void {
+    if (this.aiBufferDelay === ms) {
+      return;
+    }
+
+    this.aiBufferDelay = ms;
+
+    // Cancel any pending AI timer so the new delay takes effect immediately
+    // The next scheduleAISummary() call will use the updated delay
+    if (this.aiUpdateTimer) {
+      clearTimeout(this.aiUpdateTimer);
+      this.aiUpdateTimer = null;
+      // Reschedule with new delay if there was a pending timer
+      this.scheduleAISummary();
     }
   }
 
@@ -524,7 +550,7 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * Schedule AI summary generation with a fixed buffer.
+   * Schedule AI summary generation with a configurable buffer.
    * Ignores calls if a timer is already active.
    */
   private scheduleAISummary(): void {
@@ -535,7 +561,7 @@ export class WorktreeMonitor extends EventEmitter {
     this.aiUpdateTimer = setTimeout(() => {
       this.aiUpdateTimer = null;
       void this.updateAISummary();
-    }, this.AI_BUFFER_DELAY);
+    }, this.aiBufferDelay);
   }
 
   /**
