@@ -711,6 +711,180 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
     });
   });
 
+  describe('fetchInitialStatus (--no-watch mode)', () => {
+    it('fetches initial status without starting polling', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [{ path: 'test.ts', status: 'modified', insertions: 10, deletions: 2 }],
+        changedFileCount: 1,
+        totalInsertions: 10,
+        totalDeletions: 2,
+        latestFileMtime: Date.now(),
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      const startPollingSpy = vi.spyOn(monitor as any, 'startPolling');
+
+      await monitor.fetchInitialStatus();
+
+      // Should NOT start polling
+      expect(startPollingSpy).not.toHaveBeenCalled();
+
+      // But should have fetched and updated state
+      const state = monitor.getState();
+      expect(state.modifiedCount).toBe(1);
+      expect(state.worktreeChanges).not.toBeNull();
+
+      await monitor.stop();
+    });
+
+    it('emits update event after initial fetch in no-watch mode', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      await monitor.fetchInitialStatus();
+
+      // Should have emitted at least one update
+      expect(emittedStates.length).toBeGreaterThan(0);
+      expect(emittedStates[0]).toHaveProperty('worktreeId', baseWorktree.id);
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('allows manual refresh() to work after fetchInitialStatus', async () => {
+      let callCount = 0;
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
+        callCount++;
+        return {
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: callCount > 1
+            ? [{ path: 'new.ts', status: 'added', insertions: 5, deletions: 0 }]
+            : [],
+          changedFileCount: callCount > 1 ? 1 : 0,
+          totalInsertions: callCount > 1 ? 5 : 0,
+          totalDeletions: 0,
+          latestFileMtime: Date.now(),
+          lastUpdated: Date.now(),
+        };
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+
+      // Initial fetch without polling
+      await monitor.fetchInitialStatus();
+      expect(monitor.getState().modifiedCount).toBe(0);
+
+      // Manual refresh should still work
+      await monitor.refresh();
+      expect(monitor.getState().modifiedCount).toBe(1);
+
+      await monitor.stop();
+    });
+
+    it('does not auto-poll after fetchInitialStatus even after time passes', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+
+      await monitor.fetchInitialStatus();
+
+      const gitCallCount = vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length;
+
+      // Advance time by 10 seconds (well past any polling interval)
+      await vi.advanceTimersByTimeAsync(10000);
+
+      // Should NOT have made additional calls (no polling)
+      expect(vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length).toBe(gitCallCount);
+
+      await monitor.stop();
+    });
+
+    it('setPollingInterval does not restart polling after fetchInitialStatus', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      const startPollingSpy = vi.spyOn(monitor as any, 'startPolling');
+
+      // Use fetchInitialStatus (--no-watch mode)
+      await monitor.fetchInitialStatus();
+
+      // Clear the spy to track only subsequent calls
+      startPollingSpy.mockClear();
+
+      // Calling setPollingInterval (happens on WorktreeService re-sync)
+      monitor.setPollingInterval(5000);
+
+      // Should NOT start polling since pollingEnabled is false
+      expect(startPollingSpy).not.toHaveBeenCalled();
+
+      // Verify no polling happens after time passes
+      const gitCallCount = vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length;
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length).toBe(gitCallCount);
+
+      await monitor.stop();
+    });
+
+    it('refresh does not enable polling after fetchInitialStatus', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      const startPollingSpy = vi.spyOn(monitor as any, 'startPolling');
+
+      // Use fetchInitialStatus (--no-watch mode)
+      await monitor.fetchInitialStatus();
+      startPollingSpy.mockClear();
+
+      // Manual refresh should update status but not start polling
+      await monitor.refresh();
+
+      // Should NOT start polling
+      expect(startPollingSpy).not.toHaveBeenCalled();
+
+      // Verify no polling after refresh
+      const gitCallCount = vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length;
+      await vi.advanceTimersByTimeAsync(10000);
+      expect(vi.mocked(gitStatus.getWorktreeChangesWithStats).mock.calls.length).toBe(gitCallCount);
+
+      await monitor.stop();
+    });
+  });
+
   describe('Metadata Update (Branch Refresh)', () => {
     it('updates state when branch changes', async () => {
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({

@@ -106,8 +106,14 @@ class WorktreeService {
 
         monitor.setPollingInterval(interval);
 
-        // Start monitoring
-        await monitor.start();
+        // Start monitoring only if watching is enabled
+        // When --no-watch is passed, we only do initial status fetch
+        if (this.watchingEnabled) {
+          await monitor.start();
+        } else {
+          // Just fetch initial status without starting polling
+          await monitor.fetchInitialStatus();
+        }
 
         this.monitors.set(wt.id, monitor);
       }

@@ -61,6 +61,7 @@ export class WorktreeMonitor extends EventEmitter {
   private isUpdating: boolean = false;
   private isGeneratingSummary: boolean = false;
   private hasGeneratedInitialSummary: boolean = false;
+  private pollingEnabled: boolean = false; // Tracks if polling should be active (false when --no-watch)
 
   constructor(worktree: Worktree, mainBranch: string = 'main') {
     super();
@@ -101,6 +102,7 @@ export class WorktreeMonitor extends EventEmitter {
     }
 
     this.isRunning = true;
+    this.pollingEnabled = true; // Enable polling for normal start
     logInfo('Starting WorktreeMonitor (polling-based)', { id: this.id, path: this.path });
 
     // 1. Perform initial fetch immediately
@@ -112,6 +114,26 @@ export class WorktreeMonitor extends EventEmitter {
     if (this.isRunning) {
       this.startPolling();
     }
+  }
+
+  /**
+   * Fetch initial status without starting polling.
+   * Used when --no-watch flag is passed to provide a static snapshot.
+   * Manual refresh (pressing 'r') will still work via the refresh() method.
+   */
+  public async fetchInitialStatus(): Promise<void> {
+    logInfo('Fetching initial status (no polling)', { id: this.id, path: this.path });
+
+    // Mark as running to allow updateGitStatus to proceed
+    // but we won't start the polling timer
+    this.isRunning = true;
+    this.pollingEnabled = false; // Explicitly disable polling for --no-watch mode
+
+    // Perform initial fetch
+    await this.updateGitStatus(true);
+
+    // Note: We DON'T call startPolling() here
+    // The monitor remains "running" so refresh() works, but no automatic polling
   }
 
   /**
@@ -156,8 +178,9 @@ export class WorktreeMonitor extends EventEmitter {
 
     this.pollingInterval = ms;
 
-    // Restart polling with new interval if currently running
-    if (this.isRunning) {
+    // Restart polling with new interval if currently running AND polling is enabled
+    // When --no-watch is used, pollingEnabled is false so we don't restart polling
+    if (this.isRunning && this.pollingEnabled) {
       this.stopPolling();
       this.startPolling();
     }
