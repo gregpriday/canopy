@@ -610,7 +610,7 @@ export class WorktreeMonitor extends EventEmitter {
   /**
    * Read the AI note file content.
    * Returns undefined if the file doesn't exist or is empty.
-   * Content is truncated to 500 chars and only the first line is returned.
+   * Content is truncated to 500 chars and only the last line is returned.
    */
   private async readNoteFile(): Promise<string | undefined> {
     if (!this.noteEnabled) {
@@ -632,12 +632,13 @@ export class WorktreeMonitor extends EventEmitter {
         return undefined;
       }
 
-      // Get first line only and truncate to 500 chars
-      const firstLine = trimmed.split('\n')[0].trim();
-      if (firstLine.length > 500) {
-        return firstLine.slice(0, 497) + '...';
+      // Get last line only and truncate to 500 chars
+      const lines = trimmed.split('\n');
+      const lastLine = lines[lines.length - 1].trim();
+      if (lastLine.length > 500) {
+        return lastLine.slice(0, 497) + '...';
       }
-      return firstLine;
+      return lastLine;
     } catch (error) {
       // File doesn't exist or permission error - treat as non-existent
       // Only log if it's not a simple ENOENT (file not found)

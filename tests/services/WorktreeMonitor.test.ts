@@ -1220,7 +1220,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       await monitor.stop();
     });
 
-    it('takes only first line of multi-line note', async () => {
+    it('takes only last line of multi-line note', async () => {
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
         worktreeId: baseWorktree.id,
         rootPath: baseWorktree.path,
@@ -1236,7 +1236,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       const monitor = new WorktreeMonitor(baseWorktree);
       await monitor.start();
 
-      expect(monitor.getState().aiNote).toBe('First line status');
+      expect(monitor.getState().aiNote).toBe('Third line more');
 
       await monitor.stop();
     });
