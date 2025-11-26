@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
-import { readFile, stat } from 'fs/promises';
+import { readFile } from 'fs/promises';
 import { join as pathJoin } from 'path';
 import { execSync } from 'child_process';
 import type { Worktree, WorktreeChanges, WorktreeMood, AISummaryStatus } from '../../types/index.js';
@@ -75,9 +75,6 @@ export class WorktreeMonitor extends EventEmitter {
   // Git directory cache (resolved once on first use)
   private gitDir: string | null = null;
 
-  // TTL for note relevance - if an agent hasn't updated the note in 5 minutes,
-  // it's probably dead/finished and we shouldn't show the note
-  private static readonly NOTE_TTL_MS = 5 * 60 * 1000;
 
   // Flags
   private isRunning: boolean = false;
@@ -651,15 +648,8 @@ export class WorktreeMonitor extends EventEmitter {
 
   /**
    * Read the AI note file content from the git directory.
-   * Returns undefined if the file doesn't exist, is empty, or is stale.
+   * Returns undefined if the file doesn't exist or is empty.
    * Content is truncated to 500 chars and only the last line is returned.
-   *
-   * Uses TTL-based filtering: notes older than NOTE_TTL_MS (5 minutes) are
-   * considered stale and not shown. This handles "zombie agent" scenarios
-   * where an agent crashed or finished but didn't clean up its note.
-   *
-   * Note: File deletion/cleanup is handled separately by the startup
-   * garbage collection routine, not here in the hot monitoring path.
    */
   private async readNoteFile(): Promise<string | undefined> {
     if (!this.noteEnabled) {
@@ -674,16 +664,6 @@ export class WorktreeMonitor extends EventEmitter {
     const notePath = pathJoin(gitDir, this.noteFilename);
 
     try {
-      // Get file stats (also validates existence)
-      const fileStat = await stat(notePath);
-
-      // TTL check: if the note hasn't been updated in NOTE_TTL_MS,
-      // the agent is probably dead/finished - don't show the note
-      const noteAge = Date.now() - fileStat.mtimeMs;
-      if (noteAge > WorktreeMonitor.NOTE_TTL_MS) {
-        return undefined;
-      }
-
       // Read file content
       const content = await readFile(notePath, 'utf-8');
       const trimmed = content.trim();

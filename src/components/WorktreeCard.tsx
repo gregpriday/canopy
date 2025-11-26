@@ -485,7 +485,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
       )}
 
       {/* Note Dock - displays AI agent status from .canopy_note.txt */}
-      <NoteDock noteContent={aiNote} />
+      <NoteDock noteContent={aiNote} registerClickRegion={registerClickRegion} />
     </Box>
   );
 };
