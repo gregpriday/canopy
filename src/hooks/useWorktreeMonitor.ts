@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { events } from '../services/events.js';
-import type { WorktreeState } from '../services/monitor/index.js';
+import { worktreeService, type WorktreeState } from '../services/monitor/index.js';
 import type { Worktree } from '../types/index.js';
 
 /**
@@ -8,6 +8,11 @@ import type { Worktree } from '../types/index.js';
  *
  * This hook listens to the global event bus for worktree state updates
  * and maintains a map of worktree states indexed by ID.
+ *
+ * IMPORTANT: Initializes from worktreeService.getAllStates() to prevent
+ * race conditions where events are emitted before the component mounts.
+ * This ensures the dashboard renders immediately with existing state
+ * even after hot-reloads or view transitions.
  *
  * @returns Map of worktree ID to WorktreeState
  *
@@ -18,10 +23,15 @@ import type { Worktree } from '../types/index.js';
  * ```
  */
 export function useWorktreeMonitor(): Map<string, WorktreeState> {
-  const [states, setStates] = useState<Map<string, WorktreeState>>(new Map());
+  // FIX: Initialize with current states from service instead of empty Map
+  // This prevents race conditions where events fire before mount
+  const [states, setStates] = useState<Map<string, WorktreeState>>(() =>
+    worktreeService.getAllStates()
+  );
 
   useEffect(() => {
-    // Subscribe to worktree update events
+    // Subscribe to events FIRST to avoid race condition where updates
+    // are emitted between getAllStates() and listener registration
     const unsubscribeUpdate = events.on('sys:worktree:update', (newState: WorktreeState) => {
       setStates(prev => {
         // Create new Map to trigger React re-render
@@ -31,7 +41,6 @@ export function useWorktreeMonitor(): Map<string, WorktreeState> {
       });
     });
 
-    // Subscribe to worktree removal events
     const unsubscribeRemove = events.on('sys:worktree:remove', ({ worktreeId }) => {
       setStates(prev => {
         // Create new Map without the removed worktree
@@ -40,6 +49,10 @@ export function useWorktreeMonitor(): Map<string, WorktreeState> {
         return next;
       });
     });
+
+    // THEN sync state to catch any updates between initialization and effect
+    // Now that listeners are active, any concurrent updates will be captured
+    setStates(worktreeService.getAllStates());
 
     return () => {
       unsubscribeUpdate();
