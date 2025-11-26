@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useLayoutEffect } from 'react';
-import { Box, Text, useStdout } from 'ink';
+import { Box, Text } from 'ink';
 import Gradient from 'ink-gradient';
 import { measureElement } from 'ink';
 import type { ProjectIdentity } from '../services/ai/index.js';
@@ -19,6 +19,8 @@ interface HeaderProps {
   commandPaletteOpen?: boolean;
   /** Aggregated AI status across all worktrees */
   aiStatus?: AISummaryStatus;
+  /** Terminal width for responsive layout (from useTerminalDimensions) */
+  terminalWidth: number;
 }
 
 const HeaderButton: React.FC<{
@@ -140,11 +142,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenGitFox,
   commandPaletteOpen = false,
   aiStatus,
+  terminalWidth,
 }) => {
   const { palette } = useTheme();
-  const { stdout } = useStdout();
   const stats = useRepositoryStats(cwd);
-  const terminalWidth = stdout?.columns || 80;
 
   const gradient = {
     start: identity.gradientStart,

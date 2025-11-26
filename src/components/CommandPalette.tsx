@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Box, Text, useInput, useStdout } from 'ink';
+import { Box, Text, useInput } from 'ink';
 import { useTheme } from '../theme/ThemeProvider.js';
 import type { SlashCommand } from '../hooks/useQuickLinks.js';
 import { fuzzyMatch } from '../utils/fuzzyMatch.js';
@@ -11,6 +11,8 @@ interface CommandPaletteProps {
   commands: SlashCommand[];
   onExecute: (command: SlashCommand) => void;
   onClose: () => void;
+  /** Terminal width for responsive layout (from useTerminalDimensions) */
+  terminalWidth: number;
 }
 
 export function CommandPalette({
@@ -18,14 +20,11 @@ export function CommandPalette({
   commands,
   onExecute,
   onClose,
+  terminalWidth,
 }: CommandPaletteProps): React.JSX.Element | null {
   const { palette } = useTheme();
-  const { stdout } = useStdout();
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-
-  // Get terminal width for full-width overlay
-  const terminalWidth = stdout?.columns || 80;
 
   // Filter and sort commands based on query
   const filteredCommands = useMemo(() => {
