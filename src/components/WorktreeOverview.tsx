@@ -27,6 +27,8 @@ export interface WorktreeOverviewProps {
   devServerConfig?: DevServerConfig;
   /** Handler for mouse wheel scrolling */
   onScroll?: (direction: 'up' | 'down') => void;
+  /** Terminal width for card border rendering */
+  terminalWidth: number;
 }
 
 const FALLBACK_CHANGES: WorktreeChanges = {
@@ -109,6 +111,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onOpenEditor,
   devServerConfig,
   onScroll,
+  terminalWidth,
 }) => {
   // Check if dev server feature is enabled (default: true)
   const devServerEnabled = devServerConfig?.enabled ?? true;
@@ -294,6 +297,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}
             aiNote={worktree.aiNote}
             registerClickRegion={registerClickRegion}
+            terminalWidth={terminalWidth}
           />
         );
       })}

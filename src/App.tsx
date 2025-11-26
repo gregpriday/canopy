@@ -1019,6 +1019,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onOpenEditor={handleOpenWorktreeEditor}
             devServerConfig={devServerConfig}
             onScroll={anyModalOpen ? undefined : handleScroll}
+            terminalWidth={terminalWidth}
           />
         </Box>
         {isWorktreePanelOpen && (
