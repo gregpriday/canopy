@@ -107,6 +107,9 @@ export interface Worktree {
 
   /** Timestamp of last git activity (milliseconds since epoch, null if no activity yet) */
   lastActivityTimestamp?: number | null;
+
+  /** Content from .canopy_note.txt file (for AI agent status communication) */
+  aiNote?: string;
 }
 
 export interface OpenerConfig {
@@ -173,6 +176,17 @@ export interface AIConfig {
   summaryDebounceMs?: number;
 }
 
+/**
+ * Configuration for the AI note feature.
+ * Allows AI agents to communicate status by writing to a well-known file.
+ */
+export interface NoteConfig {
+  /** Enable/disable the AI note feature (default: true) */
+  enabled?: boolean;
+  /** Override the note filename (default: '.canopy_note.txt') */
+  filename?: string;
+}
+
 export interface CanopyConfig {
   editor: string;
   editorArgs: string[];
@@ -220,6 +234,7 @@ export interface CanopyConfig {
   };
   monitor?: MonitorConfig; // Worktree monitor polling intervals
   ai?: AIConfig; // AI feature configuration
+  note?: NoteConfig; // AI note display feature
 }
 
 export const DEFAULT_CONFIG: CanopyConfig = {
@@ -239,6 +254,7 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     '**/.DS_Store',
     '**/coverage/**',
     '**/__pycache__/**',
+    '**/.canopy_note.txt',
   ],
   copytreeDefaults: {
     format: 'xml',
@@ -286,5 +302,9 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   },
   ai: {
     summaryDebounceMs: 10000, // 10s debounce for AI calls
+  },
+  note: {
+    enabled: true, // Enabled by default
+    filename: '.canopy_note.txt', // Default filename
   },
 };

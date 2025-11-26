@@ -5,6 +5,7 @@ import { events } from '../../src/services/events.js';
 import * as gitStatus from '../../src/utils/git.js';
 import * as worktreeMood from '../../src/utils/worktreeMood.js';
 import { WorktreeRemovedError } from '../../src/utils/errorTypes.js';
+import * as fs from 'fs/promises';
 
 // Mock the git utilities
 vi.mock('../../src/utils/git.js', () => ({
@@ -40,6 +41,12 @@ vi.mock('../../src/services/ai/worktree.js', () => ({
     summary: '🔧 Working on test changes',
     modifiedCount: 1,
   }),
+}));
+
+// Mock fs/promises for AI note file reading
+vi.mock('fs/promises', () => ({
+  access: vi.fn(),
+  readFile: vi.fn(),
 }));
 
 const baseWorktree: Worktree = {
@@ -1144,6 +1151,201 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       expect(emittedStates.length).toBe(3);
 
       events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+  });
+
+  describe('AI Note File Polling', () => {
+    it('reads AI note file content during updates', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      // Mock file exists and has content
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('Building feature X - running tests');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      expect(monitor.getState().aiNote).toBe('Building feature X - running tests');
+
+      await monitor.stop();
+    });
+
+    it('returns undefined when note file does not exist', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      // Mock file does not exist
+      const enoentError = new Error('ENOENT') as NodeJS.ErrnoException;
+      enoentError.code = 'ENOENT';
+      vi.mocked(fs.access).mockRejectedValue(enoentError);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      expect(monitor.getState().aiNote).toBeUndefined();
+
+      await monitor.stop();
+    });
+
+    it('returns undefined when note file is empty', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      // Mock file exists but is empty
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('   \n  ');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      expect(monitor.getState().aiNote).toBeUndefined();
+
+      await monitor.stop();
+    });
+
+    it('takes only first line of multi-line note', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      // Mock file with multiple lines
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('First line status\nSecond line details\nThird line more');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      expect(monitor.getState().aiNote).toBe('First line status');
+
+      await monitor.stop();
+    });
+
+    it('truncates long note content to 500 chars', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      // Mock file with very long content
+      const longContent = 'A'.repeat(600);
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue(longContent);
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      const aiNote = monitor.getState().aiNote;
+      expect(aiNote).toBeDefined();
+      expect(aiNote!.length).toBe(500);
+      expect(aiNote!.endsWith('...')).toBe(true);
+
+      await monitor.stop();
+    });
+
+    it('updates aiNote in emitted state', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('Test note content');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      await monitor.start();
+
+      // Should have emitted state with aiNote
+      expect(emittedStates.length).toBeGreaterThan(0);
+      expect(emittedStates[0].aiNote).toBe('Test note content');
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('can be disabled via setNoteConfig', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('Should not appear');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+
+      // Disable note feature
+      monitor.setNoteConfig(false);
+
+      await monitor.start();
+
+      // Should not have read the note
+      expect(monitor.getState().aiNote).toBeUndefined();
+
+      await monitor.stop();
+    });
+
+    it('uses custom filename when configured', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      vi.mocked(fs.access).mockResolvedValue(undefined);
+      vi.mocked(fs.readFile).mockResolvedValue('Custom note content');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+
+      // Configure custom filename
+      monitor.setNoteConfig(true, '.custom_note.txt');
+
+      await monitor.start();
+
+      // Should have called with the custom filename
+      expect(fs.access).toHaveBeenCalledWith(
+        expect.stringContaining('.custom_note.txt'),
+        expect.any(Number)
+      );
+
       await monitor.stop();
     });
   });

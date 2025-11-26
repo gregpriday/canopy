@@ -227,6 +227,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             serverState={serverState}
             hasDevScript={hasDevScript}
             onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}
+            aiNote={worktree.aiNote}
             registerClickRegion={registerClickRegion}
           />
         );
