@@ -84,6 +84,9 @@ class WorktreeService {
       const isActive = wt.id === activeWorktreeId;
 
       if (existingMonitor) {
+        // Update metadata (branch, name) if changed (e.g., after git checkout)
+        existingMonitor.updateMetadata(wt);
+
         // Update polling interval based on active status
         const interval = isActive
           ? ACTIVE_WORKTREE_INTERVAL_MS
