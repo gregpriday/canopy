@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box } from 'ink';
-import type { Worktree, WorktreeChanges, WorktreeMood, DevServerState } from '../types/index.js';
+import type { Worktree, WorktreeChanges, DevServerState } from '../types/index.js';
 import { WorktreeCard } from './WorktreeCard.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 import { devServerManager } from '../services/server/index.js';
@@ -30,13 +30,6 @@ export interface WorktreeOverviewProps {
   devServerConfig?: DevServerConfig;
 }
 
-const MOOD_PRIORITY: Record<WorktreeMood, number> = {
-  active: 1,
-  stable: 2,
-  stale: 3,
-  error: 4,
-};
-
 const FALLBACK_CHANGES: WorktreeChanges = {
   worktreeId: '',
   rootPath: '',
@@ -47,31 +40,46 @@ const FALLBACK_CHANGES: WorktreeChanges = {
   lastUpdated: 0,
 };
 
+/**
+ * Sort worktrees by Most Recently Used (MRU) ordering.
+ *
+ * Sorting rules:
+ * 1. Pin main/master branches to the very top (standard navigational anchor)
+ * 2. Sort all other worktrees by lastActivityTimestamp (most recent first)
+ * 3. Alphabetical fallback when timestamps are equal or missing
+ *
+ * Note: Mood-based visual indicators (border colors) remain but don't affect sort order.
+ */
 export function sortWorktrees(worktrees: Worktree[]): Worktree[] {
   if (worktrees.length === 0) {
     return [];
   }
 
+  // Find main/master to pin at top
   const mainIndex = worktrees.findIndex(
     wt => wt.branch === 'main' || wt.branch === 'master'
   );
 
+  // Sort by recency (most recent first), then alphabetically as tie-breaker
   const sorted = [...worktrees].sort((a, b) => {
-    const priorityA = MOOD_PRIORITY[a.mood ?? 'stable'] ?? 5;
-    const priorityB = MOOD_PRIORITY[b.mood ?? 'stable'] ?? 5;
+    // Primary sort: Most recent activity first
+    const timeA = a.lastActivityTimestamp ?? 0;
+    const timeB = b.lastActivityTimestamp ?? 0;
 
-    if (priorityA !== priorityB) {
-      return priorityA - priorityB;
+    if (timeA !== timeB) {
+      return timeB - timeA; // Descending (newest first)
     }
 
+    // Fallback: Alphabetical by branch/name
     const labelA = a.branch || a.name;
     const labelB = b.branch || b.name;
     return labelA.localeCompare(labelB);
   });
 
+  // Prepend main/master at the top
   if (mainIndex >= 0) {
     const mainWorktree = worktrees[mainIndex];
-    const filtered = sorted.filter(wt => wt !== mainWorktree);
+    const filtered = sorted.filter(wt => wt.id !== mainWorktree.id);
     return [mainWorktree, ...filtered];
   }
 
