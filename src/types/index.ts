@@ -143,6 +143,25 @@ export interface QuickLinksConfig {
   links: QuickLink[];
 }
 
+/**
+ * Configuration for worktree monitor polling intervals.
+ * Allows tuning for large monorepos or resource-constrained environments.
+ */
+export interface MonitorConfig {
+  /** Polling interval for active worktree in ms (default: 2000, min: 500, max: 60000) */
+  pollIntervalActive?: number;
+  /** Polling interval for background worktrees in ms (default: 10000, min: 5000, max: 300000) */
+  pollIntervalBackground?: number;
+}
+
+/**
+ * Configuration for AI-powered features.
+ */
+export interface AIConfig {
+  /** Debounce interval for AI summary generation in ms (default: 10000, min: 1000, max: 60000) */
+  summaryDebounceMs?: number;
+}
+
 export interface CanopyConfig {
   editor: string;
   editorArgs: string[];
@@ -188,6 +207,8 @@ export interface CanopyConfig {
     autoStart?: boolean;  // Auto-start servers on Canopy launch (default: false)
     enabled?: boolean;    // Enable/disable dev server feature (default: false, must be explicitly enabled)
   };
+  monitor?: MonitorConfig; // Worktree monitor polling intervals
+  ai?: AIConfig; // AI feature configuration
 }
 
 export const DEFAULT_CONFIG: CanopyConfig = {
@@ -247,5 +268,12 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     enabled: false,       // Disabled by default - must be explicitly enabled in project config
     autoStart: false,     // Don't auto-start servers
     // command: undefined - auto-detect from package.json
+  },
+  monitor: {
+    pollIntervalActive: 2000,     // 2s for active worktree
+    pollIntervalBackground: 10000, // 10s for background worktrees
+  },
+  ai: {
+    summaryDebounceMs: 10000, // 10s debounce for AI calls
   },
 };

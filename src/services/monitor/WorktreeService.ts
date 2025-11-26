@@ -1,10 +1,13 @@
 import { WorktreeMonitor, type WorktreeState } from './WorktreeMonitor.js';
-import type { Worktree } from '../../types/index.js';
+import type { Worktree, MonitorConfig, AIConfig } from '../../types/index.js';
+import { DEFAULT_CONFIG } from '../../types/index.js';
 import { logInfo, logWarn } from '../../utils/logger.js';
 import { events } from '../events.js';
 
-const ACTIVE_WORKTREE_INTERVAL_MS = 2000; // 2s for active worktree (fast polling since no file watcher)
-const BACKGROUND_WORKTREE_INTERVAL_MS = 10000; // 10s for background worktrees
+// Default polling intervals (used when config is not provided)
+const DEFAULT_ACTIVE_WORKTREE_INTERVAL_MS = DEFAULT_CONFIG.monitor?.pollIntervalActive ?? 2000;
+const DEFAULT_BACKGROUND_WORKTREE_INTERVAL_MS = DEFAULT_CONFIG.monitor?.pollIntervalBackground ?? 10000;
+const DEFAULT_AI_DEBOUNCE_MS = DEFAULT_CONFIG.ai?.summaryDebounceMs ?? 10000;
 
 /**
  * WorktreeService manages all WorktreeMonitor instances.
@@ -22,6 +25,8 @@ interface PendingSyncRequest {
   activeWorktreeId: string | null;
   mainBranch: string;
   watchingEnabled: boolean;
+  monitorConfig?: MonitorConfig;
+  aiConfig?: AIConfig;
 }
 
 class WorktreeService {
@@ -31,6 +36,9 @@ class WorktreeService {
   private activeWorktreeId: string | null = null;
   private isSyncing: boolean = false;
   private pendingSync: PendingSyncRequest | null = null;
+  private pollIntervalActive: number = DEFAULT_ACTIVE_WORKTREE_INTERVAL_MS;
+  private pollIntervalBackground: number = DEFAULT_BACKGROUND_WORKTREE_INTERVAL_MS;
+  private aiDebounceMs: number = DEFAULT_AI_DEBOUNCE_MS;
 
   /**
    * Initialize or update monitors to match the current worktree list.
@@ -44,17 +52,21 @@ class WorktreeService {
    * @param activeWorktreeId - ID of the currently active worktree
    * @param mainBranch - Main branch name (default: 'main')
    * @param watchingEnabled - Enable file watching (default: true)
+   * @param monitorConfig - Optional polling interval configuration
+   * @param aiConfig - Optional AI summary debounce configuration
    */
   public async sync(
     worktrees: Worktree[],
     activeWorktreeId: string | null = null,
     mainBranch: string = 'main',
-    watchingEnabled: boolean = true
+    watchingEnabled: boolean = true,
+    monitorConfig?: MonitorConfig,
+    aiConfig?: AIConfig
   ): Promise<void> {
     // If already syncing, queue this request and return
     if (this.isSyncing) {
       logWarn('Sync already in progress, queuing request');
-      this.pendingSync = { worktrees, activeWorktreeId, mainBranch, watchingEnabled };
+      this.pendingSync = { worktrees, activeWorktreeId, mainBranch, watchingEnabled, monitorConfig, aiConfig };
       return;
     }
 
@@ -64,6 +76,19 @@ class WorktreeService {
       this.mainBranch = mainBranch;
       this.watchingEnabled = watchingEnabled;
       this.activeWorktreeId = activeWorktreeId;
+
+      // Update polling intervals from config
+      if (monitorConfig?.pollIntervalActive !== undefined) {
+        this.pollIntervalActive = monitorConfig.pollIntervalActive;
+      }
+      if (monitorConfig?.pollIntervalBackground !== undefined) {
+        this.pollIntervalBackground = monitorConfig.pollIntervalBackground;
+      }
+
+      // Update AI debounce from config
+      if (aiConfig?.summaryDebounceMs !== undefined) {
+        this.aiDebounceMs = aiConfig.summaryDebounceMs;
+      }
 
       const currentIds = new Set(worktrees.map(wt => wt.id));
 
@@ -89,10 +114,13 @@ class WorktreeService {
 
         // Update polling interval based on active status
         const interval = isActive
-          ? ACTIVE_WORKTREE_INTERVAL_MS
-          : BACKGROUND_WORKTREE_INTERVAL_MS;
+          ? this.pollIntervalActive
+          : this.pollIntervalBackground;
 
         existingMonitor.setPollingInterval(interval);
+
+        // Update AI debounce
+        existingMonitor.setAIBufferDelay(this.aiDebounceMs);
       } else {
         // Create new monitor
         logInfo('Creating new WorktreeMonitor', { id: wt.id, path: wt.path });
@@ -101,10 +129,13 @@ class WorktreeService {
 
         // Set initial polling interval
         const interval = isActive
-          ? ACTIVE_WORKTREE_INTERVAL_MS
-          : BACKGROUND_WORKTREE_INTERVAL_MS;
+          ? this.pollIntervalActive
+          : this.pollIntervalBackground;
 
         monitor.setPollingInterval(interval);
+
+        // Set AI debounce
+        monitor.setAIBufferDelay(this.aiDebounceMs);
 
         // Start monitoring only if watching is enabled
         // When --no-watch is passed, we only do initial status fetch
@@ -136,7 +167,9 @@ class WorktreeService {
           pending.worktrees,
           pending.activeWorktreeId,
           pending.mainBranch,
-          pending.watchingEnabled
+          pending.watchingEnabled,
+          pending.monitorConfig,
+          pending.aiConfig
         );
       }
     }
