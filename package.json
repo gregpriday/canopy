@@ -1,7 +1,7 @@
 {
   "name": "@gpriday/canopy",
   "version": "0.1.0",
-  "description": "Terminal-based file browser built with ink for developers working with AI agents",
+  "description": "Worktree context dashboard for developers working with AI agents",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -25,7 +25,8 @@
   "keywords": [
     "terminal",
     "cli",
-    "file-browser",
+    "worktree",
+    "dashboard",
     "tree",
     "ink",
     "copytree",

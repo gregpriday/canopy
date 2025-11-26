@@ -108,7 +108,7 @@ function parseCliArgs(argv: string[]): ParsedArgs {
 
 function showHelp(): void {
   const helpText = `
-Canopy - Terminal-based file browser for developers
+Canopy - Worktree context dashboard for AI-assisted development
 
 USAGE
   canopy [path] [options]
@@ -127,11 +127,11 @@ OPTIONS
   -v, --version         Show version information
 
 ARGS
-  [path]                Directory to browse (default: current directory)
+  [path]                Worktree or directory to monitor (default: current directory)
 
 EXAMPLES
-  canopy                    # Open current directory
-  canopy src                # Open src directory
+  canopy                    # Monitor current directory
+  canopy ~/projects/app     # Monitor specific project
   canopy -f "test"          # Filter for files matching "test"
   canopy -H                 # Show hidden files
   canopy --editor vim       # Use vim to open files

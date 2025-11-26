@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**Canopy** is a terminal-based file browser built with **Ink** (React for CLIs). It is designed for developers working with AI agents, providing a persistent "vantage point" over the codebase.
+**Canopy** is a **Worktree Context Dashboard** built with **Ink** (React for CLIs). It's designed for developers working with AI agents across multiple git worktrees, providing real-time visibility into what's changing, AI-powered activity summaries, and one-keystroke context extraction via CopyTree profiles.
 
 **Key Features:**
 - **Live File Watching:** Real-time updates using `chokidar`.
