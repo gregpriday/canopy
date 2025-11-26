@@ -21,7 +21,6 @@ interface ParsedArgs {
   noWatch: boolean;
   noGit: boolean;
   initialFilter?: string;
-  debug: boolean;
 }
 
 function parseCliArgs(argv: string[]): ParsedArgs {
@@ -34,7 +33,6 @@ function parseCliArgs(argv: string[]): ParsedArgs {
     showVersion: false,
     noWatch: false,
     noGit: false,
-    debug: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -67,10 +65,6 @@ function parseCliArgs(argv: string[]): ParsedArgs {
       result.configOverrides.showGitStatus = true;
       continue;
     }
-    if (arg === '--debug') {
-      result.debug = true;
-      continue;
-    }
     if (arg === '--editor' || arg === '-e') {
       const editor = args[++i];
       if (!editor || editor.startsWith('-')) throw new Error(`--editor requires a value`);
@@ -89,11 +83,6 @@ function parseCliArgs(argv: string[]): ParsedArgs {
       const maxDepth = parseInt(depth, 10);
       if (isNaN(maxDepth) || maxDepth < 0) throw new Error(`--max-depth must be a non-negative number`);
       result.configOverrides.maxDepth = maxDepth;
-      continue;
-    }
-    if (arg === '--config' || arg === '-c') {
-      const configPath = args[++i];
-      if (!configPath || configPath.startsWith('-')) throw new Error(`--config requires a path`);
       continue;
     }
     if (!arg.startsWith('-')) {
@@ -117,12 +106,10 @@ OPTIONS
   -e, --editor <cmd>    Command to open files (default: $EDITOR or code)
   -f, --filter <query>  Initial filter query
   -d, --max-depth <n>   Maximum recursion depth for directory traversal
-  -c, --config <path>   Path to custom configuration file
   -H, --hidden          Show hidden files
   -g, --git             Force enable git status (default: auto)
   --no-git              Disable git status
   --no-watch            Disable file watching
-  --debug               Enable debug logging
   -h, --help            Show this help message
   -v, --version         Show version information
 
