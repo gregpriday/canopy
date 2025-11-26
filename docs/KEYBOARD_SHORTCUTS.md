@@ -12,6 +12,8 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 |-----|--------|
 | `↑` | Move focus to previous worktree card |
 | `↓` | Move focus to next worktree card |
+| `←` | Collapse focused worktree card |
+| `→` | Expand focused worktree card |
 | `Home` | Jump to first worktree |
 | `End` | Jump to last worktree |
 | `PageUp` | Scroll up one page |
@@ -23,8 +25,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 | Key | Action |
 |-----|--------|
 | `Enter` | Open focused worktree in VS Code/configured editor |
-| `c` | Copy changed files to clipboard via CopyTree (default profile) |
-| `p` | Open CopyTree profile selector modal |
+| `c` | Copy changed files to clipboard via CopyTree |
 | `s` | Toggle dev server (start if stopped, stop if running) |
 | `w` | Cycle to next worktree (switches active worktree) |
 | `W` (Shift+w) | Open worktree panel (shows full list with selection) |
@@ -35,8 +36,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 
 | Key | Action |
 |-----|--------|
-| `Ctrl+F` | Open fuzzy search modal (search files across all worktrees) |
-| `/` | Open command palette (slash commands) |
+| `/` | Open command palette (slash commands and fuzzy search) |
 | `1-9` | Open quick link by shortcut number |
 | `Esc` | Close modals and overlays (see priority below) |
 
@@ -44,8 +44,6 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 1. Context menu → closes if open
 2. Command palette → closes if open
 3. Worktree panel → closes if open
-4. Profile selector modal → closes if open
-5. Recent activity modal → closes if open
 
 ### Display & Settings
 
@@ -105,23 +103,6 @@ Same as Dashboard mode.
 
 See [Slash Commands](./SLASH_COMMANDS.md) for configuration and usage.
 
-### Fuzzy Search Modal
-
-| Key | Action |
-|-----|--------|
-| Type text | Filter files by name |
-| `↑` / `↓` | Navigate search results |
-| `Enter` | Open selected file |
-| `Esc` | Close fuzzy search |
-
-### Profile Selector Modal
-
-| Key | Action |
-|-----|--------|
-| `↑` / `↓` | Navigate profile list |
-| `Enter` | Execute CopyTree with selected profile |
-| `Esc` | Cancel and close modal |
-
 ### Worktree Panel
 
 | Key | Action |
@@ -142,14 +123,12 @@ These keys work regardless of mode or modal state:
 
 ### Efficient Workflow
 
-1. **Dashboard Navigation:** Use `j`/`k` or arrow keys to move between worktrees
+1. **Dashboard Navigation:** Use arrow keys to move between worktrees
 2. **Quick Context:** Press `c` to copy changed files for the focused worktree
-3. **Custom Profiles:** Press `p` to choose specialized CopyTree profiles (tests only, docs, etc.)
-4. **Dev Server:** Press `s` to toggle the dev server for the focused worktree
-5. **File Search:** Press `Ctrl+F` to fuzzy search when you need to find a specific file
-6. **Slash Commands:** Press `/` to open command palette for quick links to external tools
-7. **Direct Access:** Use `Option+1-9` to instantly open frequently used links
-8. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
+3. **Dev Server:** Press `s` to toggle the dev server for the focused worktree
+4. **Command Palette:** Press `/` to open command palette for quick links and search
+5. **Direct Access:** Use `1-9` to instantly open frequently used quick links
+6. **Editor Integration:** Press `Enter` to jump into VS Code at the worktree root
 
 ### Keyboard-First vs Mouse
 

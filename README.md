@@ -177,7 +177,8 @@ canopy --no-git
 
 **Dashboard Navigation:**
 - `↑/↓` - Navigate worktree cards
-- `Space` - Expand/collapse card to see changed files
+- `←/→` - Collapse/expand focused worktree card
+- `Space` - Toggle expand/collapse card
 - `PageUp/PageDown` - Page navigation
 - `Home/End` - Jump to first/last worktree
 
@@ -191,7 +192,6 @@ canopy --no-git
 **Search & Commands:**
 - `/` - Open command palette (slash commands and fuzzy search)
 - `1-9` - Open quick links by shortcut number
-- `Ctrl+F` - Quick filter
 - `Esc` - Close modals/search
 
 **Other:**
