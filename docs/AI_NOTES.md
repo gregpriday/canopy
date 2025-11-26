@@ -8,14 +8,14 @@ The AI Note feature provides:
 
 - **Agent-to-human communication** - AI agents can broadcast their current status
 - **Workflow milestone visibility** - See messages like "Creating PR" or "Running tests"
-- **Automatic staleness handling** - Notes disappear after 5 minutes of inactivity
+- **Clickable URLs** - URLs in notes are automatically highlighted and clickable
 - **Zero configuration** - Works out of the box with default settings
 
 ## How It Works
 
 1. An AI agent writes a status message to `.git/canopy/note`
 2. Canopy detects the file and displays the last line in the worktree card
-3. If the note hasn't been updated in 5 minutes, it's hidden (agent likely finished or crashed)
+3. URLs in the note are highlighted and clickable (opens in default browser)
 4. Notes older than 24 hours are deleted on startup for disk hygiene
 
 ## For AI Agents: Writing Notes
@@ -85,14 +85,17 @@ writeNote('Opening PR for review');
 
 - **Only the last line is shown** - If you write multiple lines, only the final line appears
 - **Maximum 500 characters** - Longer messages are truncated
-- **Plain text only** - No formatting or special characters needed
+- **Plain text preferred** - Avoid emojis; keep messages clean and professional
+- **URLs are clickable** - Include URLs (e.g., PR links) and they become clickable
 
 ### Best Practices
 
 1. **Use present participle** - "Creating PR", "Running tests", "Waiting for review"
 2. **Keep it short** - Aim for 50 characters or less
 3. **Update frequently** - Write at each workflow milestone
-4. **Clear when done** - Delete the file or let it expire naturally
+4. **Include relevant URLs** - PR links, issue links, etc. are automatically clickable
+5. **Avoid emojis** - Plain text is cleaner and more professional
+6. **Leave final state** - Keep the note showing the final status (e.g., "Created PR ...") so operators can see the outcome
 
 ### Example Workflow
 
@@ -107,24 +110,14 @@ echo "Implementing authentication flow" > "$(git rev-parse --git-dir)/canopy/not
 echo "Running test suite" > "$(git rev-parse --git-dir)/canopy/note"
 
 # Committing
-echo "Creating initial commit" > "$(git rev-parse --git-dir)/canopy/note"
+echo "Creating commit" > "$(git rev-parse --git-dir)/canopy/note"
 
-# PR creation
-echo "Opening pull request" > "$(git rev-parse --git-dir)/canopy/note"
-
-# Done - optionally clear
-rm "$(git rev-parse --git-dir)/canopy/note"
+# PR creation - include the URL so it's clickable
+# Leave this as the final state so operators can see the outcome
+echo "Created PR https://github.com/user/repo/pull/123" > "$(git rev-parse --git-dir)/canopy/note"
 ```
 
-## Staleness and Cleanup
-
-### Display TTL (5 minutes)
-
-Notes that haven't been modified in 5 minutes are hidden from the display. This handles the case where an agent crashes, disconnects, or finishes without cleaning up its note.
-
-- The file remains on disk
-- Canopy simply doesn't display it
-- If the agent writes again, the note reappears immediately
+## Cleanup
 
 ### Garbage Collection (24 hours)
 
@@ -137,14 +130,7 @@ On startup, Canopy deletes note files older than 24 hours:
 
 This is a disk hygiene measure - notes should not accumulate indefinitely.
 
-### Why This Design?
-
-**Separate TTLs for display vs deletion:**
-
-- **5-minute display TTL** - Fast enough to hide stale notes from crashed agents, but long enough to survive brief network hiccups or agent restarts
-- **24-hour deletion TTL** - Aggressive display hiding, conservative deletion. The file might be useful for debugging or the agent might resume
-
-**Git directory storage:**
+### Why Git Directory Storage?
 
 - **Worktree isolation** - Each worktree has its own note, no conflicts
 - **Not tracked by git** - Notes don't pollute the repository or show in `git status`
@@ -174,7 +160,6 @@ The AI Note feature is enabled by default. To disable or customize:
 
 1. **WorktreeMonitor** (`src/services/monitor/WorktreeMonitor.ts`)
    - Reads the note file during each polling cycle
-   - Applies 5-minute TTL filtering based on file mtime
    - Includes note content in worktree state updates
 
 2. **Note Cleanup** (`src/utils/noteCleanup.ts`)
@@ -183,8 +168,9 @@ The AI Note feature is enabled by default. To disable or customize:
    - Deletes notes older than 24 hours
    - Cleans up empty `canopy/` directories
 
-3. **WorktreeCard** (`src/components/WorktreeCard.tsx`)
-   - Displays the `aiNote` field if present
+3. **NoteDock** (`src/components/NoteDock.tsx`)
+   - Displays the note content in a dedicated section
+   - Parses URLs and makes them clickable
    - Truncates to 500 characters
 
 ### File Paths
@@ -206,15 +192,9 @@ The `canopy/` subdirectory provides namespacing for future Canopy features that 
 ### Note Not Appearing
 
 1. **Check file location** - Must be in `.git/canopy/note`, not the worktree root
-2. **Check file age** - Notes older than 5 minutes are hidden
-3. **Verify content** - File must have at least one line of text
-4. **Check polling** - Wait up to 2 seconds for the next poll cycle
-
-### Note Disappeared
-
-1. **Check file mtime** - The note may have aged past the 5-minute TTL
-2. **Write again** - Simply update the file to make it visible again
-3. **Check if deleted** - Startup cleanup may have removed a 24+ hour old note
+2. **Verify content** - File must have at least one line of text
+3. **Check polling** - Wait up to 2 seconds for the next poll cycle
+4. **Check if deleted** - Startup cleanup removes notes older than 24 hours
 
 ### Wrong Worktree
 
@@ -242,10 +222,8 @@ case "$1" in
     echo "Creating commit" > "$NOTE_PATH"
     ;;
   "pr")
-    echo "Opening pull request" > "$NOTE_PATH"
-    ;;
-  "done")
-    rm -f "$NOTE_PATH"
+    # Include the PR URL so it's clickable - leave as final state
+    echo "Created PR $2" > "$NOTE_PATH"
     ;;
 esac
 ```
@@ -269,7 +247,13 @@ broadcast() {
 broadcast "Agent starting"
 your-ai-agent "$@"
 exit_code=$?
-broadcast "Agent finished (exit: $exit_code)"
-sleep 2  # Give Canopy time to display before it expires
+
+# Leave final state visible for operators
+if [ $exit_code -eq 0 ]; then
+  broadcast "Completed successfully"
+else
+  broadcast "Failed with exit code $exit_code"
+fi
+
 exit $exit_code
 ```
