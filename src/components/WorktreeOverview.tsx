@@ -256,6 +256,8 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   });
 
   // Calculate how many items are hidden above and below the viewport
+  const start = Math.max(0, visibleStart ?? 0);
+  const end = visibleEnd ?? sorted.length;
   const hiddenAbove = start;
   const hiddenBelow = Math.max(0, sorted.length - end);
 
