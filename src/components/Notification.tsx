@@ -32,25 +32,20 @@ export function Notification({ notification, onDismiss, isActive = false }: Noti
   );
 
   let borderColor = palette.text.secondary;
-  let title = '';
 
   switch (notification.type) {
     case 'success':
       borderColor = palette.git.added;
-      title = '✔ SUCCESS';
       break;
     case 'error':
       borderColor = palette.alert.error;
-      title = '✘ ERROR';
       break;
     case 'warning':
       borderColor = palette.alert.warning;
-      title = '⚠ WARNING';
       break;
     case 'info':
     default:
       borderColor = palette.accent.primary;
-      title = 'ℹ INFO';
       break;
   }
 
@@ -61,11 +56,7 @@ export function Notification({ notification, onDismiss, isActive = false }: Noti
       paddingX={1}
       marginBottom={0}
       width="100%"
-      flexDirection="row"
     >
-      <Text color={borderColor} bold>
-        {title}:{' '}
-      </Text>
       <Text color={palette.text.primary}>
         {notification.message}
       </Text>
