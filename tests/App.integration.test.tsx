@@ -61,13 +61,13 @@ vi.mock('../src/utils/worktree.js', () => ({
 vi.mock('../src/utils/config.js');
 
 vi.mock('../src/utils/copytree.js', () => ({
-  runCopyTreeWithProfile: vi.fn().mockResolvedValue('Success\nCopied!'),
+  runCopyTree: vi.fn().mockResolvedValue('Success\nCopied!'),
 }));
 
 import { openFile } from '../src/utils/fileOpener.js';
 import { copyFilePath } from '../src/utils/clipboard.js';
 import * as configUtils from '../src/utils/config.js';
-import { runCopyTreeWithProfile } from '../src/utils/copytree.js';
+import { runCopyTree } from '../src/utils/copytree.js';
 import { events } from '../src/services/events.js';
 import { getWorktrees, getCurrentWorktree } from '../src/utils/worktree.js';
 
@@ -85,9 +85,9 @@ async function waitForCondition(fn: () => boolean, timeout = 1000): Promise<void
 const resetMocks = () => {
   vi.clearAllMocks();
   vi.mocked(copyFilePath).mockReset();
-  vi.mocked(runCopyTreeWithProfile).mockReset();
+  vi.mocked(runCopyTree).mockReset();
   vi.mocked(copyFilePath).mockResolvedValue(undefined);
-  vi.mocked(runCopyTreeWithProfile).mockResolvedValue('Success\nCopied!');
+  vi.mocked(runCopyTree).mockResolvedValue('Success\nCopied!');
 };
 
 describe('App integration - file operations', () => {
@@ -186,7 +186,7 @@ describe('App integration - CopyTree centralized listener', () => {
     await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Clear any previous calls
-    vi.mocked(runCopyTreeWithProfile).mockClear();
+    vi.mocked(runCopyTree).mockClear();
 
     // Create a promise to wait for notification
     let notificationReceived = false;
@@ -200,12 +200,11 @@ describe('App integration - CopyTree centralized listener', () => {
     events.emit('file:copy-tree', {});
 
     // Wait for runCopyTree to be called
-    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0);
+    await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0);
 
     // Verify runCopyTree was called with the correct path
-    expect(runCopyTreeWithProfile).toHaveBeenCalledWith(
+    expect(runCopyTree).toHaveBeenCalledWith(
       '/test/project',
-      'default',
       expect.any(Object),
       []
     );
@@ -223,18 +222,17 @@ describe('App integration - CopyTree centralized listener', () => {
     await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Clear any previous calls
-    vi.mocked(runCopyTreeWithProfile).mockClear();
+    vi.mocked(runCopyTree).mockClear();
 
     // Emit file:copy-tree event with custom path
     events.emit('file:copy-tree', { rootPath: '/custom/path' });
 
     // Wait for runCopyTree to be called
-    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0);
+    await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0);
 
     // Verify runCopyTree was called with the custom path
-    expect(runCopyTreeWithProfile).toHaveBeenCalledWith(
+    expect(runCopyTree).toHaveBeenCalledWith(
       '/custom/path',
-      'default',
       expect.any(Object),
       []
     );
@@ -242,7 +240,7 @@ describe('App integration - CopyTree centralized listener', () => {
 
   it('emits error notification when CopyTree fails', async () => {
     // Mock failure
-    vi.mocked(runCopyTreeWithProfile).mockRejectedValueOnce(new Error('CopyTree command failed'));
+    vi.mocked(runCopyTree).mockRejectedValueOnce(new Error('CopyTree command failed'));
 
     const { lastFrame } = render(<App cwd="/test/project" />);
 
@@ -718,15 +716,15 @@ describe('App integration - dashboard mode', () => {
     await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
     // Clear previous calls
-    vi.mocked(runCopyTreeWithProfile).mockClear();
+    vi.mocked(runCopyTree).mockClear();
 
     // Trigger CopyTree - dashboard listener should use the current worktree root
     events.emit('file:copy-tree', {});
 
     // Wait for runCopyTree to be called
-    await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0, 2000);
+    await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0, 2000);
 
     // Verify CopyTree was called (focused root logic is covered in the hook)
-    expect(runCopyTreeWithProfile).toHaveBeenCalled();
+    expect(runCopyTree).toHaveBeenCalled();
   });
 });

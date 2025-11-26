@@ -9,10 +9,6 @@ import type { CanopyConfig, Worktree } from '../types/index.js';
  */
 export interface InitialState {
   worktree: Worktree | null;
-  selectedPath: string | null;
-  expandedFolders: Set<string>;
-  cursorPosition: number;
-  gitOnlyMode: boolean;
   lastCopyProfile: string;
 }
 
@@ -20,9 +16,6 @@ export interface InitialState {
  * Per-worktree session state persisted between runs
  */
 export interface SessionState {
-  selectedPath?: string | null;   // Legacy field, no longer used
-  expandedFolders?: string[];     // Legacy field, no longer used
-  gitOnlyMode?: boolean;          // Legacy field, no longer used
   timestamp: number;
   lastCopyProfile?: string;
 }
@@ -32,12 +25,12 @@ export interface SessionState {
  * Detects current worktree and restores previous session if available.
  *
  * @param cwd - Current working directory
- * @param config - Loaded configuration
+ * @param _config - Loaded configuration (unused, kept for API compatibility)
  * @returns Initial state for the application
  */
 export async function loadInitialState(
   cwd: string,
-  config: CanopyConfig
+  _config: CanopyConfig
 ): Promise<InitialState> {
   // 1. Detect current worktree
   let currentWorktree: Worktree | null = null;
@@ -61,45 +54,14 @@ export async function loadInitialState(
   }
 
   // 3. Calculate initial state
-  const rootPath = currentWorktree?.path || cwd;
-
-  // Use session state if available and valid
-  let selectedPath: string | null = rootPath;
-  let expandedFolders = new Set<string>();
-  let cursorPosition = 0;
-  let gitOnlyMode = false;
   let lastCopyProfile = 'default';
 
-  if (sessionState) {
-    // Restore null selection if explicitly saved
-    if (sessionState.selectedPath === null) {
-      selectedPath = null;
-    }
-    // Validate that selected path still exists
-    else if (typeof sessionState.selectedPath === 'string' && sessionState.selectedPath) {
-      const pathExists = await fs.pathExists(sessionState.selectedPath);
-      if (pathExists) {
-        selectedPath = sessionState.selectedPath;
-      }
-    }
-
-    // Restore expanded folders
-    expandedFolders = new Set(sessionState.expandedFolders);
-
-    // Restore git-only mode preference
-    gitOnlyMode = sessionState.gitOnlyMode ?? false;
-
-    if (sessionState.lastCopyProfile && typeof sessionState.lastCopyProfile === 'string') {
-      lastCopyProfile = sessionState.lastCopyProfile;
-    }
+  if (sessionState?.lastCopyProfile && typeof sessionState.lastCopyProfile === 'string') {
+    lastCopyProfile = sessionState.lastCopyProfile;
   }
 
   return {
     worktree: currentWorktree,
-    selectedPath,
-    expandedFolders,
-    cursorPosition,
-    gitOnlyMode,
     lastCopyProfile,
   };
 }
@@ -132,35 +94,17 @@ export async function loadSessionState(
     const timestampValid =
       typeof raw.timestamp === 'number' && Number.isFinite(raw.timestamp);
 
-    // All legacy tree-related fields are now optional (selectedPath, expandedFolders, gitOnlyMode)
-    const selectedPathValid =
-      !Object.prototype.hasOwnProperty.call(raw, 'selectedPath') ||
-      raw.selectedPath === null ||
-      typeof raw.selectedPath === 'string';
-
-    const expandedFoldersValid =
-      !Object.prototype.hasOwnProperty.call(raw, 'expandedFolders') ||
-      (Array.isArray(raw.expandedFolders) &&
-        raw.expandedFolders.every((folder: unknown) => typeof folder === 'string'));
-
-    const gitOnlyModeValid =
-      !Object.prototype.hasOwnProperty.call(raw, 'gitOnlyMode') ||
-      typeof raw.gitOnlyMode === 'boolean';
-
     const lastCopyProfileValid =
       !Object.prototype.hasOwnProperty.call(raw, 'lastCopyProfile') ||
       typeof raw.lastCopyProfile === 'string';
 
-    if (!timestampValid || !selectedPathValid || !expandedFoldersValid || !gitOnlyModeValid || !lastCopyProfileValid) {
+    if (!timestampValid || !lastCopyProfileValid) {
       console.warn('Invalid session state format, ignoring');
       return null;
     }
 
-    // Build session state
+    // Build session state (ignores legacy fields like selectedPath, expandedFolders, gitOnlyMode)
     const data: SessionState = {
-      selectedPath: raw.selectedPath,
-      expandedFolders: raw.expandedFolders,
-      gitOnlyMode: raw.gitOnlyMode,
       timestamp: raw.timestamp,
       lastCopyProfile: raw.lastCopyProfile,
     };

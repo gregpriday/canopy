@@ -30,16 +30,3 @@ export async function runCopyTree(
   const args = [...DEFAULT_ARGS, ...extraArgs];
   return executeCopyTree(cwd, args);
 }
-
-/**
- * Backwards-compatible alias for runCopyTree.
- * Profile parameter is ignored since profiles have been removed.
- */
-export async function runCopyTreeWithProfile(
-  cwd: string,
-  _profileName: string,
-  config: CanopyConfig,
-  extraArgs: string[] = []
-): Promise<string> {
-  return runCopyTree(cwd, config, extraArgs);
-}

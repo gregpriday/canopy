@@ -178,17 +178,6 @@ export interface CanopyConfig {
   };
 }
 
-export interface CanopyState {
-  filterActive: boolean;
-  filterQuery: string;
-  gitStatus: Map<string, GitStatus>;
-  gitEnabled: boolean;
-  notification: Notification | null;
-  config: CanopyConfig;
-  worktrees: Worktree[];
-  activeWorktreeId: string | null;
-}
-
 export const DEFAULT_CONFIG: CanopyConfig = {
   editor: 'code',
   editorArgs: ['-r'],

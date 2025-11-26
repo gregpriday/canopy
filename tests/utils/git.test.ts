@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { getGitStatusCached, clearGitStatusCache, stopGitStatusCacheCleanup, getWorktreeChangesWithStats } from '../../src/utils/git.js';
-import type { GitStatus } from '../../src/types/index.js';
+import { clearWorktreeCache, stopWorktreeCacheCleanup, getWorktreeChangesWithStats, getCommitCount } from '../../src/utils/git.js';
 import { WorktreeRemovedError } from '../../src/utils/errorTypes.js';
 
 // Mock simple-git
@@ -35,88 +34,16 @@ vi.mock('fs', async () => {
 
 describe('git.ts', () => {
 	beforeEach(() => {
-		clearGitStatusCache();
+		clearWorktreeCache();
 	});
 
 	afterEach(() => {
-		clearGitStatusCache();
+		clearWorktreeCache();
 	});
 
 	// Stop cleanup interval after all tests
 	afterEach(() => {
-		stopGitStatusCacheCleanup();
-	});
-
-	describe('getGitStatusCached', () => {
-		it('returns a new Map instance on cache hit (React reference equality)', async () => {
-			const cwd = '/test/repo';
-
-			// First call - cache miss, should fetch from git
-			const firstResult = await getGitStatusCached(cwd);
-			expect(firstResult).toBeInstanceOf(Map);
-			expect(firstResult.size).toBeGreaterThan(0);
-
-			// Second call - cache hit, should return a NEW Map instance with same data
-			const secondResult = await getGitStatusCached(cwd);
-			expect(secondResult).toBeInstanceOf(Map);
-
-			// CRITICAL TEST: These should be different Map instances
-			expect(secondResult).not.toBe(firstResult);
-
-			// But should have the same contents
-			expect(secondResult.size).toBe(firstResult.size);
-			for (const [key, value] of firstResult.entries()) {
-				expect(secondResult.get(key)).toBe(value);
-			}
-		});
-
-		it('returns a new Map instance on force refresh', async () => {
-			const cwd = '/test/repo';
-
-			// Prime the cache
-			const firstResult = await getGitStatusCached(cwd, false);
-
-			// Force refresh should bypass cache and return new instance
-			const secondResult = await getGitStatusCached(cwd, true);
-
-			// Should be different instances
-			expect(secondResult).not.toBe(firstResult);
-		});
-
-		it('preserves Map values correctly when cloning from cache', async () => {
-			const cwd = '/test/repo';
-
-			// Prime the cache
-			const firstResult = await getGitStatusCached(cwd, false);
-			const firstEntries = Array.from(firstResult.entries());
-
-			// Get cached result
-			const secondResult = await getGitStatusCached(cwd, false);
-			const secondEntries = Array.from(secondResult.entries());
-
-			// Should have same entries (deep equality)
-			expect(secondEntries).toEqual(firstEntries);
-
-			// Verify GitStatus values are preserved
-			for (const [path, status] of secondResult.entries()) {
-				expect(firstResult.get(path)).toBe(status);
-				expect(['modified', 'added', 'deleted', 'untracked', 'ignored'].includes(status)).toBe(true);
-			}
-		});
-
-		it('handles cache invalidation correctly', async () => {
-			const cwd = '/test/repo';
-
-			// Prime the cache
-			await getGitStatusCached(cwd, false);
-
-			// Clear cache
-			clearGitStatusCache();
-
-			// Next call should fetch fresh data (cache miss)
-			const result = await getGitStatusCached(cwd, false);
-			expect(result).toBeInstanceOf(Map);
-		});
+		stopWorktreeCacheCleanup();
 	});
 
 	describe('getWorktreeChangesWithStats - untracked file line counting', () => {
@@ -124,7 +51,7 @@ describe('git.ts', () => {
 		let mockStat: any;
 
 		beforeEach(async () => {
-			clearGitStatusCache();
+			clearWorktreeCache();
 			// Get the mocked fs module
 			const fs = await import('fs');
 			mockReadFile = fs.promises.readFile as any;
@@ -340,7 +267,7 @@ describe('git.ts', () => {
 		let mockStat: any;
 
 		beforeEach(async () => {
-			clearGitStatusCache();
+			clearWorktreeCache();
 			// Get the mocked fs module
 			const fs = await import('fs');
 			mockAccess = fs.promises.access as any;
@@ -417,6 +344,52 @@ describe('git.ts', () => {
 
 			expect(result.changes).toHaveLength(1);
 			expect(result.changes[0].status).toBe('modified');
+		});
+	});
+
+	describe('getCommitCount', () => {
+		it('returns commit count for valid repository', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockResolvedValue('42\n'),
+			} as any);
+
+			const count = await getCommitCount('/mock/repo');
+
+			expect(count).toBe(42);
+		});
+
+		it('returns 0 when git command fails', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockRejectedValue(new Error('fatal: not a git repository')),
+			} as any);
+
+			const count = await getCommitCount('/not/a/repo');
+
+			expect(count).toBe(0);
+		});
+
+		it('handles repositories with no commits', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockRejectedValue(new Error('fatal: bad revision HEAD')),
+			} as any);
+
+			const count = await getCommitCount('/empty/repo');
+
+			expect(count).toBe(0);
+		});
+
+		it('trims whitespace from git output', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockResolvedValue('  100  \n'),
+			} as any);
+
+			const count = await getCommitCount('/mock/repo');
+
+			expect(count).toBe(100);
 		});
 	});
 });
