@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useMemo, useState, useCallback } from 'react';
 import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood, DevServerState } from '../types/index.js';
+import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood, DevServerState, AISummaryStatus } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
 import { ServerDock } from './ServerDock.js';
@@ -86,6 +86,27 @@ function formatRelativePath(targetPath: string, rootPath: string): string {
     return displayPath;
   } catch {
     return targetPath;
+  }
+}
+
+/**
+ * Get display properties for per-card AI status badge.
+ * Returns null for 'active' state to avoid visual noise when AI is working normally.
+ */
+function getPerCardAIStatus(status: AISummaryStatus | undefined): { label: string; color: string } | null {
+  switch (status) {
+    case 'active':
+      // No badge when AI is working normally
+      return null;
+    case 'loading':
+      // Don't show loading on per-card (would be too noisy)
+      return null;
+    case 'disabled':
+      return { label: 'AI off', color: 'gray' };
+    case 'error':
+      return { label: 'AI ⚠', color: 'red' };
+    default:
+      return null;
   }
 }
 
@@ -380,9 +401,16 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
         </Text>
       </Box>
 
-      {/* Row 4: AI Summary */}
+      {/* Row 4: AI Summary with optional status badge */}
       <Box marginTop={1}>
         {SummaryComponent}
+        {/* Per-card AI status badge - only shown when degraded (disabled/error) */}
+        {(() => {
+          const aiDisplay = getPerCardAIStatus(worktree.aiStatus);
+          return aiDisplay ? (
+            <Text color={aiDisplay.color}> [{aiDisplay.label}]</Text>
+          ) : null;
+        })()}
       </Box>
 
       {/* Row 5: Expansion (File List) */}
@@ -471,6 +499,7 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevWt.summaryLoading !== nextWt.summaryLoading) return false;
   if (prevWt.modifiedCount !== nextWt.modifiedCount) return false;
   if (prevWt.lastActivityTimestamp !== nextWt.lastActivityTimestamp) return false;
+  if (prevWt.aiStatus !== nextWt.aiStatus) return false;
 
   // Compare changes (check count and latest mtime for quick equality)
   const prevChanges = prevProps.changes;

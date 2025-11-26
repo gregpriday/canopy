@@ -85,5 +85,6 @@ export function worktreeStatesToArray(states: Map<string, WorktreeState>): Workt
     mood: state.mood,
     changes: state.changes,
     lastActivityTimestamp: state.lastActivityTimestamp,
+    aiStatus: state.aiStatus,
   }));
 }
