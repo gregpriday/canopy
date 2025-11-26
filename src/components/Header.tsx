@@ -210,7 +210,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Buttons row */}
       <Box width={terminalWidth}>
         <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
-        <Box flexGrow={1} justifyContent="flex-end" paddingX={1}>
+        <Box flexGrow={1} justifyContent="flex-start" paddingX={1}>
           {/* GitFox / Commits */}
           {stats.commitCount > 0 && (
             <HeaderButton
