@@ -519,7 +519,13 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       await monitor.stop();
     });
 
-    it('stops monitor and emits removal event when worktree is deleted', async () => {
+    it('sets error mood but keeps monitor running when worktree directory is inaccessible', async () => {
+      // This tests the resilient error handling behavior:
+      // When WorktreeRemovedError occurs (e.g., transient filesystem error),
+      // the monitor should NOT stop itself or emit removal events.
+      // Instead, it sets mood to 'error' and keeps running so it can recover
+      // if the error was transient. The useAppLifecycle hook will detect actual
+      // worktree removal via `git worktree list` and clean up properly.
       vi.mocked(gitStatus.getWorktreeChangesWithStats)
         .mockResolvedValueOnce({
           worktreeId: baseWorktree.id,
@@ -533,7 +539,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       const monitor = new WorktreeMonitor(baseWorktree);
       await monitor.start();
 
-      // Track removal events
+      // Track removal events (should NOT receive any)
       const removedWorktrees: string[] = [];
       const handler = (payload: { worktreeId: string }) => {
         removedWorktrees.push(payload.worktreeId);
@@ -545,16 +551,27 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       // Trigger update that will fail with WorktreeRemovedError
       await (monitor as any).updateGitStatus();
 
-      // Should emit removal event
-      expect(removedWorktrees).toContain(baseWorktree.id);
+      // Should NOT emit removal event (monitor stays resilient)
+      expect(removedWorktrees).not.toContain(baseWorktree.id);
 
-      // Should stop the monitor
-      expect(stopSpy).toHaveBeenCalled();
+      // Should NOT stop the monitor (allows recovery from transient errors)
+      expect(stopSpy).not.toHaveBeenCalled();
+
+      // Should set mood to error
+      expect(monitor.getState().mood).toBe('error');
+
+      // Should set appropriate error summary
+      expect(monitor.getState().summary).toContain('not accessible');
 
       events.off('sys:worktree:remove', handler);
+      await monitor.stop();
     });
 
-    it('stops polling when worktree is deleted during monitoring', async () => {
+    it('continues polling when worktree is temporarily inaccessible (allows recovery)', async () => {
+      // This tests the resilient polling behavior:
+      // Even when WorktreeRemovedError occurs, the monitor keeps polling
+      // so it can recover if the directory becomes accessible again.
+      // This handles transient filesystem errors during heavy IO operations.
       let callCount = 0;
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
         callCount++;
@@ -578,15 +595,79 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       // Advance timer to trigger polling
       await vi.advanceTimersByTimeAsync(2000);
 
-      // The monitor should have stopped after detecting removal
-      // This means no further polling calls should happen
-      const callCountAfterRemoval = callCount;
+      const callCountAfterFirstError = callCount;
 
-      // Advance more time to verify no more calls
+      // Monitor should stay in error mood but keep polling
+      expect(monitor.getState().mood).toBe('error');
+
+      // Advance more time - polling should continue (for recovery attempts)
       await vi.advanceTimersByTimeAsync(10000);
 
-      // Call count should not increase after removal was detected
-      expect(callCount).toBe(callCountAfterRemoval);
+      // Call count should increase (polling continues)
+      expect(callCount).toBeGreaterThan(callCountAfterFirstError);
+
+      await monitor.stop();
+    });
+
+    it('recovers from error state when directory becomes accessible again', async () => {
+      // This tests the recovery scenario:
+      // After a transient filesystem error, when the directory becomes accessible again,
+      // the monitor should automatically recover and return to a healthy state.
+      // The key verification is that the mood returns to normal after the error.
+      let callCount = 0;
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
+        callCount++;
+        if (callCount === 1) {
+          // First call succeeds (initial state with some changes)
+          return {
+            worktreeId: baseWorktree.id,
+            rootPath: baseWorktree.path,
+            changes: [{ path: 'file.ts', status: 'modified' as const, insertions: 1, deletions: 0 }],
+            changedFileCount: 1,
+            lastUpdated: Date.now(),
+          };
+        }
+        if (callCount === 2) {
+          // Second call fails with directory removed (transient error)
+          throw new WorktreeRemovedError(baseWorktree.path);
+        }
+        // Third+ calls succeed again (directory recovered with different state)
+        return {
+          worktreeId: baseWorktree.id,
+          rootPath: baseWorktree.path,
+          changes: [{ path: 'file.ts', status: 'modified' as const, insertions: 2, deletions: 0 }],
+          changedFileCount: 1,
+          lastUpdated: Date.now(),
+        };
+      });
+
+      // Mock categorizeWorktree to return 'active' for dirty worktrees
+      vi.mocked(worktreeMood.categorizeWorktree).mockResolvedValue('active');
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Initial state should be active (has changes, categorizeWorktree returns 'active')
+      expect(monitor.getState().mood).toBe('active');
+
+      // Advance timer to trigger polling - this will fail
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // Monitor should be in error state (error handling sets this directly)
+      expect(monitor.getState().mood).toBe('error');
+      expect(monitor.getState().summary).toContain('not accessible');
+
+      // Advance timer again - this should succeed and recover
+      await vi.advanceTimersByTimeAsync(2000);
+
+      // Monitor should recover from error state - the critical assertion
+      // The mood is updated by categorizeWorktree which we mocked to return 'active'
+      expect(monitor.getState().mood).toBe('active');
+
+      // Verify we actually polled a third time (recovery attempt succeeded)
+      expect(callCount).toBeGreaterThanOrEqual(3);
+
+      await monitor.stop();
     });
   });
 

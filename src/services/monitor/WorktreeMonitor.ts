@@ -457,15 +457,30 @@ export class WorktreeMonitor extends EventEmitter {
       }
 
     } catch (error) {
-      // Handle worktree deletion: stop monitoring and emit removal event
+      // FIX: Handle worktree directory access errors resiliently
+      // Instead of stopping the monitor (which creates a "zombie" state where the UI
+      // removes the card but the service thinks the monitor is still valid), we set
+      // the mood to 'error' and keep the monitor running. This allows:
+      // 1. Recovery if the filesystem error was transient (e.g., ENOENT during heavy IO)
+      // 2. The worktree card to remain visible (with error indicator)
+      // 3. The useAppLifecycle hook to detect actual worktree removal via `git worktree list`
+      //    and properly clean up through WorktreeService.sync()
       if (error instanceof WorktreeRemovedError) {
-        logInfo('Worktree directory deleted, stopping monitor', { id: this.id, path: this.path });
+        logWarn('Worktree directory not accessible (transient or deleted)', { id: this.id, path: this.path });
 
-        // Emit removal event before stopping so UI can clean up
-        events.emit('sys:worktree:remove', { worktreeId: this.id });
+        this.state = {
+          ...this.state,
+          mood: 'error',
+          summary: '⚠️ Directory not accessible',
+          summaryLoading: false,
+        };
 
-        // Stop monitoring this worktree (clears timers, removes listeners)
-        void this.stop();
+        this.emitUpdate();
+        // Do NOT call this.stop()
+        // Do NOT emit sys:worktree:remove
+        // Let polling continue - if directory returns, we recover automatically.
+        // If it's truly gone, useAppLifecycle will detect it via git worktree list
+        // and call WorktreeService.sync(), which stops us properly.
         return;
       }
 
