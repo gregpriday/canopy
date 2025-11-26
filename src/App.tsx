@@ -7,7 +7,7 @@ import { WorktreePanel } from './components/WorktreePanel.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, GitStatus, WorktreeChanges } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, GitStatus, WorktreeChanges, AISummaryStatus } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
 import { useQuickLinks } from './hooks/useQuickLinks.js';
@@ -218,6 +218,25 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   }, [enrichedWorktrees, worktreeChanges]);
 
   const sortedWorktrees = useMemo(() => sortWorktrees(worktreesWithStatus), [worktreesWithStatus]);
+
+  // Derive aggregated AI status for header display
+  // Priority: error > disabled > loading > active
+  const aggregatedAIStatus = useMemo((): AISummaryStatus => {
+    let hasError = false;
+    let hasDisabled = false;
+    let hasLoading = false;
+
+    for (const state of worktreeStates.values()) {
+      if (state.aiStatus === 'error') hasError = true;
+      else if (state.aiStatus === 'disabled') hasDisabled = true;
+      else if (state.aiStatus === 'loading') hasLoading = true;
+    }
+
+    if (hasError) return 'error';
+    if (hasDisabled) return 'disabled';
+    if (hasLoading) return 'loading';
+    return 'active';
+  }, [worktreeStates]);
 
   const currentWorktree = worktreesWithStatus.find(wt => wt.id === activeWorktreeId) || null;
 
@@ -1002,6 +1021,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           identity={projectIdentity}
           onOpenGitFox={handleOpenGitFox}
           commandPaletteOpen={isCommandPaletteOpen}
+          aiStatus={aggregatedAIStatus}
         />
         {/* Command palette renders as full-width overlay under header */}
         <CommandPalette

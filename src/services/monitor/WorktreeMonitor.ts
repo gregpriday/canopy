@@ -1,9 +1,10 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
-import type { Worktree, WorktreeChanges, WorktreeMood } from '../../types/index.js';
+import type { Worktree, WorktreeChanges, WorktreeMood, AISummaryStatus } from '../../types/index.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
 import { WorktreeRemovedError } from '../../utils/errorTypes.js';
 import { generateWorktreeSummary } from '../ai/worktree.js';
+import { getAIClient } from '../ai/client.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
@@ -19,6 +20,9 @@ export interface WorktreeState extends Worktree {
 
   // Activity tracking (used by ActivityTrafficLight for smooth color transitions)
   lastActivityTimestamp: number | null;
+
+  // AI summary status (active, loading, disabled, error)
+  aiStatus: AISummaryStatus;
 }
 
 /**
@@ -72,7 +76,9 @@ export class WorktreeMonitor extends EventEmitter {
     this.isCurrent = worktree.isCurrent;
     this.mainBranch = mainBranch;
 
-    // Initialize state
+    // Initialize state - determine initial AI status based on API key availability
+    const initialAIStatus: AISummaryStatus = getAIClient() ? 'active' : 'disabled';
+
     this.state = {
       id: worktree.id,
       path: worktree.path,
@@ -87,6 +93,7 @@ export class WorktreeMonitor extends EventEmitter {
       modifiedCount: worktree.modifiedCount || 0,
       changes: worktree.changes,
       lastActivityTimestamp: null,
+      aiStatus: initialAIStatus,
     };
   }
 
@@ -550,6 +557,11 @@ export class WorktreeMonitor extends EventEmitter {
   /**
    * Update AI summary for this worktree.
    * Emits its own update when the summary is ready.
+   * Tracks aiStatus throughout the lifecycle:
+   * - 'loading' while generating
+   * - 'active' on success
+   * - 'disabled' if no API key
+   * - 'error' on failure
    */
   private async updateAISummary(forceUpdate: boolean = false): Promise<void> {
     logDebug('updateAISummary called', {
@@ -561,6 +573,15 @@ export class WorktreeMonitor extends EventEmitter {
 
     if (!this.isRunning || this.isGeneratingSummary) {
       logDebug('Skipping AI summary (not running or already generating)', { id: this.id });
+      return;
+    }
+
+    // Check if AI is available before proceeding
+    if (!getAIClient()) {
+      this.state.aiStatus = 'disabled';
+      this.state.summaryLoading = false;
+      logDebug('Skipping AI summary (no API key)', { id: this.id });
+      this.emitUpdate();
       return;
     }
 
@@ -581,6 +602,7 @@ export class WorktreeMonitor extends EventEmitter {
     }
 
     this.isGeneratingSummary = true;
+    this.state.aiStatus = 'loading';
     logDebug('Starting AI summary generation', { id: this.id, currentHash });
 
     try {
@@ -603,12 +625,16 @@ export class WorktreeMonitor extends EventEmitter {
         });
         this.state.summary = result.summary;
         this.state.modifiedCount = result.modifiedCount;
+        this.state.aiStatus = 'active';
 
         // Mark as processed
         this.lastSummarizedHash = currentHash;
         this.emitUpdate();
+      } else {
+        // generateWorktreeSummary returns null when AI client is unavailable
+        this.state.aiStatus = 'disabled';
+        this.emitUpdate();
       }
-      // If result is null, keep showing last commit (already set)
 
       // Ensure loading flag is off (defensive cleanup)
       this.state.summaryLoading = false;
@@ -616,6 +642,8 @@ export class WorktreeMonitor extends EventEmitter {
     } catch (error) {
       logError('AI summary generation failed', error as Error, { id: this.id });
       this.state.summaryLoading = false;
+      this.state.aiStatus = 'error';
+      this.emitUpdate();
       // Keep showing last commit on error (don't change summary)
     } finally {
       this.isGeneratingSummary = false;

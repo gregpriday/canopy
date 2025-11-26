@@ -25,6 +25,15 @@ export interface WorktreeChanges {
 
 export type WorktreeMood = 'stable' | 'active' | 'stale' | 'error';
 
+/**
+ * AI summary generation status for a worktree.
+ * - 'active': AI summaries are working normally
+ * - 'loading': Currently generating an AI summary
+ * - 'disabled': No OPENAI_API_KEY set, AI features unavailable
+ * - 'error': API errors occurred, showing fallback text
+ */
+export type AISummaryStatus = 'active' | 'loading' | 'disabled' | 'error';
+
 // Dev Server Types
 export type DevServerStatus = 'stopped' | 'starting' | 'running' | 'error';
 
@@ -81,6 +90,9 @@ export interface Worktree {
 
   /** High-level mood/state for dashboard sorting */
   mood?: WorktreeMood;
+
+  /** AI summary status indicator for this worktree */
+  aiStatus?: AISummaryStatus;
 
   /** Timestamp of last git activity (milliseconds since epoch, null if no activity yet) */
   lastActivityTimestamp?: number | null;

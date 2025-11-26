@@ -3,6 +3,7 @@ import { Box, Text, useStdout } from 'ink';
 import Gradient from 'ink-gradient';
 import { measureElement } from 'ink';
 import type { ProjectIdentity } from '../services/ai/index.js';
+import type { AISummaryStatus } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
 import { useRepositoryStats } from '../hooks/useRepositoryStats.js';
@@ -16,6 +17,8 @@ interface HeaderProps {
   onOpenGitFox?: () => void;
   /** When true, bottom corners connect to command palette below */
   commandPaletteOpen?: boolean;
+  /** Aggregated AI status across all worktrees */
+  aiStatus?: AISummaryStatus;
 }
 
 const HeaderButton: React.FC<{
@@ -110,6 +113,25 @@ const BORDER = {
   bottomRightT: '┤',
 };
 
+/**
+ * Get display properties for AI status badge
+ */
+function getAIStatusDisplay(status: AISummaryStatus | undefined): { label: string; color: string } | null {
+  switch (status) {
+    case 'active':
+      // Don't show badge when AI is working normally (no visual noise)
+      return null;
+    case 'loading':
+      return { label: 'AI: …', color: 'yellow' };
+    case 'disabled':
+      return { label: 'AI: off', color: 'gray' };
+    case 'error':
+      return { label: 'AI: ⚠', color: 'red' };
+    default:
+      return null;
+  }
+}
+
 export const Header: React.FC<HeaderProps> = ({
   cwd,
   filterActive,
@@ -117,6 +139,7 @@ export const Header: React.FC<HeaderProps> = ({
   identity,
   onOpenGitFox,
   commandPaletteOpen = false,
+  aiStatus,
 }) => {
   const { palette } = useTheme();
   const { stdout } = useStdout();
@@ -206,6 +229,14 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right side: Stats Bar (no gaps) */}
           <Box>
+            {/* AI Status Badge - only shown when degraded/disabled/loading */}
+            {(() => {
+              const aiDisplay = getAIStatusDisplay(aiStatus);
+              return aiDisplay ? (
+                <Text color={aiDisplay.color}>[{aiDisplay.label}] </Text>
+              ) : null;
+            })()}
+
             {/* GitFox / Commits */}
             {stats.commitCount > 0 && (
               <HeaderButton
