@@ -3,7 +3,6 @@ import { render } from 'ink-testing-library';
 import { describe, it, expect } from 'vitest';
 import { ThemeProvider } from '../../src/theme/ThemeProvider.js';
 import { Header } from '../../src/components/Header.js';
-import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import type { ProjectIdentity } from '../../src/services/ai/index.js';
 
 describe('Header', () => {
@@ -29,7 +28,7 @@ describe('Header', () => {
         filterActive={false}
         filterQuery=""
         identity={mockIdentity}
-        config={DEFAULT_CONFIG}
+        terminalWidth={80}
       />
     );
 
@@ -45,7 +44,7 @@ describe('Header', () => {
         filterActive={true}
         filterQuery=".ts"
         identity={mockIdentity}
-        config={DEFAULT_CONFIG}
+        terminalWidth={80}
       />
     );
 
@@ -60,9 +59,8 @@ describe('Header', () => {
         cwd="/Users/dev/project"
         filterActive={false}
         filterQuery=""
-        worktreeCount={3}
         identity={mockIdentity}
-        config={DEFAULT_CONFIG}
+        terminalWidth={120}
       />
     );
 
@@ -79,8 +77,7 @@ describe('Header', () => {
         filterActive={false}
         filterQuery=""
         identity={mockIdentity}
-        config={DEFAULT_CONFIG}
-        gitOnlyMode={true}
+        terminalWidth={80}
       />
     );
 

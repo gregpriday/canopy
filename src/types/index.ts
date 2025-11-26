@@ -1,5 +1,16 @@
 export type GitStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'ignored' | 'renamed';
 
+/**
+ * Terminal dimensions with width and height.
+ * Used for reactive terminal resize handling.
+ */
+export interface TerminalDimensions {
+  /** Terminal width in columns */
+  width: number;
+  /** Terminal height in rows */
+  height: number;
+}
+
 export type NotificationType = 'info' | 'success' | 'error' | 'warning';
 
 export interface FileChangeDetail {

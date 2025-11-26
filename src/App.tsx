@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'; // Added useCallback
-import { Box, Text, useApp, useInput, useStdout } from 'ink';
+import { Box, Text, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
 import { getExplorerLabel } from './components/WorktreeCard.js';
@@ -24,6 +24,7 @@ import { useCopyTree } from './hooks/useCopyTree.js';
 import { worktreeService } from './services/monitor/index.js';
 import { devServerManager } from './services/server/index.js';
 import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
+import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
@@ -47,23 +48,10 @@ const MODAL_CLOSE_PRIORITY: ModalId[] = [
 
 const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, noGit, initialFilter }) => {
   const { exit } = useApp();
-  const { stdout } = useStdout();
-  // Use terminal height - 1 for calculations to prevent scroll jitter on the last line.
-  // Many terminal emulators reserve the last line for scroll behavior.
-  const [height, setHeight] = useState((stdout?.rows || 24) - 1);
 
-  useEffect(() => {
-    if (!stdout) return;
-
-    const handleResize = () => {
-      setHeight(stdout.rows - 1);
-    };
-
-    stdout.on('resize', handleResize);
-    return () => {
-      stdout.off('resize', handleResize);
-    };
-  }, [stdout]);
+  // Centralized terminal dimensions with debounced resize handling
+  // The hook handles: debouncing, minimum thresholds, scroll jitter prevention, and event emission
+  const { width: terminalWidth, height } = useTerminalDimensions();
 
   // Centralized lifecycle management
   const {
@@ -1024,6 +1012,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           onOpenGitFox={handleOpenGitFox}
           commandPaletteOpen={isCommandPaletteOpen}
           aiStatus={aggregatedAIStatus}
+          terminalWidth={terminalWidth}
         />
         {/* Command palette renders as full-width overlay under header */}
         <CommandPalette
@@ -1031,6 +1020,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           commands={quickLinkCommands}
           onExecute={handleCommandPaletteExecute}
           onClose={() => events.emit('ui:modal:close', { id: 'command-palette' })}
+          terminalWidth={terminalWidth}
         />
         <Box flexGrow={1} marginTop={isCommandPaletteOpen ? 0 : 1}>
           <WorktreeOverview

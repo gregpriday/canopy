@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import type { NotificationPayload, DevServerState } from '../types/index.js';
+import type { NotificationPayload, DevServerState, TerminalDimensions } from '../types/index.js';
 import type { WorktreeState } from './monitor/index.js';
 
 export type ModalId =
@@ -51,6 +51,7 @@ export type CanopyEventMap = {
   'sys:refresh': void;
   'sys:quit': void;
   'sys:config:reload': void;
+  'sys:terminal:resize': TerminalDimensions;
 
   'file:open': { path: string };
   'file:copy-tree': CopyTreePayload;
