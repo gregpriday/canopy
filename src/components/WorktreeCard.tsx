@@ -6,6 +6,7 @@ import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMo
 import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
 import { ServerDock } from './ServerDock.js';
+import { NoteDock } from './NoteDock.js';
 
 /**
  * Get OS-specific file manager label
@@ -35,6 +36,8 @@ export interface WorktreeCardProps {
   hasDevScript?: boolean;
   /** Callback when server toggle is pressed */
   onToggleServer?: () => void;
+  /** AI note content from .canopy_note.txt */
+  aiNote?: string;
   registerClickRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
@@ -242,6 +245,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   serverState,
   hasDevScript,
   onToggleServer,
+  aiNote,
   registerClickRegion,
 }) => {
   const { palette } = useTheme();
@@ -479,6 +483,9 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           registerClickRegion={registerClickRegion}
         />
       )}
+
+      {/* Note Dock - displays AI agent status from .canopy_note.txt */}
+      <NoteDock noteContent={aiNote} />
     </Box>
   );
 };
@@ -516,6 +523,9 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevServer?.status !== nextServer?.status) return false;
   if (prevServer?.url !== nextServer?.url) return false;
   if (prevServer?.errorMessage !== nextServer?.errorMessage) return false;
+
+  // Compare AI note
+  if (prevProps.aiNote !== nextProps.aiNote) return false;
 
   // Callbacks are stable (created with useCallback in parent)
   return true;

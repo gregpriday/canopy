@@ -1,5 +1,8 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
+import { readFile, access } from 'fs/promises';
+import { constants as fsConstants } from 'fs';
+import { join as pathJoin } from 'path';
 import type { Worktree, WorktreeChanges, WorktreeMood, AISummaryStatus } from '../../types/index.js';
 import { DEFAULT_CONFIG } from '../../types/index.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
@@ -27,6 +30,9 @@ export interface WorktreeState extends Worktree {
 
   // AI summary status (active, loading, disabled, error)
   aiStatus: AISummaryStatus;
+
+  // Content from .canopy_note.txt file (for AI agent status)
+  aiNote?: string;
 }
 
 /**
@@ -63,6 +69,8 @@ export class WorktreeMonitor extends EventEmitter {
   // Configuration
   private pollingInterval: number = 2000; // Default 2s for active worktree
   private aiBufferDelay: number = DEFAULT_AI_DEBOUNCE_MS; // Configurable AI debounce
+  private noteEnabled: boolean = DEFAULT_CONFIG.note?.enabled ?? true;
+  private noteFilename: string = DEFAULT_CONFIG.note?.filename ?? '.canopy_note.txt';
 
   // Flags
   private isRunning: boolean = false;
@@ -99,6 +107,7 @@ export class WorktreeMonitor extends EventEmitter {
       changes: worktree.changes,
       lastActivityTimestamp: null,
       aiStatus: initialAIStatus,
+      aiNote: undefined,
     };
   }
 
@@ -216,6 +225,18 @@ export class WorktreeMonitor extends EventEmitter {
       this.aiUpdateTimer = null;
       // Reschedule with new delay if there was a pending timer
       this.scheduleAISummary();
+    }
+  }
+
+  /**
+   * Configure the AI note feature.
+   * @param enabled - Whether to poll for note file
+   * @param filename - Override the default filename
+   */
+  public setNoteConfig(enabled: boolean, filename?: string): void {
+    this.noteEnabled = enabled;
+    if (filename !== undefined) {
+      this.noteFilename = filename;
     }
   }
 
@@ -482,6 +503,12 @@ export class WorktreeMonitor extends EventEmitter {
       }
 
       // ============================================
+      // PHASE 5.5: READ AI NOTE FILE
+      // Polled at same interval as git status
+      // ============================================
+      const nextAiNote = await this.readNoteFile();
+
+      // ============================================
       // PHASE 6: ATOMIC COMMIT
       // Apply all state changes at once
       // ============================================
@@ -495,6 +522,7 @@ export class WorktreeMonitor extends EventEmitter {
         summaryLoading: nextSummaryLoading,
         lastActivityTimestamp: nextLastActivityTimestamp,
         mood: nextMood,
+        aiNote: nextAiNote,
       };
 
       // ============================================
@@ -576,6 +604,49 @@ export class WorktreeMonitor extends EventEmitter {
     } catch (error) {
       logError('Failed to fetch last commit message', error as Error, { id: this.id });
       return '🌱 Ready to get started';
+    }
+  }
+
+  /**
+   * Read the AI note file content.
+   * Returns undefined if the file doesn't exist or is empty.
+   * Content is truncated to 500 chars and only the last line is returned.
+   */
+  private async readNoteFile(): Promise<string | undefined> {
+    if (!this.noteEnabled) {
+      return undefined;
+    }
+
+    const notePath = pathJoin(this.path, this.noteFilename);
+
+    try {
+      // Check if file exists first
+      await access(notePath, fsConstants.R_OK);
+
+      // Read file content
+      const content = await readFile(notePath, 'utf-8');
+      const trimmed = content.trim();
+
+      // Treat empty file as non-existent
+      if (!trimmed) {
+        return undefined;
+      }
+
+      // Get last line only and truncate to 500 chars
+      const lines = trimmed.split('\n');
+      const lastLine = lines[lines.length - 1].trim();
+      if (lastLine.length > 500) {
+        return lastLine.slice(0, 497) + '...';
+      }
+      return lastLine;
+    } catch (error) {
+      // File doesn't exist or permission error - treat as non-existent
+      // Only log if it's not a simple ENOENT (file not found)
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code && code !== 'ENOENT') {
+        logWarn('Failed to read AI note file', { id: this.id, error: (error as Error).message });
+      }
+      return undefined;
     }
   }
 
