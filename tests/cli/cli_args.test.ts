@@ -127,11 +127,20 @@ describe('CLI argument parsing', () => {
     expect(stderr).toContain('--max-depth must be a non-negative number');
   });
 
-  it('errors when --config has no value', async () => {
-    const { stderr, exitCode } = await runCli(['--config']);
+  it('errors on removed --config flag', async () => {
+    const { stderr, exitCode } = await runCli(['--config', 'some-path']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('--config requires a path');
+    expect(stderr).toContain('Unknown flag');
+    expect(stderr).toContain('--config');
+  });
+
+  it('errors on removed --debug flag', async () => {
+    const { stderr, exitCode } = await runCli(['--debug']);
+
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain('Unknown flag');
+    expect(stderr).toContain('--debug');
   });
 
   it('accepts short alias -e for --editor', async () => {
@@ -155,11 +164,12 @@ describe('CLI argument parsing', () => {
     expect(stderr).toContain('--max-depth requires a number');
   });
 
-  it('accepts short alias -c for --config', async () => {
-    const { stderr, exitCode } = await runCli(['-c']);
+  it('errors on removed -c flag (was --config)', async () => {
+    const { stderr, exitCode } = await runCli(['-c', 'some-path']);
 
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('--config requires a path');
+    expect(stderr).toContain('Unknown flag');
+    expect(stderr).toContain('-c');
   });
 });
 
