@@ -245,26 +245,32 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* GitFox / Commits */}
           {stats.commitCount > 0 && (
-            <HeaderButton
-              id="header-commits"
-              label={`[${stats.commitCount} commits]`}
-              color={palette.text.secondary}
-              dimColor={true}
-              onPress={onOpenGitFox}
-              registerRegion={registerClickRegion}
-            />
+            <>
+              <HeaderButton
+                id="header-commits"
+                label={`[${stats.commitCount} commits]`}
+                color={palette.text.secondary}
+                dimColor={false}
+                onPress={onOpenGitFox}
+                registerRegion={registerClickRegion}
+              />
+              <Text> </Text>
+            </>
           )}
 
           {/* GitHub Stats - bright when > 0, dim when 0 */}
           {stats.issueCount !== null && (
-            <HeaderButton
-              id="header-issues"
-              label={`[${stats.issueCount} issues]`}
-              color={palette.text.secondary}
-              dimColor={stats.issueCount === 0}
-              onPress={handleOpenIssues}
-              registerRegion={registerClickRegion}
-            />
+            <>
+              <HeaderButton
+                id="header-issues"
+                label={`[${stats.issueCount} issues]`}
+                color={palette.text.secondary}
+                dimColor={stats.issueCount === 0}
+                onPress={handleOpenIssues}
+                registerRegion={registerClickRegion}
+              />
+              <Text> </Text>
+            </>
           )}
 
           {stats.prCount !== null && (
