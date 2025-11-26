@@ -927,7 +927,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     };
   }, [sortedWorktrees, devServerEnabled]);
 
-  const { visibleStart, visibleEnd } = useDashboardNav({
+  const { visibleStart, visibleEnd, handleScroll } = useDashboardNav({
     worktrees: sortedWorktrees,
     focusedWorktreeId,
     expandedWorktreeIds,
@@ -1052,6 +1052,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onOpenEditor={handleOpenWorktreeEditor}
             onOpenExplorer={handleOpenWorktreeExplorer}
             devServerConfig={devServerConfig}
+            onScroll={anyModalOpen ? undefined : handleScroll}
           />
         </Box>
         {isWorktreePanelOpen && (

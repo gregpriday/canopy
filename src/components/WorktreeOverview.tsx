@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Box } from 'ink';
+import { Box, Text } from 'ink';
 import type { Worktree, WorktreeChanges, DevServerState } from '../types/index.js';
 import { WorktreeCard } from './WorktreeCard.js';
 import { useTerminalMouse } from '../hooks/useTerminalMouse.js';
@@ -28,6 +28,8 @@ export interface WorktreeOverviewProps {
   onOpenExplorer: (id: string) => void;
   /** Dev server configuration */
   devServerConfig?: DevServerConfig;
+  /** Handler for mouse wheel scrolling */
+  onScroll?: (direction: 'up' | 'down') => void;
 }
 
 const FALLBACK_CHANGES: WorktreeChanges = {
@@ -99,6 +101,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onOpenEditor,
   onOpenExplorer,
   devServerConfig,
+  onScroll,
 }) => {
   // Check if dev server feature is enabled (default: true)
   const devServerEnabled = devServerConfig?.enabled ?? true;
@@ -188,6 +191,17 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   useTerminalMouse({
     enabled: sliced.length > 0,
     onMouse: event => {
+      // Handle wheel scrolling
+      if (event.button === 'wheel-up') {
+        onScroll?.('up');
+        return;
+      }
+      if (event.button === 'wheel-down') {
+        onScroll?.('down');
+        return;
+      }
+
+      // Handle click regions
       if (event.button !== 'left' || event.action !== 'down') {
         return;
       }
@@ -203,8 +217,20 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
     },
   });
 
+  // Calculate how many items are hidden above and below the viewport
+  const hiddenAbove = start;
+  const hiddenBelow = Math.max(0, sorted.length - end);
+
   return (
     <Box flexDirection="column" gap={1} flexGrow={1}>
+      {/* Scroll indicator for items above viewport */}
+      {hiddenAbove > 0 && (
+        <Box paddingLeft={2}>
+          <Text dimColor>
+            {hiddenAbove === 1 ? '1 more worktree above' : `${hiddenAbove} more worktrees above`}
+          </Text>
+        </Box>
+      )}
       {sliced.map((worktree) => {
         const changes = worktreeChanges.get(worktree.id) ?? {
           ...FALLBACK_CHANGES,
@@ -240,6 +266,14 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
           />
         );
       })}
+      {/* Scroll indicator for items below viewport */}
+      {hiddenBelow > 0 && (
+        <Box paddingLeft={2}>
+          <Text dimColor>
+            {hiddenBelow === 1 ? '1 more worktree below' : `${hiddenBelow} more worktrees below`}
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 };

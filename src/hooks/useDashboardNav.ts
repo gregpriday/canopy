@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useInput } from 'ink';
 import type { Worktree } from '../types/index.js';
 import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
@@ -21,6 +21,8 @@ export interface DashboardNavProps {
 export interface DashboardNavResult {
   visibleStart: number;
   visibleEnd: number;
+  /** Handle mouse wheel scroll - scrolls the viewport up or down */
+  handleScroll: (direction: 'up' | 'down') => void;
 }
 
 export function useDashboardNav({
@@ -206,8 +208,33 @@ export function useDashboardNav({
 
   const visibleEnd = Math.min(visibleStart + clampedViewport, worktrees.length);
 
+  // Throttle scroll to prevent jitter from rapid mouse wheel events
+  const SCROLL_THROTTLE_MS = 50;
+  const lastScrollTimeRef = useRef<number>(0);
+
+  // Handle mouse wheel scroll - adjusts visibleStart with boundary clamping and throttling
+  const handleScroll = useCallback((direction: 'up' | 'down') => {
+    if (worktrees.length === 0) {
+      return;
+    }
+
+    // Throttle rapid scroll events
+    const now = Date.now();
+    if (now - lastScrollTimeRef.current < SCROLL_THROTTLE_MS) {
+      return;
+    }
+    lastScrollTimeRef.current = now;
+
+    const delta = direction === 'up' ? -1 : 1;
+    setVisibleStart(prev => {
+      const maxStart = Math.max(0, worktrees.length - clampedViewport);
+      return Math.min(maxStart, Math.max(0, prev + delta));
+    });
+  }, [worktrees.length, clampedViewport]);
+
   return {
     visibleStart,
     visibleEnd,
+    handleScroll,
   };
 }
