@@ -7,6 +7,7 @@ import { dirname, join } from 'path';
 import App from './App.js';
 import { loadConfig } from './utils/config.js';
 import { loadEnv } from './utils/envLoader.js';
+import { cleanupStaleNotes } from './utils/noteCleanup.js';
 import type { CanopyConfig } from './types/index.js';
 import { clearTerminalScreen } from './utils/terminal.js';
 
@@ -152,7 +153,11 @@ async function main(): Promise<void> {
     // 1. Load .env from the target directory
     loadEnv(parsedArgs.cwd);
 
-    // 2. Load configuration
+    // 2. Cleanup stale note files (fire-and-forget, non-blocking)
+    // This removes canopy_note files older than 24 hours for disk hygiene
+    void cleanupStaleNotes(parsedArgs.cwd);
+
+    // 3. Load configuration
     const baseConfig = await loadConfig(parsedArgs.cwd);
 
     const finalConfig: CanopyConfig = {

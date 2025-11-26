@@ -1,8 +1,8 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
-import { readFile, access } from 'fs/promises';
-import { constants as fsConstants } from 'fs';
+import { readFile, stat } from 'fs/promises';
 import { join as pathJoin } from 'path';
+import { execSync } from 'child_process';
 import type { Worktree, WorktreeChanges, WorktreeMood, AISummaryStatus } from '../../types/index.js';
 import { DEFAULT_CONFIG } from '../../types/index.js';
 import { getWorktreeChangesWithStats, invalidateGitStatusCache } from '../../utils/git.js';
@@ -70,7 +70,14 @@ export class WorktreeMonitor extends EventEmitter {
   private pollingInterval: number = 2000; // Default 2s for active worktree
   private aiBufferDelay: number = DEFAULT_AI_DEBOUNCE_MS; // Configurable AI debounce
   private noteEnabled: boolean = DEFAULT_CONFIG.note?.enabled ?? true;
-  private noteFilename: string = DEFAULT_CONFIG.note?.filename ?? '.canopy_note.txt';
+  private noteFilename: string = DEFAULT_CONFIG.note?.filename ?? 'canopy/note';
+
+  // Git directory cache (resolved once on first use)
+  private gitDir: string | null = null;
+
+  // TTL for note relevance - if an agent hasn't updated the note in 5 minutes,
+  // it's probably dead/finished and we shouldn't show the note
+  private static readonly NOTE_TTL_MS = 5 * 60 * 1000;
 
   // Flags
   private isRunning: boolean = false;
@@ -608,20 +615,74 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * Read the AI note file content.
-   * Returns undefined if the file doesn't exist or is empty.
+   * Get the git directory for this worktree.
+   * For regular repos: .git directory
+   * For worktrees: the actual git directory (e.g., ../.git/worktrees/branch-name)
+   * Cached after first resolution.
+   */
+  private getGitDir(): string | null {
+    if (this.gitDir !== null) {
+      return this.gitDir;
+    }
+
+    try {
+      // Use git rev-parse --git-dir to get the actual git directory
+      // This works correctly for both regular repos and worktrees
+      const result = execSync('git rev-parse --git-dir', {
+        cwd: this.path,
+        encoding: 'utf-8',
+        timeout: 5000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim();
+
+      // If relative path, resolve it relative to worktree path
+      if (!result.startsWith('/')) {
+        this.gitDir = pathJoin(this.path, result);
+      } else {
+        this.gitDir = result;
+      }
+
+      return this.gitDir;
+    } catch (error) {
+      logWarn('Failed to resolve git directory', { id: this.id, error: (error as Error).message });
+      return null;
+    }
+  }
+
+  /**
+   * Read the AI note file content from the git directory.
+   * Returns undefined if the file doesn't exist, is empty, or is stale.
    * Content is truncated to 500 chars and only the last line is returned.
+   *
+   * Uses TTL-based filtering: notes older than NOTE_TTL_MS (5 minutes) are
+   * considered stale and not shown. This handles "zombie agent" scenarios
+   * where an agent crashed or finished but didn't clean up its note.
+   *
+   * Note: File deletion/cleanup is handled separately by the startup
+   * garbage collection routine, not here in the hot monitoring path.
    */
   private async readNoteFile(): Promise<string | undefined> {
     if (!this.noteEnabled) {
       return undefined;
     }
 
-    const notePath = pathJoin(this.path, this.noteFilename);
+    const gitDir = this.getGitDir();
+    if (!gitDir) {
+      return undefined;
+    }
+
+    const notePath = pathJoin(gitDir, this.noteFilename);
 
     try {
-      // Check if file exists first
-      await access(notePath, fsConstants.R_OK);
+      // Get file stats (also validates existence)
+      const fileStat = await stat(notePath);
+
+      // TTL check: if the note hasn't been updated in NOTE_TTL_MS,
+      // the agent is probably dead/finished - don't show the note
+      const noteAge = Date.now() - fileStat.mtimeMs;
+      if (noteAge > WorktreeMonitor.NOTE_TTL_MS) {
+        return undefined;
+      }
 
       // Read file content
       const content = await readFile(notePath, 'utf-8');

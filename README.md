@@ -96,6 +96,21 @@ Press `/` to open fuzzy search and find any file across all worktrees. Search re
 ### Live Updates
 File watching keeps the dashboard current. As AI agents modify files, you see changes appear in real-time on the relevant worktree card—no manual refresh needed.
 
+### AI Note Display
+AI agents can broadcast their current workflow status directly to the dashboard by writing to a well-known file. When an agent writes to `.git/canopy/note`, Canopy displays the message in the worktree card:
+
+```
+┌─────────────────────────────────────────────────┐
+│ feature/auth • ~/project-auth          [ACTIVE] │
+├─────────────────────────────────────────────────┤
+│ 📝 Creating pull request                        │
+│ Summary: Implementing OAuth2 flow               │
+│ 5 files • 3 modified, 2 added                   │
+└─────────────────────────────────────────────────┘
+```
+
+Notes automatically hide after 5 minutes of inactivity (agent likely finished or crashed), and are garbage-collected after 24 hours. See [docs/AI_NOTES.md](docs/AI_NOTES.md) for integration details.
+
 ### Dev Server Management
 Start and stop development servers directly from the dashboard. Press `s` on any worktree to toggle its dev server. Canopy auto-detects dev scripts from `package.json` and monitors server output for URLs, displaying them in the worktree card.
 
@@ -293,6 +308,7 @@ npm run typecheck
 - **[CLAUDE.md](CLAUDE.md)** - AI agent development instructions
 - **[docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md)** - Full keyboard reference
 - **[docs/DEV_SERVER.md](docs/DEV_SERVER.md)** - Dev server management and configuration
+- **[docs/AI_NOTES.md](docs/AI_NOTES.md)** - AI agent note display integration
 
 ## License
 

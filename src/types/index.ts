@@ -254,7 +254,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
     '**/.DS_Store',
     '**/coverage/**',
     '**/__pycache__/**',
-    '**/.canopy_note.txt',
   ],
   copytreeDefaults: {
     format: 'xml',
@@ -305,6 +304,6 @@ export const DEFAULT_CONFIG: CanopyConfig = {
   },
   note: {
     enabled: true, // Enabled by default
-    filename: '.canopy_note.txt', // Default filename
+    filename: 'canopy/note', // Default path (stored in .git directory as .git/canopy/note)
   },
 };
