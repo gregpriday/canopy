@@ -112,8 +112,7 @@ describe('WorktreeOverview', () => {
     expect(sorted[2].id).toBe('zebra');
   });
 
-  it('forwards expand handler with correct id', () => {
-    const toggleSpy = vi.fn();
+  it('renders cards with correct props', () => {
     const worktrees: Worktree[] = [
       { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: true, mood: 'stable' },
     ];
@@ -126,16 +125,14 @@ describe('WorktreeOverview', () => {
         activeWorktreeId="alpha"
         activeRootPath="/repo/alpha"
         focusedWorktreeId="alpha"
-        expandedWorktreeIds={new Set()}
-        onToggleExpand={toggleSpy}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
       />
     );
 
     expect(capturedProps[0]).toBeDefined();
-    capturedProps[0].onToggleExpand();
-    expect(toggleSpy).toHaveBeenCalledWith('alpha');
+    expect(capturedProps[0].worktreeId).toBe('alpha');
+    expect(capturedProps[0].isFocused).toBe(true);
   });
 
   it('applies visible window bounds', () => {
@@ -157,10 +154,8 @@ describe('WorktreeOverview', () => {
         activeWorktreeId="alpha"
         activeRootPath="/repo/alpha"
         focusedWorktreeId="alpha"
-        expandedWorktreeIds={new Set()}
         visibleStart={1}
         visibleEnd={3}
-        onToggleExpand={vi.fn()}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
       />

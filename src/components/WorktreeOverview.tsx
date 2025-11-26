@@ -19,13 +19,10 @@ export interface WorktreeOverviewProps {
   activeWorktreeId: string | null;
   activeRootPath: string;
   focusedWorktreeId: string | null;
-  expandedWorktreeIds: Set<string>;
   visibleStart?: number;
   visibleEnd?: number;
-  onToggleExpand: (id: string) => void;
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
-  onOpenExplorer: (id: string) => void;
   /** Dev server configuration */
   devServerConfig?: DevServerConfig;
 }
@@ -91,13 +88,10 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   worktreeChanges,
   activeRootPath,
   focusedWorktreeId,
-  expandedWorktreeIds,
   visibleStart,
   visibleEnd,
-  onToggleExpand,
   onCopyTree,
   onOpenEditor,
-  onOpenExplorer,
   devServerConfig,
 }) => {
   // Check if dev server feature is enabled (default: true)
@@ -226,12 +220,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             changes={changes}
             mood={worktree.mood ?? 'stable'}
             isFocused={worktree.id === focusedWorktreeId}
-            isExpanded={expandedWorktreeIds.has(worktree.id)}
             activeRootPath={activeRootPath}
-            onToggleExpand={() => onToggleExpand(worktree.id)}
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
-            onOpenExplorer={() => onOpenExplorer(worktree.id)}
             serverState={serverState}
             hasDevScript={hasDevScript}
             onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}

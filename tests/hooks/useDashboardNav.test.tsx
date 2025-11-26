@@ -16,43 +16,26 @@ const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 function Harness({
   isModalOpen = false,
   viewportSize = 2,
-  initialExpanded = [] as string[],
   spies,
 }: {
   isModalOpen?: boolean;
   viewportSize?: number;
-  initialExpanded?: string[];
   spies: {
     onFocusChange: ReturnType<typeof vi.fn>;
-    onToggleExpand: ReturnType<typeof vi.fn>;
     onCopyTree: ReturnType<typeof vi.fn>;
     onOpenEditor: ReturnType<typeof vi.fn>;
   };
 }) {
   const [focused, setFocused] = useState<string | null>(worktrees[0].id);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(initialExpanded));
 
   const nav = useDashboardNav({
     worktrees,
     focusedWorktreeId: focused,
-    expandedWorktreeIds: expanded,
     isModalOpen,
     viewportSize,
     onFocusChange: (id) => {
       spies.onFocusChange(id);
       setFocused(id);
-    },
-    onToggleExpand: (id) => {
-      spies.onToggleExpand(id);
-      setExpanded(prev => {
-        const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
     },
     onCopyTree: spies.onCopyTree,
     onOpenEditor: spies.onOpenEditor,
@@ -60,7 +43,7 @@ function Harness({
 
   return (
     <Text>
-      focus:{focused} window:{nav.visibleStart}-{nav.visibleEnd} expanded:{Array.from(expanded).join(',')}
+      focus:{focused} window:{nav.visibleStart}-{nav.visibleEnd}
     </Text>
   );
 }
@@ -68,7 +51,6 @@ function Harness({
 describe('useDashboardNav', () => {
   const makeSpies = () => ({
     onFocusChange: vi.fn(),
-    onToggleExpand: vi.fn(),
     onCopyTree: vi.fn(),
     onOpenEditor: vi.fn(),
   });
@@ -101,23 +83,6 @@ describe('useDashboardNav', () => {
 
     expect(spies.onFocusChange).not.toHaveBeenCalled();
     expect(lastFrame()).toContain('focus:main');
-  });
-
-  it('toggles expansion and collapses with left arrow', async () => {
-    const spies = makeSpies();
-    const { stdin, lastFrame } = render(
-      <Harness spies={spies} initialExpanded={['main']} />
-    );
-    await tick();
-
-    stdin.write('\x1B[D'); // left arrow should collapse
-    await tick();
-    expect(spies.onToggleExpand).toHaveBeenCalledWith('main');
-    expect(lastFrame()).toContain('expanded:');
-
-    stdin.write(' ');
-    await tick();
-    expect(spies.onToggleExpand).toHaveBeenCalledWith('main');
   });
 
   it('fires action keys for copy and open editor', async () => {

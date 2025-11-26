@@ -2,50 +2,13 @@ import React, { useLayoutEffect, useMemo, useState, useCallback } from 'react';
 import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import { homedir } from 'node:os';
+import open from 'open';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood, DevServerState, AISummaryStatus } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
-import { ServerDock } from './ServerDock.js';
-import { NoteDock } from './NoteDock.js';
 
-/**
- * Get OS-specific file manager label
- * @returns Label for the current platform's file manager
- */
-export function getExplorerLabel(): string {
-  const platform = process.platform;
-  if (platform === 'darwin') return 'Finder';
-  if (platform === 'win32') return 'Explorer';
-  return 'Folder'; // Linux/Unix fallback
-}
-
-export interface WorktreeCardProps {
-  worktree: Worktree;
-  changes: WorktreeChanges;
-  mood: WorktreeMood;
-  isFocused: boolean;
-  isExpanded: boolean;
-  activeRootPath: string;
-  onToggleExpand: () => void;
-  onCopyTree?: () => void;
-  onOpenEditor?: () => void;
-  onOpenExplorer?: () => void;
-  /** Dev server state for this worktree */
-  serverState?: DevServerState;
-  /** Whether a dev script was detected */
-  hasDevScript?: boolean;
-  /** Callback when server toggle is pressed */
-  onToggleServer?: () => void;
-  /** AI note content from .canopy_note.txt */
-  aiNote?: string;
-  registerClickRegion?: (
-    id: string,
-    bounds?: { x: number; y: number; width: number; height: number },
-    handler?: () => void
-  ) => void;
-}
-
-const MAX_VISIBLE_CHANGES = 10;
+// Maximum number of files to show in the card
+const MAX_VISIBLE_FILES = 3;
 
 const STATUS_PRIORITY: Record<GitStatus, number> = {
   modified: 0,
@@ -69,6 +32,14 @@ function truncateMiddle(value: string, maxLength = 42): string {
   if (value.length <= maxLength) return value;
   const half = Math.floor((maxLength - 3) / 2);
   return `${value.slice(0, half)}...${value.slice(-half)}`;
+}
+
+function formatPath(targetPath: string): string {
+  const home = homedir();
+  if (targetPath.startsWith(home)) {
+    return targetPath.replace(home, '~');
+  }
+  return targetPath;
 }
 
 function formatRelativePath(targetPath: string, rootPath: string): string {
@@ -99,18 +70,71 @@ function formatRelativePath(targetPath: string, rootPath: string): string {
 function getPerCardAIStatus(status: AISummaryStatus | undefined): { label: string; color: string } | null {
   switch (status) {
     case 'active':
-      // No badge when AI is working normally
       return null;
     case 'loading':
-      // Don't show loading on per-card (would be too noisy)
       return null;
     case 'disabled':
       return { label: 'AI off', color: 'gray' };
     case 'error':
-      return { label: 'AI ⚠', color: 'red' };
+      return { label: 'AI err', color: 'red' };
     default:
       return null;
   }
+}
+
+// URL regex pattern - hoisted outside component to avoid re-creation
+const URL_REGEX = /(https?:\/\/[^\s]+)/g;
+
+/**
+ * Parse text and return array of text and link segments.
+ */
+function parseNoteWithLinks(text: string): Array<{ type: 'text' | 'link'; content: string }> {
+  const segments: Array<{ type: 'text' | 'link'; content: string }> = [];
+  let lastIndex = 0;
+  // Create a new regex instance to avoid state issues with global flag
+  const regex = new RegExp(URL_REGEX.source, 'g');
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: 'link', content: match[1] });
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+
+  return segments;
+}
+
+/**
+ * Extract the first URL from text, if any.
+ */
+function extractFirstUrl(text: string): string | null {
+  const match = text.match(URL_REGEX);
+  return match ? match[0] : null;
+}
+
+export interface WorktreeCardProps {
+  worktree: Worktree;
+  changes: WorktreeChanges;
+  mood: WorktreeMood;
+  isFocused: boolean;
+  activeRootPath: string;
+  onCopyTree?: () => void;
+  onOpenEditor?: () => void;
+  serverState?: DevServerState;
+  hasDevScript?: boolean;
+  onToggleServer?: () => void;
+  aiNote?: string;
+  registerClickRegion?: (
+    id: string,
+    bounds?: { x: number; y: number; width: number; height: number },
+    handler?: () => void
+  ) => void;
 }
 
 // PERF: Memoized to prevent re-renders when other files in the list change
@@ -125,9 +149,9 @@ const FileChangeRow = React.memo<{
   };
 }>(({ change, rootPath, accentColors }) => {
   const additionsLabel =
-    change.insertions === null ? '---' : `+${change.insertions}`;
+    change.insertions === null ? '' : `+${change.insertions}`;
   const deletionsLabel =
-    change.deletions === null ? '---' : `-${change.deletions}`;
+    change.deletions === null ? '' : `-${change.deletions}`;
 
   const statusColor =
     change.status === 'added'
@@ -147,53 +171,43 @@ const FileChangeRow = React.memo<{
         <Text color={statusColor}>{STATUS_GLYPHS[change.status] ?? '?'} </Text>
         <Text>{displayPath}</Text>
       </Box>
-      <Box gap={2}>
-        <Text color={accentColors.added}>{additionsLabel}</Text>
-        <Text color={accentColors.deleted}>{deletionsLabel}</Text>
+      <Box gap={1}>
+        {additionsLabel && <Text color={accentColors.added}>{additionsLabel}</Text>}
+        {deletionsLabel && <Text color={accentColors.deleted}>{deletionsLabel}</Text>}
       </Box>
     </Box>
   );
 });
 
-const ActionButton: React.FC<{
+// Embedded action button for top border
+const EmbeddedActionButton: React.FC<{
   id: string;
   label: string;
   color: string;
+  borderColor: string;
   onPress?: () => void;
   registerRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
     handler?: () => void
   ) => void;
-}> = ({ id, label, color, onPress, registerRegion }) => {
+}> = ({ id, label, color, borderColor, onPress, registerRegion }) => {
   const ref = React.useRef<import('ink').DOMElement | null>(null);
   const [isPressed, setIsPressed] = useState(false);
 
-  // Wrapper to handle visual flash + action
   const handlePress = useCallback(() => {
-    if (isPressed) return;
-
+    if (isPressed || !onPress) return;
     setIsPressed(true);
-    onPress?.();
-
-    setTimeout(() => {
-      setIsPressed(false);
-    }, 150);
+    onPress();
+    setTimeout(() => setIsPressed(false), 150);
   }, [onPress, isPressed]);
 
   useLayoutEffect(() => {
-    if (!registerRegion || !ref.current || !onPress) {
-      return;
-    }
+    if (!registerRegion || !ref.current || !onPress) return;
 
-    const measured = measureElement(ref.current) as {
-      width: number;
-      height: number;
-    };
+    const measured = measureElement(ref.current) as { width: number; height: number };
     const yogaNode = ref.current.yogaNode;
-    if (!yogaNode) {
-      return;
-    }
+    if (!yogaNode) return;
 
     const getAbsolutePosition = (node: any): { x: number; y: number } => {
       let x = 0;
@@ -208,40 +222,37 @@ const ActionButton: React.FC<{
     };
 
     const { x, y } = getAbsolutePosition(yogaNode);
-    const bounds = { x, y, width: measured.width, height: measured.height };
-
-    registerRegion(id, bounds, handlePress);
-
+    registerRegion(id, { x, y, width: measured.width, height: measured.height }, handlePress);
     return () => registerRegion(id, undefined, handlePress);
-  }, [registerRegion, id, label, color, onPress, handlePress]);
+  }, [registerRegion, id, onPress, handlePress]);
 
   return (
     <Box
       ref={ref}
-      backgroundColor={isPressed ? 'white' : undefined}
-      // @ts-ignore
+      // @ts-ignore - onClick exists but types don't expose it
       onClick={handlePress}
     >
-      <Text color={isPressed ? 'black' : color} bold>
-        [{label}]
+      <Text
+        color={isPressed ? 'black' : color}
+        backgroundColor={isPressed ? 'white' : undefined}
+      >
+        <Text color={borderColor}>[ </Text>
+        <Text color={isPressed ? 'black' : color} bold>{label}</Text>
+        <Text color={borderColor}> ]</Text>
       </Text>
     </Box>
   );
 };
 
-// PERF: Wrapped in React.memo to prevent unnecessary re-renders when parent state changes
-// but this card's props haven't changed (e.g., notification state changes in App.tsx)
+// PERF: Wrapped in React.memo to prevent unnecessary re-renders
 const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   worktree,
   changes,
   mood,
   isFocused,
-  isExpanded,
   activeRootPath,
-  onToggleExpand,
   onCopyTree,
   onOpenEditor,
-  onOpenExplorer,
   serverState,
   hasDevScript,
   onToggleServer,
@@ -250,16 +261,18 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
 }) => {
   const { palette } = useTheme();
 
-  // Memoize explorer label for performance
-  const explorerLabel = useMemo(() => getExplorerLabel(), []);
-
-  // Use consistent border color that works in dark mode
-  // Traffic light is displayed separately via the indicator dot
-  const borderColor = palette.text.tertiary; // Medium gray (#808080) - visible but not too prominent
-
-  const borderStyle = 'round'; // Standardized: traffic light + branch highlight indicate focus
+  // Border color - use consistent color for all cards
+  const borderColor = palette.text.tertiary;
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
+  // Clickable path handler - with error handling to prevent crashes
+  const handlePathClick = useCallback(() => {
+    open(worktree.path).catch(() => {
+      // Silently ignore errors (missing opener, permission issues, etc.)
+    });
+  }, [worktree.path]);
+
+  // Sort changes by priority and churn
   const sortedChanges = useMemo(() => {
     return [...changes.changes].sort((a, b) => {
       const priorityA = STATUS_PRIORITY[a.status] ?? 99;
@@ -278,48 +291,30 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
     });
   }, [changes.changes]);
 
-  const visibleChanges = isExpanded ? sortedChanges.slice(0, MAX_VISIBLE_CHANGES) : [];
-  const remainingCount = isExpanded
-    ? Math.max(0, sortedChanges.length - visibleChanges.length)
-    : 0;
-
-  const fileCountLabel = `${changes.changedFileCount} ${
-    changes.changedFileCount === 1 ? 'file' : 'files'
-  }`;
-
-  const totalInsertions =
-    changes.totalInsertions ??
-    changes.insertions ??
-    changes.changes.reduce((sum, change) => sum + (change.insertions ?? 0), 0);
-  const totalDeletions =
-    changes.totalDeletions ??
-    changes.deletions ??
-    changes.changes.reduce((sum, change) => sum + (change.deletions ?? 0), 0);
+  // Show top 3 files
+  const visibleChanges = sortedChanges.slice(0, MAX_VISIBLE_FILES);
+  const remainingCount = Math.max(0, sortedChanges.length - MAX_VISIBLE_FILES);
 
   const hasChanges = changes.changedFileCount > 0;
-  let SummaryComponent: React.ReactNode;
 
-  // Detect if summary is a commit message (starts with ✅)
-  const isCommitMessage = worktree.summary?.startsWith('✅');
+  // Summary component
+  let SummaryComponent: React.ReactNode;
+  const isCommitMessage = worktree.summary?.startsWith('Last commit:') || worktree.summary?.startsWith('\u2705');
 
   if (worktree.summary) {
     if (isCommitMessage) {
-      // Case A: Last Commit (always show with prefix, even during dirty state)
       SummaryComponent = (
         <Text color={palette.text.tertiary}>
-          <Text bold>Last commit: </Text>
           {worktree.summary}
         </Text>
       );
     } else if (hasChanges) {
-      // Case B: AI Summary (Active changes)
       SummaryComponent = (
         <Text color={palette.text.secondary}>
           {worktree.summary}
         </Text>
       );
     } else {
-      // Case C: Clean state without commit message
       SummaryComponent = (
         <Text color={palette.text.tertiary}>
           {worktree.summary}
@@ -333,8 +328,6 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
       </Text>
     );
   } else {
-    // Fallback for edge cases (initialization, etc.)
-    // Per spec: "No active changes" should NEVER appear
     const fallbackText = worktree.branch
       ? `Clean: ${worktree.branch}`
       : 'Ready';
@@ -351,150 +344,251 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
     modified: palette.git.modified,
     muted: palette.text.tertiary,
   };
+
   const branchLabel = worktree.branch ?? worktree.name;
   const isActive = worktree.isCurrent;
-  const isPrimaryWorktree = worktree.branch === 'main' || worktree.branch === 'master';
-  const relativeWorktreePath = path.relative(activeRootPath, worktree.path) || '.';
-  const locationLabel = isPrimaryWorktree
-    ? worktree.path
-    : truncateMiddle(relativeWorktreePath, 50);
+  const displayPath = formatPath(worktree.path);
+
+  // Server status helpers
+  const getServerStatusIndicator = () => {
+    if (!serverState) return null;
+    switch (serverState.status) {
+      case 'stopped':
+        return <Text color={palette.text.tertiary}></Text>;
+      case 'starting':
+        return <Text color={palette.alert.warning}></Text>;
+      case 'running':
+        return <Text color={palette.git.added}></Text>;
+      case 'error':
+        return <Text color={palette.alert.error}></Text>;
+      default:
+        return <Text color={palette.text.tertiary}></Text>;
+    }
+  };
+
+  const getServerStatusText = (): React.ReactNode => {
+    if (!serverState) return null;
+    switch (serverState.status) {
+      case 'stopped':
+        return <Text color={palette.text.tertiary}>Dev Server</Text>;
+      case 'starting':
+        return <Text color={palette.alert.warning}>Starting...</Text>;
+      case 'running':
+        return serverState.url ? (
+          <Text color={palette.git.added}>{serverState.url}</Text>
+        ) : (
+          <Text color={palette.git.added}>Running</Text>
+        );
+      case 'error':
+        return (
+          <Text color={palette.alert.error}>
+            {serverState.errorMessage ? `Error: ${serverState.errorMessage.slice(0, 40)}` : 'Error'}
+          </Text>
+        );
+      default:
+        return <Text color={palette.text.tertiary}>Dev Server</Text>;
+    }
+  };
+
+  const getServerButtonLabel = (): string => {
+    if (!serverState) return 'Start';
+    switch (serverState.status) {
+      case 'stopped':
+        return 'Start';
+      case 'starting':
+        return '...';
+      case 'running':
+        return 'Stop';
+      case 'error':
+        return 'Retry';
+      default:
+        return 'Start';
+    }
+  };
+
+  const getServerButtonColor = (): string => {
+    if (!serverState) return palette.git.added;
+    switch (serverState.status) {
+      case 'stopped':
+        return palette.git.added;
+      case 'starting':
+        return palette.alert.warning;
+      case 'running':
+        return palette.alert.error;
+      case 'error':
+        return palette.git.added;
+      default:
+        return palette.text.secondary;
+    }
+  };
+
+  const cleanNote = aiNote?.trim();
+
+  // Memoize parsed note segments to avoid re-parsing on every render
+  const parsedNoteSegments = useMemo(() => {
+    return cleanNote ? parseNoteWithLinks(cleanNote) : [];
+  }, [cleanNote]);
+
+  // Extract first URL for click handling
+  const firstNoteUrl = useMemo(() => {
+    return cleanNote ? extractFirstUrl(cleanNote) : null;
+  }, [cleanNote]);
+
+  // Handler for clicking on note (opens first URL if present)
+  const handleNoteClick = useCallback(() => {
+    if (firstNoteUrl) {
+      open(firstNoteUrl).catch(() => {
+        // Silently ignore errors
+      });
+    }
+  }, [firstNoteUrl]);
 
   return (
-    <Box
-      flexDirection="column"
-      borderStyle={borderStyle}
-      borderColor={borderColor}
-      paddingX={1}
-      paddingY={0}
-      marginBottom={0}
-    >
-      {/* Row 1: Branch Name */}
-      <Box marginBottom={0}>
-        <Text bold color={headerColor}>
-          {isActive && <Text color={palette.accent.primary}>● </Text>}
-          {branchLabel}
-        </Text>
-        {!worktree.branch && (
-          <Text color={palette.alert.warning}> (detached)</Text>
-        )}
-      </Box>
-
-      {/* Row 2: Location Path */}
-      <Box marginBottom={0}>
-        <Text color={palette.text.tertiary}>
-          {locationLabel}
-        </Text>
-      </Box>
-
-      {/* Row 3: Statistics Bar with Traffic Light */}
-      <Box marginTop={0} marginBottom={0}>
-        <Text>
-          <ActivityTrafficLight timestamp={worktree.lastActivityTimestamp} />
-          <Text> </Text>
-          {hasChanges ? (
-            <>
-              <Text color={palette.text.secondary}>{fileCountLabel}</Text>
-              <Text dimColor> • </Text>
-              <Text color={palette.git.added}>+{totalInsertions}</Text>
-              <Text dimColor> • </Text>
-              <Text color={palette.git.deleted}>-{totalDeletions}</Text>
-            </>
-          ) : (
-            <Text color={palette.text.tertiary}>No uncommitted changes</Text>
-          )}
-        </Text>
-      </Box>
-
-      {/* Row 4: AI Summary with optional status badge */}
-      <Box marginTop={1}>
-        {SummaryComponent}
-        {/* Per-card AI status badge - only shown when degraded (disabled/error) */}
-        {(() => {
-          const aiDisplay = getPerCardAIStatus(worktree.aiStatus);
-          return aiDisplay ? (
-            <Text color={aiDisplay.color}> [{aiDisplay.label}]</Text>
-          ) : null;
-        })()}
-      </Box>
-
-      {/* Row 5: Expansion (File List) */}
-      {isExpanded && (
-        <Box
-          flexDirection="column"
-          marginTop={1}
-          borderStyle="single"
-          borderColor={palette.chrome.separator}
-        >
-          {visibleChanges.map(change => (
-            <FileChangeRow
-              key={`${change.path}-${change.status}`}
-              change={change}
-              rootPath={changes.rootPath}
-              accentColors={accentColors}
-            />
-          ))}
-          {remainingCount > 0 && (
-            <Text dimColor>...and {remainingCount} more</Text>
-          )}
+    <Box flexDirection="column" marginBottom={0}>
+      {/* TOP BORDER with embedded actions */}
+      <Box flexDirection="row">
+        <Text color={borderColor}>{'\u256D'}</Text>
+        <Box flexGrow={1} overflowX="hidden">
+          <Text color={borderColor}>{'\u2500'.repeat(100)}</Text>
         </Box>
-      )}
-
-      <Box marginTop={1} justifyContent="space-between" alignItems="center">
-        <ActionButton
-          id={`${worktree.id}-expand`}
-          label={isExpanded ? 'Collapse' : 'Expand'}
+        <EmbeddedActionButton
+          id={`${worktree.id}-copy`}
+          label="Copy"
           color={palette.text.secondary}
-          onPress={onToggleExpand}
+          borderColor={borderColor}
+          onPress={onCopyTree}
           registerRegion={registerClickRegion}
         />
-        <Box gap={1}>
-          <ActionButton
-            id={`${worktree.id}-copytree`}
-            label="CopyTree"
-            color={palette.text.secondary}
-            onPress={onCopyTree}
-            registerRegion={registerClickRegion}
-          />
-          <ActionButton
-            id={`${worktree.id}-vscode`}
-            label="VS Code"
-            color={palette.text.secondary}
-            onPress={onOpenEditor}
-            registerRegion={registerClickRegion}
-          />
-          <ActionButton
-            id={`${worktree.id}-explorer`}
-            label={explorerLabel}
-            color={palette.text.secondary}
-            onPress={onOpenExplorer}
-            registerRegion={registerClickRegion}
-          />
-        </Box>
+        <Text color={borderColor}>{'\u2500\u2500'}</Text>
+        <EmbeddedActionButton
+          id={`${worktree.id}-code`}
+          label="Code"
+          color={palette.text.secondary}
+          borderColor={borderColor}
+          onPress={onOpenEditor}
+          registerRegion={registerClickRegion}
+        />
+        <Text color={borderColor}>{'\u2500\u256E'}</Text>
       </Box>
 
-      {/* Server Dock - only rendered if dev script detected */}
-      {hasDevScript && serverState && onToggleServer && (
-        <ServerDock
-          worktreeId={worktree.id}
-          serverState={serverState}
-          hasDevScript={hasDevScript}
-          isFocused={isFocused}
-          onToggle={onToggleServer}
-          registerClickRegion={registerClickRegion}
-        />
-      )}
+      {/* CONTENT with manual side borders */}
+      <Box flexDirection="row">
+        <Text color={borderColor}>{'\u2502'}</Text>
+        <Box flexDirection="column" flexGrow={1} paddingX={1}>
+          {/* Header: Traffic light + Branch */}
+          <Box marginBottom={0}>
+            <Text bold color={headerColor}>
+              <ActivityTrafficLight timestamp={worktree.lastActivityTimestamp} />
+              <Text> </Text>
+              {isActive && <Text color={palette.accent.primary}>{'\u25CF'} </Text>}
+              {branchLabel}
+            </Text>
+            {!worktree.branch && (
+              <Text color={palette.alert.warning}> (detached)</Text>
+            )}
+            {/* AI status badge */}
+            {(() => {
+              const aiDisplay = getPerCardAIStatus(worktree.aiStatus);
+              return aiDisplay ? (
+                <Text color={aiDisplay.color}> [{aiDisplay.label}]</Text>
+              ) : null;
+            })()}
+          </Box>
 
-      {/* Note Dock - displays AI agent status from .canopy_note.txt */}
-      <NoteDock noteContent={aiNote} registerClickRegion={registerClickRegion} />
+          {/* Path (clickable) */}
+          <Box marginBottom={0}>
+            <Text
+              color={palette.text.tertiary}
+              underline={isFocused}
+              // @ts-ignore - onClick exists but types don't expose it
+              onClick={handlePathClick}
+            >
+              {displayPath}
+            </Text>
+          </Box>
+
+          {/* Summary */}
+          <Box marginTop={1}>
+            {SummaryComponent}
+          </Box>
+
+          {/* Files (if any) */}
+          {hasChanges && visibleChanges.length > 0 && (
+            <Box flexDirection="column" marginTop={1}>
+              {visibleChanges.map(change => (
+                <FileChangeRow
+                  key={`${change.path}-${change.status}`}
+                  change={change}
+                  rootPath={changes.rootPath}
+                  accentColors={accentColors}
+                />
+              ))}
+              {remainingCount > 0 && (
+                <Text dimColor>...and {remainingCount} more</Text>
+              )}
+            </Box>
+          )}
+
+          {/* Server status (inline, if applicable) */}
+          {hasDevScript && serverState && (
+            <Box marginTop={1} justifyContent="space-between">
+              <Box gap={1}>
+                {getServerStatusIndicator()}
+                {getServerStatusText()}
+                {isFocused && serverState.status !== 'starting' && (
+                  <Text color={palette.text.tertiary} dimColor>[s]</Text>
+                )}
+              </Box>
+              <Text
+                color={getServerButtonColor()}
+                bold
+                dimColor={serverState.status === 'starting'}
+                // @ts-ignore - onClick exists but types don't expose it
+                onClick={serverState.status !== 'starting' ? onToggleServer : undefined}
+              >
+                [{getServerButtonLabel()}]
+              </Text>
+            </Box>
+          )}
+
+          {/* Agent note (inline, if applicable) */}
+          {cleanNote && (
+            <Box
+              marginTop={1}
+              // @ts-ignore - onClick exists but types don't expose it
+              onClick={firstNoteUrl ? handleNoteClick : undefined}
+            >
+              <Text color={palette.text.secondary}>
+                {parsedNoteSegments.map((segment, index) =>
+                  segment.type === 'link' ? (
+                    <Text key={index} color={palette.accent.primary} underline>{segment.content}</Text>
+                  ) : (
+                    <Text key={index}>{segment.content}</Text>
+                  )
+                )}
+              </Text>
+            </Box>
+          )}
+        </Box>
+        <Text color={borderColor}>{'\u2502'}</Text>
+      </Box>
+
+      {/* BOTTOM BORDER */}
+      <Box flexDirection="row">
+        <Text color={borderColor}>{'\u2570'}</Text>
+        <Box flexGrow={1} overflowX="hidden">
+          <Text color={borderColor}>{'\u2500'.repeat(100)}</Text>
+        </Box>
+        <Text color={borderColor}>{'\u256F'}</Text>
+      </Box>
     </Box>
   );
 };
 
-// PERF: Export memoized component with custom comparison to prevent unnecessary re-renders
+// PERF: Export memoized component with custom comparison
 export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps) => {
   // Shallow compare scalar props
   if (prevProps.isFocused !== nextProps.isFocused) return false;
-  if (prevProps.isExpanded !== nextProps.isExpanded) return false;
   if (prevProps.mood !== nextProps.mood) return false;
   if (prevProps.activeRootPath !== nextProps.activeRootPath) return false;
 

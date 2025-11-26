@@ -6,11 +6,9 @@ import { HOME_SEQUENCES, END_SEQUENCES } from '../utils/keySequences.js';
 export interface DashboardNavProps {
   worktrees: Worktree[];
   focusedWorktreeId: string | null;
-  expandedWorktreeIds: Set<string>;
   isModalOpen: boolean;
   viewportSize?: number;
   onFocusChange: (worktreeId: string) => void;
-  onToggleExpand: (worktreeId: string) => void;
   onCopyTree: (worktreeId: string) => void;
   onOpenEditor: (worktreeId: string) => void;
   onToggleServer?: (worktreeId: string) => void;
@@ -26,19 +24,17 @@ export interface DashboardNavResult {
 export function useDashboardNav({
   worktrees,
   focusedWorktreeId,
-  expandedWorktreeIds,
   isModalOpen,
   viewportSize = 6,
   onFocusChange,
-  onToggleExpand,
   onCopyTree,
   onOpenEditor,
   onToggleServer,
   devScriptMap,
 }: DashboardNavProps): DashboardNavResult {
   const [visibleStart, setVisibleStart] = useState(0);
-
   const clampedViewport = Math.max(1, viewportSize);
+
   const focusedIndex = useMemo(
     () => worktrees.findIndex(wt => wt.id === focusedWorktreeId),
     [focusedWorktreeId, worktrees]
@@ -48,13 +44,10 @@ export function useDashboardNav({
     (targetIndex: number) => {
       const maxStart = Math.max(0, worktrees.length - clampedViewport);
       setVisibleStart(prev => {
-        let nextStart = prev;
-        if (targetIndex < prev) {
-          nextStart = targetIndex;
-        } else if (targetIndex >= prev + clampedViewport) {
-          nextStart = targetIndex - clampedViewport + 1;
-        }
-        return Math.min(Math.max(0, nextStart), maxStart);
+        if (targetIndex < prev) return targetIndex;
+        if (targetIndex >= prev + clampedViewport)
+          return Math.min(targetIndex - clampedViewport + 1, maxStart);
+        return prev;
       });
     },
     [clampedViewport, worktrees.length]
@@ -65,141 +58,75 @@ export function useDashboardNav({
       setVisibleStart(0);
       return;
     }
-
     const safeIndex = focusedIndex >= 0 ? focusedIndex : 0;
     ensureVisible(safeIndex);
   }, [ensureVisible, focusedIndex, worktrees.length]);
 
-  const resolveFocused = useCallback(() => {
-    if (focusedIndex >= 0) {
-      return { id: focusedWorktreeId, index: focusedIndex };
-    }
-    if (worktrees.length > 0) {
-      return { id: worktrees[0].id, index: 0 };
-    }
-    return { id: null, index: -1 };
-  }, [focusedIndex, focusedWorktreeId, worktrees]);
+  useInput(
+    (input, key) => {
+      if (isModalOpen || worktrees.length === 0) return;
 
-  const moveFocus = useCallback(
-    (delta: number) => {
-      if (worktrees.length === 0) {
+      const currentIndex = focusedIndex >= 0 ? focusedIndex : 0;
+
+      // Navigation
+      if (key.upArrow) {
+        const prev = Math.max(0, currentIndex - 1);
+        onFocusChange(worktrees[prev].id);
+        ensureVisible(prev);
         return;
       }
-      const { index } = resolveFocused();
-      const nextIndex = Math.max(0, Math.min(worktrees.length - 1, index + delta));
-      if (nextIndex === index || !worktrees[nextIndex]) {
+
+      if (key.downArrow) {
+        const next = Math.min(worktrees.length - 1, currentIndex + 1);
+        onFocusChange(worktrees[next].id);
+        ensureVisible(next);
         return;
       }
-      onFocusChange(worktrees[nextIndex].id);
-      ensureVisible(nextIndex);
-    },
-    [ensureVisible, onFocusChange, resolveFocused, worktrees]
-  );
 
-  const focusExact = useCallback(
-    (index: number) => {
-      if (worktrees[index]) {
-        onFocusChange(worktrees[index].id);
-        ensureVisible(index);
-      }
-    },
-    [ensureVisible, onFocusChange, worktrees]
-  );
-
-  const toggleExpansion = useCallback(
-    (id: string, intent: 'toggle' | 'expand' | 'collapse') => {
-      if (intent === 'expand' && expandedWorktreeIds.has(id)) {
+      if (key.pageUp) {
+        const prev = Math.max(0, currentIndex - clampedViewport);
+        onFocusChange(worktrees[prev].id);
+        ensureVisible(prev);
         return;
       }
-      if (intent === 'collapse' && !expandedWorktreeIds.has(id)) {
+
+      if (key.pageDown) {
+        const next = Math.min(worktrees.length - 1, currentIndex + clampedViewport);
+        onFocusChange(worktrees[next].id);
+        ensureVisible(next);
         return;
       }
-      onToggleExpand(id);
-    },
-    [expandedWorktreeIds, onToggleExpand]
-  );
 
-  const handlePrimaryActions = useCallback(
-    (input: string, key: { return?: boolean; space?: boolean; leftArrow?: boolean; rightArrow?: boolean }) => {
-      const { id, index } = resolveFocused();
-      if (!id || index < 0) {
+      if (HOME_SEQUENCES.has(input)) {
+        onFocusChange(worktrees[0].id);
+        ensureVisible(0);
+        return;
+      }
+
+      if (END_SEQUENCES.has(input)) {
+        onFocusChange(worktrees[worktrees.length - 1].id);
+        ensureVisible(worktrees.length - 1);
+        return;
+      }
+
+      // Actions (no more expansion toggle)
+      if (input === 'c') {
+        onCopyTree(worktrees[currentIndex].id);
         return;
       }
 
       if (key.return) {
-        onOpenEditor(id);
-        return;
-      }
-
-      if (input === 'c') {
-        onCopyTree(id);
+        onOpenEditor(worktrees[currentIndex].id);
         return;
       }
 
       // 's' key toggles dev server for focused worktree (only if dev script exists)
       if (input === 's') {
-        const hasDevScript = devScriptMap?.get(id) ?? false;
+        const hasDevScript = devScriptMap?.get(worktrees[currentIndex].id) ?? false;
         if (hasDevScript) {
-          onToggleServer?.(id);
+          onToggleServer?.(worktrees[currentIndex].id);
         }
-        return;
       }
-
-      if (input === ' ') {
-        toggleExpansion(id, 'toggle');
-        return;
-      }
-
-      if (key.rightArrow) {
-        toggleExpansion(id, 'expand');
-        return;
-      }
-
-      if (key.leftArrow) {
-        toggleExpansion(id, 'collapse');
-      }
-    },
-    [devScriptMap, onCopyTree, onOpenEditor, onToggleServer, resolveFocused, toggleExpansion]
-  );
-
-  useInput(
-    (input, key) => {
-      if (worktrees.length === 0) {
-        return;
-      }
-
-      if (key.upArrow) {
-        moveFocus(-1);
-        return;
-      }
-
-      if (key.downArrow) {
-        moveFocus(1);
-        return;
-      }
-
-      if (key.pageUp) {
-        moveFocus(-3);
-        return;
-      }
-
-      if (key.pageDown) {
-        moveFocus(3);
-        return;
-      }
-
-      // Home and End keys use escape sequences (not in Ink's Key type)
-      if (HOME_SEQUENCES.has(input)) {
-        focusExact(0);
-        return;
-      }
-
-      if (END_SEQUENCES.has(input)) {
-        focusExact(worktrees.length - 1);
-        return;
-      }
-
-      handlePrimaryActions(input, key);
     },
     { isActive: !isModalOpen }
   );

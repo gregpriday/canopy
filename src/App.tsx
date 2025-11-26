@@ -2,12 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Box, Text, useApp, useInput } from 'ink';
 import { Header } from './components/Header.js';
 import { WorktreeOverview, sortWorktrees } from './components/WorktreeOverview.js';
-import { getExplorerLabel } from './components/WorktreeCard.js';
+// getExplorerLabel removed - WorktreeCard no longer exports it
 import { WorktreePanel } from './components/WorktreePanel.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { Notification } from './components/Notification.js';
 import { AppErrorBoundary } from './components/AppErrorBoundary.js';
-import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, GitStatus, WorktreeChanges, AISummaryStatus } from './types/index.js';
+import type { CanopyConfig, Notification as NotificationType, NotificationPayload, Worktree, WorktreeChanges, AISummaryStatus } from './types/index.js';
 import { useKeyboard } from './hooks/useKeyboard.js';
 import { useDashboardNav } from './hooks/useDashboardNav.js';
 import { useQuickLinks } from './hooks/useQuickLinks.js';
@@ -32,7 +32,6 @@ import { logWarn, logError } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import { setupGlobalErrorHandler, createErrorNotification } from './utils/errorHandling.js';
 import { detectTerminalTheme } from './theme/colorPalette.js';
-import open from 'open';
 
 interface AppProps {
   cwd: string;
@@ -135,7 +134,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const [activeWorktreeId, setActiveWorktreeId] = useState<string | null>(initialActiveWorktreeId);
   const [activeRootPath, setActiveRootPath] = useState<string>(initialActiveRootPath);
   const [focusedWorktreeId, setFocusedWorktreeId] = useState<string | null>(initialActiveWorktreeId);
-  const [expandedWorktreeIds, setExpandedWorktreeIds] = useState<Set<string>>(new Set());
   const [lastCopyProfile, setLastCopyProfile] = useState<string>(initialCopyProfile || 'default');
 
   useEffect(() => {
@@ -402,18 +400,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     setNotifications(prev => prev.filter(notification => notification.id !== id));
   }, []);
 
-  const handleToggleExpandWorktree = useCallback((id: string) => {
-    setExpandedWorktreeIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  }, []);
-
   const handleOpenWorktreeEditor = useCallback(async (id: string) => {
     const target = sortedWorktrees.find(wt => wt.id === id);
     if (!target) {
@@ -433,21 +419,6 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [effectiveConfig, sortedWorktrees]);
 
-  const handleOpenWorktreeExplorer = useCallback(async (id: string) => {
-    const target = sortedWorktrees.find(wt => wt.id === id);
-    if (!target) {
-      return;
-    }
-
-    try {
-      await open(target.path);
-      const label = getExplorerLabel();
-      events.emit('ui:notify', { type: 'success', message: `Opened in ${label}` });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to open folder';
-      events.emit('ui:notify', { type: 'error', message });
-    }
-  }, [sortedWorktrees]);
 
   const handleOpenGitFox = useCallback(async () => {
     try {
@@ -930,11 +901,9 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
   const { visibleStart, visibleEnd } = useDashboardNav({
     worktrees: sortedWorktrees,
     focusedWorktreeId,
-    expandedWorktreeIds,
     isModalOpen: anyModalOpen,
     viewportSize: dashboardViewportSize,
     onFocusChange: setFocusedWorktreeId,
-    onToggleExpand: handleToggleExpandWorktree,
     onCopyTree: handleCopyTreeForWorktree,
     onOpenEditor: handleOpenWorktreeEditor,
     onToggleServer: handleToggleServerForWorktree,
@@ -1044,13 +1013,10 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             activeWorktreeId={activeWorktreeId}
             activeRootPath={activeRootPath}
             focusedWorktreeId={focusedWorktreeId}
-            expandedWorktreeIds={expandedWorktreeIds}
             visibleStart={visibleStart}
             visibleEnd={visibleEnd}
-            onToggleExpand={handleToggleExpandWorktree}
             onCopyTree={handleCopyTreeForWorktree}
             onOpenEditor={handleOpenWorktreeEditor}
-            onOpenExplorer={handleOpenWorktreeExplorer}
             devServerConfig={devServerConfig}
           />
         </Box>
