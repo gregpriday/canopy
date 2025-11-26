@@ -163,6 +163,38 @@ export class WorktreeMonitor extends EventEmitter {
     }
   }
 
+  /**
+   * Update metadata (branch, name) from a refreshed worktree object.
+   * This is called by WorktreeService.sync() when worktree metadata changes
+   * (e.g., after a `git checkout` or `git switch` in the worktree).
+   *
+   * Only updates the mutable state object, not the readonly instance properties.
+   * Emits an update event if metadata actually changed.
+   *
+   * @param worktree - Updated worktree data from git worktree list
+   */
+  public updateMetadata(worktree: Worktree): void {
+    const branchChanged = this.state.branch !== worktree.branch;
+    const nameChanged = this.state.name !== worktree.name;
+
+    if (branchChanged || nameChanged) {
+      // Capture old values from state before updating
+      const oldBranch = this.state.branch;
+      const oldName = this.state.name;
+
+      this.state.branch = worktree.branch;
+      this.state.name = worktree.name;
+      logInfo('WorktreeMonitor metadata updated', {
+        id: this.id,
+        oldBranch,
+        newBranch: worktree.branch,
+        oldName,
+        newName: worktree.name,
+      });
+      this.emitUpdate();
+    }
+  }
+
 
   /**
    * Force refresh of git status and AI summary.

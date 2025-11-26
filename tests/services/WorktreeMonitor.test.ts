@@ -710,4 +710,267 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       expect(stopPollingSpy).toHaveBeenCalled();
     });
   });
+
+  describe('Metadata Update (Branch Refresh)', () => {
+    it('updates state when branch changes', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Simulate a branch change (as if user ran `git checkout new-branch`)
+      const updatedWorktree: Worktree = {
+        ...baseWorktree,
+        branch: 'new-feature-branch',
+        name: 'new-feature-branch',
+      };
+
+      // Call updateMetadata with new worktree data
+      monitor.updateMetadata(updatedWorktree);
+
+      // Verify state was updated
+      const state = monitor.getState();
+      expect(state.branch).toBe('new-feature-branch');
+      expect(state.name).toBe('new-feature-branch');
+
+      await monitor.stop();
+    });
+
+    it('emits update event when branch changes', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Clear previous emissions and track new ones
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      // Simulate a branch change
+      const updatedWorktree: Worktree = {
+        ...baseWorktree,
+        branch: 'switched-branch',
+        name: 'switched-branch',
+      };
+
+      monitor.updateMetadata(updatedWorktree);
+
+      // Should have emitted an update
+      expect(emittedStates.length).toBe(1);
+      expect(emittedStates[0].branch).toBe('switched-branch');
+      expect(emittedStates[0].name).toBe('switched-branch');
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('does not emit when branch has not changed', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Clear previous emissions and track new ones
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      // Call updateMetadata with same branch (no change)
+      const sameWorktree: Worktree = {
+        ...baseWorktree,
+        branch: 'feature-test', // Same as initial
+        name: 'feature-test',   // Same as initial
+      };
+
+      monitor.updateMetadata(sameWorktree);
+
+      // Should NOT emit (no change)
+      expect(emittedStates.length).toBe(0);
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('handles branch change to detached HEAD (undefined branch)', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Simulate detached HEAD (branch becomes undefined)
+      const detachedWorktree: Worktree = {
+        ...baseWorktree,
+        branch: undefined,
+        name: 'HEAD detached',
+      };
+
+      monitor.updateMetadata(detachedWorktree);
+
+      const state = monitor.getState();
+      expect(state.branch).toBeUndefined();
+      expect(state.name).toBe('HEAD detached');
+
+      await monitor.stop();
+    });
+
+    it('updates only name when branch stays same but name changes', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      // Same branch, different name (edge case)
+      const updatedWorktree: Worktree = {
+        ...baseWorktree,
+        branch: 'feature-test', // Same
+        name: 'renamed-worktree', // Different
+      };
+
+      monitor.updateMetadata(updatedWorktree);
+
+      // Should emit because name changed
+      expect(emittedStates.length).toBe(1);
+      expect(emittedStates[0].branch).toBe('feature-test');
+      expect(emittedStates[0].name).toBe('renamed-worktree');
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('emits when only branch changes but name stays the same', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      // Different branch, same name (e.g., worktree name is path-based, not branch-based)
+      const updatedWorktree: Worktree = {
+        ...baseWorktree,
+        branch: 'different-branch', // Different
+        name: 'feature-test', // Same as initial
+      };
+
+      monitor.updateMetadata(updatedWorktree);
+
+      // Should emit because branch changed
+      expect(emittedStates.length).toBe(1);
+      expect(emittedStates[0].branch).toBe('different-branch');
+      expect(emittedStates[0].name).toBe('feature-test');
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+
+    it('sequential updates emit only when values actually change', async () => {
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      const emittedStates: any[] = [];
+      const handler = (state: any) => {
+        emittedStates.push({ ...state });
+      };
+
+      events.on('sys:worktree:update', handler);
+
+      // First update: change branch
+      monitor.updateMetadata({
+        ...baseWorktree,
+        branch: 'branch-1',
+        name: 'branch-1',
+      });
+      expect(emittedStates.length).toBe(1);
+
+      // Second update: change branch again
+      monitor.updateMetadata({
+        ...baseWorktree,
+        branch: 'branch-2',
+        name: 'branch-2',
+      });
+      expect(emittedStates.length).toBe(2);
+
+      // Third update: same values (should not emit)
+      monitor.updateMetadata({
+        ...baseWorktree,
+        branch: 'branch-2',
+        name: 'branch-2',
+      });
+      expect(emittedStates.length).toBe(2); // Still 2, no new emission
+
+      // Fourth update: change again
+      monitor.updateMetadata({
+        ...baseWorktree,
+        branch: 'branch-3',
+        name: 'branch-3',
+      });
+      expect(emittedStates.length).toBe(3);
+
+      events.off('sys:worktree:update', handler);
+      await monitor.stop();
+    });
+  });
 });
