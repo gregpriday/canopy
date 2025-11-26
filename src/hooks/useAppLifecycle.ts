@@ -43,9 +43,6 @@ export interface LifecycleState {
   worktrees: Worktree[];
   activeWorktreeId: string | null;
   activeRootPath: string;
-  initialSelectedPath: string | null;
-  initialExpandedFolders: Set<string>;
-  initialGitOnlyMode: boolean;
   initialCopyProfile: string;
   error: Error | null;
 }
@@ -87,9 +84,6 @@ export function useAppLifecycle({
     worktrees: [],
     activeWorktreeId: null,
     activeRootPath: cwd,
-    initialSelectedPath: null,
-    initialExpandedFolders: new Set<string>(),
-    initialGitOnlyMode: false,
     initialCopyProfile: 'default',
     error: null,
   });
@@ -158,9 +152,6 @@ export function useAppLifecycle({
       // Step 4: Load initial state (always load when git available for session persistence)
       let activeWorktreeId: string | null = null;
       let activeRootPath = cwd;
-      let initialSelectedPath: string | null = null;
-      let initialExpandedFolders = new Set<string>();
-      let initialGitOnlyMode = false;
       let initialCopyProfile = 'default';
 
       if (noGit) {
@@ -181,10 +172,7 @@ export function useAppLifecycle({
             currentWorktree = initialState.worktree;
           }
 
-          // Always store initial state for session restoration
-          initialSelectedPath = initialState.selectedPath;
-          initialExpandedFolders = initialState.expandedFolders;
-          initialGitOnlyMode = initialState.gitOnlyMode;
+          // Restore last copy profile from session
           initialCopyProfile = initialState.lastCopyProfile;
         } catch (error) {
           // Check if this is a truly catastrophic error (not just "not a git repo")
@@ -212,9 +200,6 @@ export function useAppLifecycle({
           worktrees,
           activeWorktreeId,
           activeRootPath,
-          initialSelectedPath,
-          initialExpandedFolders,
-          initialGitOnlyMode,
           initialCopyProfile,
           error: null,
         });

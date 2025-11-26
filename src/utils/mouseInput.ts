@@ -73,12 +73,3 @@ export function parseMouseSequences(data: string): TerminalMouseEvent[] {
 
   return events;
 }
-
-/**
- * Legacy single parser for backward compatibility or simple use cases.
- * Returns the first event found.
- */
-export function parseMouseSequence(data: string): TerminalMouseEvent | null {
-  const events = parseMouseSequences(data);
-  return events.length > 0 ? events[0] : null;
-}

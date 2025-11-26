@@ -59,9 +59,6 @@ vi.mock('../src/hooks/useAppLifecycle.js', () => ({
     worktrees: mockWorktrees,
     activeWorktreeId: mockWorktrees[0].id,
     activeRootPath: mockWorktrees[0].path,
-    initialSelectedPath: null,
-    initialExpandedFolders: [],
-    initialGitOnlyMode: false,
     initialCopyProfile: 'default',
     error: null,
     notification: null,
@@ -74,13 +71,6 @@ vi.mock('../src/hooks/useWorktreeSummaries.ts', () => ({
   useWorktreeSummaries: vi.fn((worktrees) => worktrees),
 }));
 
-
-vi.mock('../src/hooks/useGitStatus.js', () => ({
-  useGitStatus: vi.fn(() => ({
-    gitStatus: new Map(),
-    refresh: vi.fn(),
-  })),
-}));
 
 vi.mock('../src/hooks/useAIStatus.js', () => ({
   useAIStatus: vi.fn(() => ({
@@ -114,7 +104,7 @@ vi.mock('../src/utils/clipboard.js', () => ({
 }));
 
 vi.mock('../src/utils/copytree.js', () => ({
-  runCopyTreeWithProfile: vi.fn().mockResolvedValue('Success\nCopied to clipboard!'),
+  runCopyTree: vi.fn().mockResolvedValue('Success\nCopied to clipboard!'),
 }));
 
 // Mock fuzzy search dependencies
@@ -130,7 +120,7 @@ import App from '../src/App.js';
 import { events } from '../src/services/events.js';
 import { openFile, openWorktreeInEditor } from '../src/utils/fileOpener.js';
 import { copyFilePath } from '../src/utils/clipboard.js';
-import { runCopyTreeWithProfile } from '../src/utils/copytree.js';
+import { runCopyTree } from '../src/utils/copytree.js';
 
 // Helper to wait for condition with timeout
 async function waitForCondition(fn: () => boolean, timeout = 2000): Promise<void> {
@@ -264,7 +254,7 @@ describe('Dashboard Integration Tests', () => {
       await tick();
 
       // Clear previous calls
-      vi.mocked(runCopyTreeWithProfile).mockClear();
+      vi.mocked(runCopyTree).mockClear();
 
       // Create notification listener
       let successNotification = false;
@@ -279,10 +269,10 @@ describe('Dashboard Integration Tests', () => {
       await tick();
 
       // Wait for CopyTree to be called
-      await waitForCondition(() => vi.mocked(runCopyTreeWithProfile).mock.calls.length > 0);
+      await waitForCondition(() => vi.mocked(runCopyTree).mock.calls.length > 0);
 
       // Verify the call
-      expect(runCopyTreeWithProfile).toHaveBeenCalled();
+      expect(runCopyTree).toHaveBeenCalled();
 
       // Wait for success notification
       await waitForCondition(() => successNotification, 1000);
@@ -292,7 +282,7 @@ describe('Dashboard Integration Tests', () => {
 
     it('handles CopyTree errors gracefully', async () => {
       // Mock failure
-      vi.mocked(runCopyTreeWithProfile).mockRejectedValueOnce(new Error('CopyTree failed'));
+      vi.mocked(runCopyTree).mockRejectedValueOnce(new Error('CopyTree failed'));
 
       const { stdin, lastFrame } = render(<App cwd="/test/repo" />);
 
@@ -481,9 +471,6 @@ describe('Dashboard Integration Tests', () => {
         worktrees: [],
         activeWorktreeId: null,
         activeRootPath: '/test/repo',
-        initialSelectedPath: null,
-        initialExpandedFolders: [],
-        initialGitOnlyMode: false,
         initialCopyProfile: 'default',
         error: null,
         notification: null,
@@ -518,9 +505,6 @@ describe('Dashboard Integration Tests', () => {
         worktrees: [],
         activeWorktreeId: null,
         activeRootPath: '/test/repo',
-        initialSelectedPath: null,
-        initialExpandedFolders: [],
-        initialGitOnlyMode: false,
         initialCopyProfile: 'default',
         error: new Error('Failed to load config'),
         notification: null,

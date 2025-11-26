@@ -500,25 +500,6 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * CENTRAL SUMMARY UPDATE LOGIC (DEPRECATED)
-   *
-   * @deprecated This method is no longer used. Summary logic is now inlined
-   * in updateGitStatus() for atomic state updates.
-   *
-   * The logic has been moved to Phase 4 of updateGitStatus() to ensure
-   * stats and summary are updated atomically in the same render frame.
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async _handleSummaryUpdate_deprecated(
-    _isClean: boolean,
-    _wasClean: boolean,
-    _isInitialLoad: boolean
-  ): Promise<void> {
-    // This method is preserved for reference but no longer called.
-    // See updateGitStatus() Phase 4 for the current implementation.
-  }
-
-  /**
    * Fetch the last commit message.
    * Returns the string directly, does not modify state.
    * This is the pure helper used by the atomic update cycle.
@@ -539,28 +520,6 @@ export class WorktreeMonitor extends EventEmitter {
     } catch (error) {
       logError('Failed to fetch last commit message', error as Error, { id: this.id });
       return '🌱 Ready to get started';
-    }
-  }
-
-  /**
-   * Set summary to last commit message (fallback).
-   * Does not trigger loading states or AI generation.
-   * If no commits exist, shows friendly "ready to start" message.
-   *
-   * @param emit - Whether to emit update after setting summary (default: true)
-   * @deprecated Use fetchLastCommitMessage() in updateCycle() for atomic updates
-   */
-  private async setLastCommitAsSummary(emit: boolean = true): Promise<void> {
-    if (!this.isRunning) {
-      return;
-    }
-
-    const summary = await this.fetchLastCommitMessage();
-    this.state.summary = summary;
-    this.state.summaryLoading = false;
-
-    if (emit) {
-      this.emitUpdate();
     }
   }
 

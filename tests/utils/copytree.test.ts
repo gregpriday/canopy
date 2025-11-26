@@ -4,7 +4,7 @@ vi.mock('execa', () => ({
   execa: vi.fn(),
 }));
 
-import { runCopyTreeWithProfile, runCopyTree } from '../../src/utils/copytree.js';
+import { runCopyTree } from '../../src/utils/copytree.js';
 import { DEFAULT_CONFIG } from '../../src/types/index.js';
 import { execa as mockedExeca } from 'execa';
 
@@ -34,31 +34,6 @@ describe('copytree utility', () => {
     expect(mockedExeca).toHaveBeenCalledWith(
       'copytree',
       ['-r', '--foo'],
-      { cwd: '/repo' }
-    );
-  });
-
-  it('runCopyTreeWithProfile uses default args (profile ignored)', async () => {
-    mockedExeca.mockResolvedValue({ stdout: 'ok' } as any);
-
-    await runCopyTreeWithProfile('/repo', 'some-profile', DEFAULT_CONFIG);
-
-    // Profile is now ignored - always uses default args
-    expect(mockedExeca).toHaveBeenCalledWith(
-      'copytree',
-      ['-r'],
-      { cwd: '/repo' }
-    );
-  });
-
-  it('runCopyTreeWithProfile appends extra args', async () => {
-    mockedExeca.mockResolvedValue({ stdout: 'done' } as any);
-
-    await runCopyTreeWithProfile('/repo', 'debug', DEFAULT_CONFIG, ['--verbose']);
-
-    expect(mockedExeca).toHaveBeenCalledWith(
-      'copytree',
-      ['-r', '--verbose'],
       { cwd: '/repo' }
     );
   });

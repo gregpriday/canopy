@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { runCopyTreeWithProfile } from '../utils/copytree.js';
+import { runCopyTree } from '../utils/copytree.js';
 import { events } from '../services/events.js';
 import type { CanopyConfig } from '../types/index.js';
 
@@ -53,9 +53,8 @@ export function useCopyTree(activeRootPath: string, config: CanopyConfig): void 
         const combinedArgs = [...extraArgs, ...files];
 
         // Execute CopyTree
-        const output = await runCopyTreeWithProfile(
+        const output = await runCopyTree(
           targetPath,
-          profile,
           configRef.current,
           combinedArgs
         );

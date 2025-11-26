@@ -102,13 +102,13 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
    - Automatically restarts when switching between worktrees
 
 4. **Git Integration**:
-   - **Git Status**: `useGitStatus` hook fetches status using `git status --porcelain=v1`
+   - **Git Status**: Tracked via `WorktreeMonitor` service which polls `git status` periodically
    - **Worktrees**: Full git worktree support with detection, switching, and session persistence
    - **Caching**: Git status cached for 5 seconds, directory listings for 10 seconds
    - Can be disabled with `--no-git` CLI flag
 
 5. **Session Persistence**: Per-worktree state saved to `~/.config/canopy/sessions/`:
-   - Stores selected path and expanded folders
+   - Stores last used CopyTree profile
    - Automatically saved on worktree switch and app exit
    - Sessions expire after 30 days
    - Worktree ID is normalized absolute path
@@ -152,7 +152,6 @@ Uses ES modules with `.js` extensions in imports (TypeScript compilation target)
 All types centralized in `src/types/index.ts`:
 - `TreeNode` - Hierarchical file/folder structure with git status, expansion state
 - `CanopyConfig` - User configuration (editor, git settings, display options, openers, CopyTree defaults)
-- `CanopyState` - Application state (tree, selection, UI modes, worktrees)
 - `GitStatus` - Git file status: `modified | added | deleted | untracked | ignored`
 - `Notification` - User notifications: `info | success | error | warning`
 - `Worktree` - Git worktree metadata (id, path, name, branch, isCurrent)
@@ -244,7 +243,6 @@ Located in `src/hooks/`:
 
 **Core Infrastructure Hooks**:
 - `useAppLifecycle.ts` - Application initialization and lifecycle management
-- `useGitStatus.ts` - Git status fetching with caching and debouncing
 - `useRepositoryStats.ts` - Repository stats (commits, issues, PRs) with adaptive polling
   - Active mode (30s): Polls frequently when user is actively working
   - Idle mode (5min): Polls slowly when no activity for 2+ minutes
