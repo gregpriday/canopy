@@ -184,11 +184,11 @@ export const Header: React.FC<HeaderProps> = ({
         {BORDER.topLeft}{horizontalLine}{BORDER.topRight}
       </Text>
 
-      {/* Content row */}
+      {/* Title row */}
       <Box width={terminalWidth}>
         <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
         <Box flexGrow={1} justifyContent="space-between" paddingX={1}>
-          {/* Left side: Project Identity & Filter */}
+          {/* Left side: Project Identity */}
           <Box>
             {identity.emoji && <Text>{identity.emoji} </Text>}
             <Gradient colors={[gradient.start, gradient.end]}>
@@ -203,52 +203,56 @@ export const Header: React.FC<HeaderProps> = ({
               </Text>
             )}
           </Box>
+        </Box>
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+      </Box>
 
-          {/* Right side: Stats Bar (no gaps) */}
-          <Box>
-            {/* GitFox / Commits */}
-            {stats.commitCount > 0 && (
-              <HeaderButton
-                id="header-commits"
-                label={`[${stats.commitCount} commits]`}
-                color={palette.text.secondary}
-                dimColor={true}
-                onPress={onOpenGitFox}
-                registerRegion={registerClickRegion}
-              />
-            )}
+      {/* Buttons row */}
+      <Box width={terminalWidth}>
+        <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
+        <Box flexGrow={1} justifyContent="flex-end" paddingX={1}>
+          {/* GitFox / Commits */}
+          {stats.commitCount > 0 && (
+            <HeaderButton
+              id="header-commits"
+              label={`[${stats.commitCount} commits]`}
+              color={palette.text.secondary}
+              dimColor={true}
+              onPress={onOpenGitFox}
+              registerRegion={registerClickRegion}
+            />
+          )}
 
-            {/* GitHub Stats - bright when > 0, dim when 0 */}
-            {stats.issueCount !== null && (
-              <HeaderButton
-                id="header-issues"
-                label={`[${stats.issueCount} issues]`}
-                color={palette.text.secondary}
-                dimColor={stats.issueCount === 0}
-                onPress={handleOpenIssues}
-                registerRegion={registerClickRegion}
-              />
-            )}
+          {/* GitHub Stats - bright when > 0, dim when 0 */}
+          {stats.issueCount !== null && (
+            <HeaderButton
+              id="header-issues"
+              label={`[${stats.issueCount} issues]`}
+              color={palette.text.secondary}
+              dimColor={stats.issueCount === 0}
+              onPress={handleOpenIssues}
+              registerRegion={registerClickRegion}
+            />
+          )}
 
-            {stats.prCount !== null && (
-              <HeaderButton
-                id="header-prs"
-                label={`[${stats.prCount} PRs]`}
-                color={palette.text.secondary}
-                dimColor={stats.prCount === 0}
-                onPress={handleOpenPRs}
-                registerRegion={registerClickRegion}
-              />
-            )}
+          {stats.prCount !== null && (
+            <HeaderButton
+              id="header-prs"
+              label={`[${stats.prCount} PRs]`}
+              color={palette.text.secondary}
+              dimColor={stats.prCount === 0}
+              onPress={handleOpenPRs}
+              registerRegion={registerClickRegion}
+            />
+          )}
 
-            {/* Loading indicator or fallback if gh CLI not found */}
-            {stats.loading && (
-              <Text dimColor>(loading...)</Text>
-            )}
-            {!stats.loading && stats.issueCount === null && stats.prCount === null && (
-              <Text dimColor>({stats.ghError || 'gh CLI unavailable'})</Text>
-            )}
-          </Box>
+          {/* Loading indicator or fallback if gh CLI not found */}
+          {stats.loading && (
+            <Text dimColor>(loading...)</Text>
+          )}
+          {!stats.loading && stats.issueCount === null && stats.prCount === null && (
+            <Text dimColor>({stats.ghError || 'gh CLI unavailable'})</Text>
+          )}
         </Box>
         <Text color={palette.chrome.border}>{BORDER.vertical}</Text>
       </Box>

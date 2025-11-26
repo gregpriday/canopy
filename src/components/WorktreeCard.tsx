@@ -343,25 +343,25 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
       paddingY={0}
       marginBottom={0}
     >
-      {/* Row 1: Identity (Branch | Path) */}
-      <Box justifyContent="space-between" alignItems="center" marginBottom={0}>
-        <Box>
-          <Text bold color={headerColor}>
-            {isActive && <Text color={palette.accent.primary}>● </Text>}
-            {branchLabel}
-          </Text>
-          {!worktree.branch && (
-            <Text color={palette.alert.warning}> (detached)</Text>
-          )}
-        </Box>
-        <Box>
-          <Text color={palette.text.tertiary}>
-            {locationLabel}
-          </Text>
-        </Box>
+      {/* Row 1: Branch Name */}
+      <Box marginBottom={0}>
+        <Text bold color={headerColor}>
+          {isActive && <Text color={palette.accent.primary}>● </Text>}
+          {branchLabel}
+        </Text>
+        {!worktree.branch && (
+          <Text color={palette.alert.warning}> (detached)</Text>
+        )}
       </Box>
 
-      {/* Row 2: Statistics Bar with Traffic Light */}
+      {/* Row 2: Location Path */}
+      <Box marginBottom={0}>
+        <Text color={palette.text.tertiary}>
+          {locationLabel}
+        </Text>
+      </Box>
+
+      {/* Row 3: Statistics Bar with Traffic Light */}
       <Box marginTop={0} marginBottom={0}>
         <Text>
           <ActivityTrafficLight timestamp={worktree.lastActivityTimestamp} />
@@ -380,12 +380,12 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
         </Text>
       </Box>
 
-      {/* Row 3: AI Summary */}
+      {/* Row 4: AI Summary */}
       <Box marginTop={1}>
         {SummaryComponent}
       </Box>
 
-      {/* Row 4: Expansion (File List) */}
+      {/* Row 5: Expansion (File List) */}
       {isExpanded && (
         <Box
           flexDirection="column"
