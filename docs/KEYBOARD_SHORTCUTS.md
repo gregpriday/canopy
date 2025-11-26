@@ -61,7 +61,7 @@ Canopy launches in Dashboard mode by default, displaying a vertical stack of wor
 
 ## Legacy Tree Mode
 
-Displays traditional hierarchical file browser.
+Displays traditional hierarchical file tree view.
 
 ### Navigation
 
