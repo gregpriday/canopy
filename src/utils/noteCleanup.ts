@@ -49,14 +49,16 @@ async function tryRemoveEmptyCanopyDir(notePath: string): Promise<void> {
 }
 
 /**
- * Clean up stale canopy note files from all worktrees.
- * This is a startup hygiene routine that removes notes older than 24 hours.
+ * Clean up canopy note files from worktrees on startup.
  *
- * Scans:
- * 1. The main .git/canopy/note (for the main worktree note)
- * 2. .git/worktrees/star/canopy/note (for linked worktree notes)
+ * Cleanup rules:
+ * 1. Main worktree note (.git/canopy/note): ALWAYS deleted on startup
+ *    - The main branch is persistent, not transient like feature worktrees
+ *    - Stale notes from previous sessions should not persist
+ * 2. Linked worktree notes (.git/worktrees/<name>/canopy/note): Deleted if > 24 hours old
+ *    - Feature worktrees are transient; notes may still be relevant
  *
- * Also cleans up empty canopy directories after deleting stale notes.
+ * Also cleans up empty canopy directories after deleting notes.
  *
  * This should be called once on app startup, not in the hot monitoring path.
  */
@@ -67,50 +69,53 @@ export async function cleanupStaleNotes(cwd: string): Promise<void> {
     return;
   }
 
-  const notesToCheck: string[] = [];
+  let deletedCount = 0;
+  const now = Date.now();
 
-  // 1. Check main .git/canopy/note (main worktree note)
-  notesToCheck.push(pathJoin(gitDir, NOTE_PATH));
+  // 1. ALWAYS delete main worktree note on startup
+  // The main branch is persistent, so leftover notes from previous sessions
+  // should not linger. Clean slate on each Canopy launch.
+  const mainNotePath = pathJoin(gitDir, NOTE_PATH);
+  try {
+    await unlink(mainNotePath);
+    deletedCount++;
+    logDebug('Deleted main worktree note on startup', { path: mainNotePath });
+    await tryRemoveEmptyCanopyDir(mainNotePath);
+  } catch {
+    // File does not exist - that is fine
+  }
 
-  // 2. Check .git/worktrees/star/canopy/note (linked worktree notes)
+  // 2. Check linked worktree notes (.git/worktrees/*/canopy/note)
+  // These are deleted only if older than 24 hours
   const worktreesDir = pathJoin(gitDir, 'worktrees');
   try {
     const entries = await readdir(worktreesDir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory()) {
-        notesToCheck.push(pathJoin(worktreesDir, entry.name, NOTE_PATH));
+        const notePath = pathJoin(worktreesDir, entry.name, NOTE_PATH);
+        try {
+          const fileStat = await stat(notePath);
+          const age = now - fileStat.mtimeMs;
+
+          if (age > NOTE_GC_AGE_MS) {
+            await unlink(notePath);
+            deletedCount++;
+            logDebug('Deleted stale worktree note', {
+              path: notePath,
+              ageHours: (age / (60 * 60 * 1000)).toFixed(1),
+            });
+            await tryRemoveEmptyCanopyDir(notePath);
+          }
+        } catch {
+          // File does not exist or cannot be accessed - skip
+        }
       }
     }
   } catch {
     // No worktrees directory - that is fine
   }
 
-  // 3. Check each note file and delete if stale
-  let deletedCount = 0;
-  const now = Date.now();
-
-  for (const notePath of notesToCheck) {
-    try {
-      const fileStat = await stat(notePath);
-      const age = now - fileStat.mtimeMs;
-
-      if (age > NOTE_GC_AGE_MS) {
-        await unlink(notePath);
-        deletedCount++;
-        logDebug('Deleted stale canopy note', {
-          path: notePath,
-          ageHours: (age / (60 * 60 * 1000)).toFixed(1),
-        });
-
-        // Try to remove the empty canopy directory
-        await tryRemoveEmptyCanopyDir(notePath);
-      }
-    } catch {
-      // File does not exist or cannot be accessed - skip
-    }
-  }
-
   if (deletedCount > 0) {
-    logInfo('Cleaned up stale canopy note files', { count: deletedCount });
+    logInfo('Cleaned up canopy note files', { count: deletedCount });
   }
 }

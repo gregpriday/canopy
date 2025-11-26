@@ -119,16 +119,20 @@ echo "Created PR https://github.com/user/repo/pull/123" > "$(git rev-parse --git
 
 ## Cleanup
 
-### Garbage Collection (24 hours)
+### Startup Cleanup Rules
 
-On startup, Canopy deletes note files older than 24 hours:
+On startup, Canopy cleans up note files with different rules for main vs linked worktrees:
 
-- Scans `.git/canopy/note` (main worktree)
-- Scans `.git/worktrees/*/canopy/note` (linked worktrees)
-- Deletes any notes with mtime > 24 hours ago
-- Removes empty `canopy/` directories
+**Main worktree** (`.git/canopy/note`):
+- **Always deleted** on Canopy startup
+- The main branch is persistent (not transient like feature worktrees)
+- Stale notes from previous sessions should not persist
 
-This is a disk hygiene measure - notes should not accumulate indefinitely.
+**Linked worktrees** (`.git/worktrees/*/canopy/note`):
+- Deleted only if older than **24 hours**
+- Feature worktrees are transient; recent notes may still be relevant
+
+After deleting notes, empty `canopy/` directories are also cleaned up.
 
 ### Why Git Directory Storage?
 
@@ -164,8 +168,8 @@ The AI Note feature is enabled by default. To disable or customize:
 
 2. **Note Cleanup** (`src/utils/noteCleanup.ts`)
    - Runs once on startup (fire-and-forget)
-   - Scans all worktree git directories
-   - Deletes notes older than 24 hours
+   - Always deletes main worktree note (main branch is persistent)
+   - Deletes linked worktree notes older than 24 hours
    - Cleans up empty `canopy/` directories
 
 3. **NoteDock** (`src/components/NoteDock.tsx`)
@@ -194,7 +198,7 @@ The `canopy/` subdirectory provides namespacing for future Canopy features that 
 1. **Check file location** - Must be in `.git/canopy/note`, not the worktree root
 2. **Verify content** - File must have at least one line of text
 3. **Check polling** - Wait up to 2 seconds for the next poll cycle
-4. **Check if deleted** - Startup cleanup removes notes older than 24 hours
+4. **Check if deleted** - Main worktree notes are always deleted on startup; linked worktree notes are deleted if older than 24 hours
 
 ### Wrong Worktree
 
