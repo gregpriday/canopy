@@ -38,17 +38,78 @@ describe('WorktreeOverview', () => {
     capturedProps.length = 0;
   });
 
-  it('sorts main first then by mood priority', () => {
+  it('pins main first then sorts by lastActivityTimestamp descending', () => {
+    const now = Date.now();
     const worktrees: Worktree[] = [
-      { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active' },
-      { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable' },
-      { id: 'bugfix', path: '/repo/bugfix', name: 'bugfix', branch: 'bugfix', isCurrent: false, mood: 'stale' },
+      { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+      { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable', lastActivityTimestamp: now - 5000 },
+      { id: 'bugfix', path: '/repo/bugfix', name: 'bugfix', branch: 'bugfix', isCurrent: false, mood: 'stale', lastActivityTimestamp: now - 500 },
     ];
 
     const sorted = sortWorktrees(worktrees);
+    // main is always first (pinned)
     expect(sorted[0].id).toBe('main');
-    expect(sorted[1].id).toBe('feature');
-    expect(sorted[2].id).toBe('bugfix');
+    // Then sorted by recency: bugfix (500ms ago) > feature (1000ms ago)
+    expect(sorted[1].id).toBe('bugfix');
+    expect(sorted[2].id).toBe('feature');
+  });
+
+  it('sorts stale worktree with recent activity above active worktree with older activity', () => {
+    const now = Date.now();
+    const worktrees: Worktree[] = [
+      { id: 'active-old', path: '/repo/active', name: 'active', branch: 'active-branch', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 10000 },
+      { id: 'stale-recent', path: '/repo/stale', name: 'stale', branch: 'stale-branch', isCurrent: false, mood: 'stale', lastActivityTimestamp: now - 500 },
+    ];
+
+    const sorted = sortWorktrees(worktrees);
+    // stale-recent should be first because it has more recent activity despite being "stale" mood
+    expect(sorted[0].id).toBe('stale-recent');
+    expect(sorted[1].id).toBe('active-old');
+  });
+
+  it('falls back to alphabetical sort when timestamps are equal', () => {
+    const sameTime = Date.now();
+    const worktrees: Worktree[] = [
+      { id: 'zebra', path: '/repo/zebra', name: 'zebra', branch: 'zebra', isCurrent: false, mood: 'stable', lastActivityTimestamp: sameTime },
+      { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: false, mood: 'stable', lastActivityTimestamp: sameTime },
+    ];
+
+    const sorted = sortWorktrees(worktrees);
+    expect(sorted[0].id).toBe('alpha');
+    expect(sorted[1].id).toBe('zebra');
+  });
+
+  it('handles null/undefined timestamps by sorting them last', () => {
+    const now = Date.now();
+    const worktrees: Worktree[] = [
+      { id: 'no-activity', path: '/repo/no-activity', name: 'no-activity', branch: 'no-activity', isCurrent: false, mood: 'stable' },
+      { id: 'has-activity', path: '/repo/has-activity', name: 'has-activity', branch: 'has-activity', isCurrent: false, mood: 'stable', lastActivityTimestamp: now },
+    ];
+
+    const sorted = sortWorktrees(worktrees);
+    expect(sorted[0].id).toBe('has-activity');
+    expect(sorted[1].id).toBe('no-activity');
+  });
+
+  it('returns empty array for empty input', () => {
+    const sorted = sortWorktrees([]);
+    expect(sorted).toEqual([]);
+  });
+
+  it('handles all equal timestamps with main pinned', () => {
+    const sameTime = Date.now();
+    const worktrees: Worktree[] = [
+      { id: 'zebra', path: '/repo/zebra', name: 'zebra', branch: 'zebra', isCurrent: false, mood: 'stable', lastActivityTimestamp: sameTime },
+      { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable', lastActivityTimestamp: sameTime },
+      { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: false, mood: 'stable', lastActivityTimestamp: sameTime },
+    ];
+
+    const sorted = sortWorktrees(worktrees);
+    // main is always first (pinned)
+    expect(sorted[0].id).toBe('main');
+    // Then alphabetically: alpha before zebra
+    expect(sorted[1].id).toBe('alpha');
+    expect(sorted[2].id).toBe('zebra');
   });
 
   it('forwards expand handler with correct id', () => {
@@ -78,10 +139,12 @@ describe('WorktreeOverview', () => {
   });
 
   it('applies visible window bounds', () => {
+    const now = Date.now();
+    // Use timestamps to control ordering: alpha (newest) > beta > charlie (oldest)
     const worktrees: Worktree[] = [
-      { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: true, mood: 'stable' },
-      { id: 'beta', path: '/repo/beta', name: 'beta', branch: 'beta', isCurrent: false, mood: 'stable' },
-      { id: 'charlie', path: '/repo/charlie', name: 'charlie', branch: 'charlie', isCurrent: false, mood: 'stable' },
+      { id: 'alpha', path: '/repo/alpha', name: 'alpha', branch: 'alpha', isCurrent: true, mood: 'stable', lastActivityTimestamp: now },
+      { id: 'beta', path: '/repo/beta', name: 'beta', branch: 'beta', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 1000 },
+      { id: 'charlie', path: '/repo/charlie', name: 'charlie', branch: 'charlie', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 2000 },
     ];
     const sorted = sortWorktrees(worktrees);
     expect(sorted.map(wt => wt.id)).toEqual(['alpha', 'beta', 'charlie']);
