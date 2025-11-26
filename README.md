@@ -264,6 +264,24 @@ Create a `.canopy.json` file in your project root or `~/.config/canopy/config.js
 
 See [docs/DEV_SERVER.md](docs/DEV_SERVER.md) for dev server configuration.
 
+### Debugging
+
+Set environment variables to enable debug logging:
+
+| Variable | Description |
+|----------|-------------|
+| `CANOPY_DEBUG=1` | Enable general debug logging (log messages from logDebug, logInfo, logWarn) |
+| `CANOPY_DEBUG_EVENTS=1` | Enable event bus debugging (logs all event emissions and subscriptions) |
+| `CANOPY_DEBUG_SUMMARIES=1` | Enable worktree summary debug logging (summary generation lifecycle) |
+| `CANOPY_DEBUG_MOUSE=1` | Enable mouse input debug logging (mouse events and coordinates) |
+| `DEBUG_AI_STATUS=1` | Enable AI status debug logging (detailed AI summary generation logs) |
+| `DEBUG_IDENTITY=1` | Enable project identity debug logging (identity generation and caching) |
+
+Example:
+```bash
+CANOPY_DEBUG=1 canopy
+```
+
 ## Why This Matters
 
 ### Solves Agent Blindness

@@ -22,7 +22,7 @@ const ENABLE_FILE_LOGGING = false; // Disabled by default
 const SENSITIVE_KEYS = new Set(['token', 'password', 'apiKey', 'secret', 'accessToken', 'refreshToken']);
 
 // Add a check for debug mode
-const IS_DEBUG = process.env.NODE_ENV === 'development' || process.env.YELLOWWOOD_DEBUG;
+const IS_DEBUG = process.env.NODE_ENV === 'development' || process.env.CANOPY_DEBUG;
 const IS_TEST = process.env.NODE_ENV === 'test';
 
 /**

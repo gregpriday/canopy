@@ -477,7 +477,7 @@ export class WorktreeMonitor extends EventEmitter {
         } else {
           // Subsequent change while dirty: Schedule AI with buffer
           shouldScheduleAI = true;
-          logDebug('Will schedule AI summary (14s buffer)', { id: this.id });
+          logDebug(`Will schedule AI summary (${this.aiBufferDelay / 1000}s buffer)`, { id: this.id });
         }
       }
 
