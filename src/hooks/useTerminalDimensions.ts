@@ -3,6 +3,13 @@ import { useStdout } from 'ink';
 import { events } from '../services/events.js';
 import type { TerminalDimensions } from '../types/index.js';
 
+/**
+ * ANSI escape sequence to clear the entire screen and reset cursor.
+ * Using ESC[2J (clear screen) + ESC[H (cursor to home) which is less aggressive
+ * than a full terminal reset but effective for cleaning up resize artifacts.
+ */
+const CLEAR_SCREEN_SEQUENCE = '\x1B[2J\x1B[H';
+
 // Re-export for convenience
 export type { TerminalDimensions } from '../types/index.js';
 
@@ -64,6 +71,8 @@ export function useTerminalDimensions(
 
   // Track debounce timer for cleanup
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track previous dimensions to detect shrinking
+  const prevDimensionsRef = useRef<TerminalDimensions>(getInitialDimensions());
 
   // Handle resize events with debouncing
   useEffect(() => {
@@ -84,6 +93,19 @@ export function useTerminalDimensions(
           // Reserve 1 row for scroll jitter prevention
           height: Math.max(MIN_DIMENSIONS.height, (stdout.rows || DEFAULT_DIMENSIONS.height) - 1),
         };
+
+        // Clear screen when terminal shrinks to remove artifacts from previous larger render
+        const prev = prevDimensionsRef.current;
+        if (newDimensions.width < prev.width || newDimensions.height < prev.height) {
+          if (stdout.isTTY && stdout.writable) {
+            try {
+              stdout.write(CLEAR_SCREEN_SEQUENCE);
+            } catch {
+              // Ignore write failures (stream may already be closed)
+            }
+          }
+        }
+        prevDimensionsRef.current = newDimensions;
 
         setDimensions(newDimensions);
 
