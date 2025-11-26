@@ -21,7 +21,7 @@ vi.mock('../../src/components/WorktreeCard.js', () => ({
   },
 }));
 
-import { WorktreeOverview, sortWorktrees } from '../../src/components/WorktreeOverview.js';
+import { WorktreeOverview, sortWorktrees, getPinnedMainWorktree } from '../../src/components/WorktreeOverview.js';
 
 const makeChanges = (id: string): WorktreeChanges => ({
   worktreeId: id,
@@ -94,6 +94,36 @@ describe('WorktreeOverview', () => {
   it('returns empty array for empty input', () => {
     const sorted = sortWorktrees([]);
     expect(sorted).toEqual([]);
+  });
+
+  describe('getPinnedMainWorktree', () => {
+    it('returns main worktree when first element has main branch', () => {
+      const worktrees: Worktree[] = [
+        { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable' },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active' },
+      ];
+      expect(getPinnedMainWorktree(worktrees)?.id).toBe('main');
+    });
+
+    it('returns master worktree when first element has master branch', () => {
+      const worktrees: Worktree[] = [
+        { id: 'master', path: '/repo/master', name: 'master', branch: 'master', isCurrent: true, mood: 'stable' },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active' },
+      ];
+      expect(getPinnedMainWorktree(worktrees)?.id).toBe('master');
+    });
+
+    it('returns undefined when first element is not main/master', () => {
+      const worktrees: Worktree[] = [
+        { id: 'develop', path: '/repo/develop', name: 'develop', branch: 'develop', isCurrent: true, mood: 'stable' },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active' },
+      ];
+      expect(getPinnedMainWorktree(worktrees)).toBeUndefined();
+    });
+
+    it('returns undefined for empty array', () => {
+      expect(getPinnedMainWorktree([])).toBeUndefined();
+    });
   });
 
   it('handles all equal timestamps with main pinned', () => {
@@ -170,5 +200,204 @@ describe('WorktreeOverview', () => {
     expect(frame).toContain('beta');
     expect(frame).toContain('charlie');
     expect(frame).not.toContain('alpha');
+  });
+
+  describe('main worktree pinning', () => {
+    it('main worktree remains visible when visibleStart > 0', () => {
+      const now = Date.now();
+      // main is pinned first, then sorted by recency: feature > bugfix
+      const worktrees: Worktree[] = [
+        { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable', lastActivityTimestamp: now - 5000 },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+        { id: 'bugfix', path: '/repo/bugfix', name: 'bugfix', branch: 'bugfix', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 2000 },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      // visibleStart=1 would normally slice away main, but pinning should keep it
+      const { lastFrame } = render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="main"
+          activeRootPath="/repo/main"
+          focusedWorktreeId="feature"
+          expandedWorktreeIds={new Set()}
+          visibleStart={1}
+          visibleEnd={3}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      const frame = lastFrame() ?? '';
+      // main should be visible despite visibleStart=1
+      expect(frame).toContain('main');
+      // feature should also be visible (from the slice)
+      expect(frame).toContain('feature');
+    });
+
+    it('main worktree does not duplicate when within visible range', () => {
+      capturedProps.length = 0; // Reset captured props
+      const now = Date.now();
+      const worktrees: Worktree[] = [
+        { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable', lastActivityTimestamp: now },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      // visibleStart=0 means main is already in the slice, shouldn't duplicate
+      render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="main"
+          activeRootPath="/repo/main"
+          focusedWorktreeId="main"
+          expandedWorktreeIds={new Set()}
+          visibleStart={0}
+          visibleEnd={2}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      // Use captured props to verify exactly which worktree IDs were rendered
+      const renderedIds = capturedProps.map(p => p.worktreeId);
+      expect(renderedIds).toEqual(['main', 'feature']);
+      // Ensure main appears exactly once
+      expect(renderedIds.filter(id => id === 'main').length).toBe(1);
+    });
+
+    it('master branch is also pinned', () => {
+      const now = Date.now();
+      const worktrees: Worktree[] = [
+        { id: 'master', path: '/repo/master', name: 'master', branch: 'master', isCurrent: true, mood: 'stable', lastActivityTimestamp: now - 5000 },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+        { id: 'bugfix', path: '/repo/bugfix', name: 'bugfix', branch: 'bugfix', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 2000 },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      const { lastFrame } = render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="master"
+          activeRootPath="/repo/master"
+          focusedWorktreeId="feature"
+          expandedWorktreeIds={new Set()}
+          visibleStart={1}
+          visibleEnd={3}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      const frame = lastFrame() ?? '';
+      // master should be visible despite visibleStart=1
+      expect(frame).toContain('master');
+    });
+
+    it('no pinning when no main/master branch exists', () => {
+      const now = Date.now();
+      const worktrees: Worktree[] = [
+        { id: 'develop', path: '/repo/develop', name: 'develop', branch: 'develop', isCurrent: true, mood: 'stable', lastActivityTimestamp: now },
+        { id: 'feature', path: '/repo/feature', name: 'feature', branch: 'feature', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+        { id: 'bugfix', path: '/repo/bugfix', name: 'bugfix', branch: 'bugfix', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 2000 },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      // With visibleStart=1, develop should be sliced away (no pinning for non-main branches)
+      const { lastFrame } = render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="develop"
+          activeRootPath="/repo/develop"
+          focusedWorktreeId="feature"
+          expandedWorktreeIds={new Set()}
+          visibleStart={1}
+          visibleEnd={3}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      const frame = lastFrame() ?? '';
+      // develop should NOT be visible (no special pinning)
+      expect(frame).not.toContain('develop');
+      expect(frame).toContain('feature');
+      expect(frame).toContain('bugfix');
+    });
+
+    it('single worktree scenario works correctly', () => {
+      const worktrees: Worktree[] = [
+        { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable' },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      const { lastFrame } = render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="main"
+          activeRootPath="/repo/main"
+          focusedWorktreeId="main"
+          expandedWorktreeIds={new Set()}
+          visibleStart={0}
+          visibleEnd={1}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      const frame = lastFrame() ?? '';
+      expect(frame).toContain('main');
+    });
+
+    it('drops last item when viewport is full after prepending main', () => {
+      capturedProps.length = 0; // Reset captured props
+      const now = Date.now();
+      // 5 worktrees with main pinned first
+      const worktrees: Worktree[] = [
+        { id: 'main', path: '/repo/main', name: 'main', branch: 'main', isCurrent: true, mood: 'stable', lastActivityTimestamp: now - 5000 },
+        { id: 'feature1', path: '/repo/feature1', name: 'feature1', branch: 'feature1', isCurrent: false, mood: 'active', lastActivityTimestamp: now - 1000 },
+        { id: 'feature2', path: '/repo/feature2', name: 'feature2', branch: 'feature2', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 2000 },
+        { id: 'feature3', path: '/repo/feature3', name: 'feature3', branch: 'feature3', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 3000 },
+        { id: 'feature4', path: '/repo/feature4', name: 'feature4', branch: 'feature4', isCurrent: false, mood: 'stable', lastActivityTimestamp: now - 4000 },
+      ];
+      const changes = new Map<string, WorktreeChanges>(worktrees.map(wt => [wt.id, makeChanges(wt.id)]));
+
+      // Viewport of 3, scrolled to items 1-3 (feature1, feature2, feature3)
+      // After pinning main, we should have [main, feature1, feature2] - feature3 is dropped
+      render(
+        <WorktreeOverview
+          worktrees={worktrees}
+          worktreeChanges={changes}
+          activeWorktreeId="main"
+          activeRootPath="/repo/main"
+          focusedWorktreeId="feature1"
+          expandedWorktreeIds={new Set()}
+          visibleStart={1}
+          visibleEnd={4}
+          onToggleExpand={vi.fn()}
+          onCopyTree={vi.fn()}
+          onOpenEditor={vi.fn()}
+        />
+      );
+
+      // Verify main is prepended and last item is dropped to maintain viewport size
+      const renderedIds = capturedProps.map(p => p.worktreeId);
+      expect(renderedIds).toContain('main');
+      expect(renderedIds).toContain('feature1');
+      expect(renderedIds).toContain('feature2');
+      // feature3 should be dropped to maintain viewport size of 3
+      expect(renderedIds).not.toContain('feature3');
+      expect(renderedIds.length).toBe(3);
+    });
   });
 });

@@ -86,6 +86,19 @@ export function sortWorktrees(worktrees: Worktree[]): Worktree[] {
   return sorted;
 }
 
+/**
+ * Detect the pinned main/master worktree from a sorted list.
+ * Returns undefined if no main/master branch exists.
+ */
+export function getPinnedMainWorktree(sorted: Worktree[]): Worktree | undefined {
+  if (sorted.length === 0) return undefined;
+  const first = sorted[0];
+  if (first.branch === 'main' || first.branch === 'master') {
+    return first;
+  }
+  return undefined;
+}
+
 export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   worktrees,
   worktreeChanges,
@@ -103,9 +116,34 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   // Check if dev server feature is enabled (default: true)
   const devServerEnabled = devServerConfig?.enabled ?? true;
   const sorted = useMemo(() => sortWorktrees(worktrees), [worktrees]);
-  const start = Math.max(0, visibleStart ?? 0);
-  const end = visibleEnd ?? sorted.length;
-  const sliced = sorted.slice(start, end);
+
+  // Determine if we have a pinned main worktree
+  const pinnedMain = useMemo(() => getPinnedMainWorktree(sorted), [sorted]);
+
+  // Build visible slice, always including pinned main worktree at top
+  const sliced = useMemo(() => {
+    const start = Math.max(0, visibleStart ?? 0);
+    const end = visibleEnd ?? sorted.length;
+    const viewportSize = Math.max(0, end - start);
+    let result = sorted.slice(start, end);
+
+    // If main worktree was excluded (start > 0 and main exists), prepend it
+    // Drop the last item only if we have more items than viewport can show
+    // (i.e., the slice was full and adding main would exceed capacity)
+    if (pinnedMain && start > 0 && !result.some(wt => wt.id === pinnedMain.id)) {
+      // After prepending main, check if we exceed viewport
+      const withMain = [pinnedMain, ...result];
+      if (withMain.length > viewportSize && result.length > 0) {
+        // Too many items, drop the last one from the original slice
+        result = [pinnedMain, ...result.slice(0, -1)];
+      } else {
+        // Room available or slice only had main's slot, keep all
+        result = withMain;
+      }
+    }
+
+    return result;
+  }, [sorted, visibleStart, visibleEnd, pinnedMain]);
 
   // Track dev server states and which worktrees have dev scripts
   const [serverStates, setServerStates] = useState<Map<string, DevServerState>>(new Map());
