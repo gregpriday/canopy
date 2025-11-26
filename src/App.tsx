@@ -28,8 +28,9 @@ import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
 import { clearTerminalScreen } from './utils/terminal.js';
-import { logWarn } from './utils/logger.js';
+import { logWarn, logError } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
+import { setupGlobalErrorHandler, createErrorNotification } from './utils/errorHandling.js';
 import { detectTerminalTheme } from './theme/colorPalette.js';
 import open from 'open';
 
@@ -93,6 +94,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       setNotifications(prev => [...prev, createNotification(payload)]);
     });
   }, [createNotification]);
+
+  // Set up global error handler for uncaught exceptions and unhandled rejections
+  useEffect(() => {
+    const cleanup = setupGlobalErrorHandler((error: unknown) => {
+      // Log error for debugging (setupGlobalErrorHandler already logs, but we add context)
+      logError('Global error caught in App', error);
+
+      // Create user-facing notification
+      const notification = createErrorNotification(error, 'An unexpected error occurred');
+      events.emit('ui:notify', notification);
+    });
+
+    return cleanup;
+  }, []);
 
 
   // Listen for file:open events
