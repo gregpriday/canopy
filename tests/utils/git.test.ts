@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { clearWorktreeCache, stopWorktreeCacheCleanup, getWorktreeChangesWithStats } from '../../src/utils/git.js';
+import { clearWorktreeCache, stopWorktreeCacheCleanup, getWorktreeChangesWithStats, getCommitCount } from '../../src/utils/git.js';
 import { WorktreeRemovedError } from '../../src/utils/errorTypes.js';
 
 // Mock simple-git
@@ -344,6 +344,52 @@ describe('git.ts', () => {
 
 			expect(result.changes).toHaveLength(1);
 			expect(result.changes[0].status).toBe('modified');
+		});
+	});
+
+	describe('getCommitCount', () => {
+		it('returns commit count for valid repository', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockResolvedValue('42\n'),
+			} as any);
+
+			const count = await getCommitCount('/mock/repo');
+
+			expect(count).toBe(42);
+		});
+
+		it('returns 0 when git command fails', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockRejectedValue(new Error('fatal: not a git repository')),
+			} as any);
+
+			const count = await getCommitCount('/not/a/repo');
+
+			expect(count).toBe(0);
+		});
+
+		it('handles repositories with no commits', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockRejectedValue(new Error('fatal: bad revision HEAD')),
+			} as any);
+
+			const count = await getCommitCount('/empty/repo');
+
+			expect(count).toBe(0);
+		});
+
+		it('trims whitespace from git output', async () => {
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				raw: vi.fn().mockResolvedValue('  100  \n'),
+			} as any);
+
+			const count = await getCommitCount('/mock/repo');
+
+			expect(count).toBe(100);
 		});
 	});
 });
