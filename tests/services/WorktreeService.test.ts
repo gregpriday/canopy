@@ -9,6 +9,7 @@ class MockWorktreeMonitor {
   stop = vi.fn().mockResolvedValue(undefined);
   fetchInitialStatus = vi.fn().mockResolvedValue(undefined);
   setPollingInterval = vi.fn();
+  setAIBufferDelay = vi.fn();
   updateMetadata = vi.fn();
   refresh = vi.fn().mockResolvedValue(undefined);
 
@@ -49,6 +50,7 @@ vi.mock('../../src/services/monitor/WorktreeMonitor.js', () => {
       stop = vi.fn().mockResolvedValue(undefined);
       fetchInitialStatus = vi.fn().mockResolvedValue(undefined);
       setPollingInterval = vi.fn();
+      setAIBufferDelay = vi.fn();
       updateMetadata = vi.fn();
       refresh = vi.fn().mockResolvedValue(undefined);
 
