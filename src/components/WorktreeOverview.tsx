@@ -220,6 +220,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
     bounds?: { x: number; y: number; width: number; height: number },
     handler?: () => void
   ) => {
+    if (process.env.CANOPY_DEBUG_CLICK) {
+      console.error(`[CLICK] ${bounds ? 'Register' : 'Deregister'}: ${id}`, bounds ?? '');
+    }
     if (!bounds || !handler) {
       clickRegionsRef.current.delete(id);
       return;
@@ -245,9 +248,19 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
         return;
       }
 
-      for (const { bounds, handler } of clickRegionsRef.current.values()) {
+      if (process.env.CANOPY_DEBUG_CLICK) {
+        console.error(`[CLICK] Mouse event at (${event.x}, ${event.y})`);
+        console.error(`[CLICK] Registered regions:`, [...clickRegionsRef.current.keys()]);
+      }
+
+      for (const [id, { bounds, handler }] of clickRegionsRef.current.entries()) {
         const withinX = event.x >= bounds.x && event.x < bounds.x + bounds.width;
         const withinY = event.y >= bounds.y && event.y < bounds.y + bounds.height;
+
+        if (process.env.CANOPY_DEBUG_CLICK) {
+          console.error(`[CLICK] Testing ${id}: bounds=${JSON.stringify(bounds)}, hit=${withinX && withinY}`);
+        }
+
         if (withinX && withinY) {
           handler();
           break;
@@ -272,7 +285,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
           </Text>
         </Box>
       )}
-      {sliced.map((worktree) => {
+      {sliced.map((worktree, index) => {
         const changes = worktreeChanges.get(worktree.id) ?? {
           ...FALLBACK_CHANGES,
           worktreeId: worktree.id,
@@ -309,6 +322,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             isMainWorktree={isMainWorktree}
             registerClickRegion={registerClickRegion}
             terminalWidth={terminalWidth}
+            listIndex={index}
           />
         );
       })}

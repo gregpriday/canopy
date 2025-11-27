@@ -177,6 +177,8 @@ export interface WorktreeCardProps {
   ) => void;
   /** Terminal width for border rendering */
   terminalWidth: number;
+  /** Index of this card in the visible list - used to force click region re-registration on scroll */
+  listIndex?: number;
 }
 
 // PERF: Memoized to prevent re-renders when other files in the list change
@@ -240,7 +242,11 @@ const BorderActionButton: React.FC<{
   ) => void;
   /** Key that changes when layout might shift (e.g., when sibling buttons appear/disappear) */
   layoutKey?: string;
-}> = ({ id, label, color, borderColor, onPress, registerRegion, layoutKey }) => {
+  /** Index of the card in the visible list - forces re-measurement when card moves due to scrolling */
+  listIndex?: number;
+  /** Terminal width - forces re-measurement when terminal is resized */
+  terminalWidth?: number;
+}> = ({ id, label, color, borderColor, onPress, registerRegion, layoutKey, listIndex, terminalWidth }) => {
   const ref = React.useRef<import('ink').DOMElement | null>(null);
   const [isPressed, setIsPressed] = useState(false);
 
@@ -271,9 +277,20 @@ const BorderActionButton: React.FC<{
     };
 
     const { x, y } = getAbsolutePosition(yogaNode);
-    registerRegion(id, { x, y, width: measured.width, height: measured.height }, handlePress);
-    return () => registerRegion(id, undefined, handlePress);
-  }, [registerRegion, id, onPress, handlePress, layoutKey]);
+    const bounds = { x, y, width: measured.width, height: measured.height };
+
+    if (process.env.CANOPY_DEBUG_CLICK) {
+      console.error(`[CLICK] Register: ${id} bounds=${JSON.stringify(bounds)} listIndex=${listIndex}`);
+    }
+
+    registerRegion(id, bounds, handlePress);
+    return () => {
+      if (process.env.CANOPY_DEBUG_CLICK) {
+        console.error(`[CLICK] Deregister: ${id}`);
+      }
+      registerRegion(id, undefined, handlePress);
+    };
+  }, [registerRegion, id, onPress, handlePress, layoutKey, listIndex, terminalWidth]);
 
   // Button format: ─[ Label ] (no trailing ─, so adjacent buttons have single ─ between them)
   // The brackets and label are colored, the horizontal line matches border
@@ -310,6 +327,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   isMainWorktree,
   registerClickRegion,
   terminalWidth,
+  listIndex,
 }) => {
   const { palette } = useTheme();
 
@@ -571,6 +589,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           onPress={onCopyTree}
           registerRegion={registerClickRegion}
           layoutKey={buttonLayoutKey}
+          listIndex={listIndex}
+          terminalWidth={terminalWidth}
         />
         <BorderActionButton
           id={`${worktree.id}-code`}
@@ -580,6 +600,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           onPress={onOpenEditor}
           registerRegion={registerClickRegion}
           layoutKey={buttonLayoutKey}
+          listIndex={listIndex}
+          terminalWidth={terminalWidth}
         />
         {worktree.issueNumber && (
           <BorderActionButton
@@ -590,6 +612,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
             onPress={onOpenIssue}
             registerRegion={registerClickRegion}
             layoutKey={buttonLayoutKey}
+            listIndex={listIndex}
+            terminalWidth={terminalWidth}
           />
         )}
         {worktree.prNumber && (
@@ -601,6 +625,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
             onPress={onOpenPR}
             registerRegion={registerClickRegion}
             layoutKey={buttonLayoutKey}
+            listIndex={listIndex}
+            terminalWidth={terminalWidth}
           />
         )}
         <Text color={borderColor}>{BORDER.horizontal}{BORDER.topRight}</Text>
@@ -771,6 +797,9 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevProps.aiNote !== nextProps.aiNote) return false;
   if (prevProps.aiNoteTimestamp !== nextProps.aiNoteTimestamp) return false;
   if (prevProps.isMainWorktree !== nextProps.isMainWorktree) return false;
+
+  // Compare list index (forces re-render when card position changes due to scrolling)
+  if (prevProps.listIndex !== nextProps.listIndex) return false;
 
   // Callbacks are stable (created with useCallback in parent)
   return true;
