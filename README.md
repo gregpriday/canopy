@@ -69,7 +69,7 @@ Running `git status` across multiple worktrees or constantly checking different 
 ## Key Features
 
 ### Multi-Worktree Awareness
-See all your git worktrees at once, sorted by activity. Active worktrees appear first, followed by stable ones, then stale. Each card shows the branch, path, and current state.
+See all your git worktrees at once, sorted by most recent activity. The main/master branch is pinned at the top, with other worktrees ordered by when they were last modified. Each card shows the branch, path, and current state.
 
 ### AI-Powered Summaries
 Each worktree card displays an AI-generated summary of what's happening based on file changes and commit messages. Powered by **GPT-5 Nano** for high-speed status summarization and **GPT-5 Mini** for creative project identity generation. Canopy analyzes diffs using zero-context diffs for token efficiency, describing exactly *what* feature is being built, not just which files changed.
