@@ -8,7 +8,9 @@ import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
 
 // Maximum number of files to show in the card
-const MAX_VISIBLE_FILES = 3;
+const MAX_VISIBLE_FILES = 4;
+// Maximum number of additional filenames to show in the "and X more" line
+const MAX_ADDITIONAL_NAMES = 3;
 
 const STATUS_PRIORITY: Record<GitStatus, number> = {
   modified: 0,
@@ -554,7 +556,21 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
               />
             ))}
             {remainingCount > 0 && (
-              <Text dimColor>...and {remainingCount} more</Text>
+              <Text dimColor>
+                ...and {remainingCount} more
+                {(() => {
+                  // Get additional files not shown in the main list
+                  const additionalFiles = sortedChanges.slice(MAX_VISIBLE_FILES);
+                  if (additionalFiles.length === 0) return null;
+
+                  // Take up to MAX_ADDITIONAL_NAMES filenames
+                  const namesToShow = additionalFiles.slice(0, MAX_ADDITIONAL_NAMES);
+                  const basenames = namesToShow.map(f => path.basename(f.path));
+                  const hasMoreNames = additionalFiles.length > MAX_ADDITIONAL_NAMES;
+
+                  return ` (${basenames.join(', ')}${hasMoreNames ? ', ...' : ''})`;
+                })()}
+              </Text>
             )}
           </Box>
         )}

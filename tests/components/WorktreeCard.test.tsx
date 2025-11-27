@@ -248,7 +248,7 @@ describe('WorktreeCard - Display Specification Compliance', () => {
     });
   });
 
-  describe('File List (Always Top 3)', () => {
+  describe('File List (Always Top 4)', () => {
     it('sorts files by status priority and churn', () => {
       const changes = createPrioritySortedChanges();
       const wt = createDirtyWorktree(5);
@@ -273,7 +273,7 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       expect(idxLowChurn).toBeLessThan(idxAdded);
     });
 
-    it('shows overflow indicator when more than 3 files', () => {
+    it('shows overflow indicator when more than 4 files with additional filenames', () => {
       const changes = createOverflowChanges(10);
       const wt = createDirtyWorktree(10);
 
@@ -288,17 +288,22 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       );
 
       const output = lastFrame();
-      // Should show overflow indicator for remaining files
-      expect(output).toContain('...and 7 more');
+      // Should show overflow indicator for remaining files (10 - 4 = 6)
+      expect(output).toContain('...and 6 more');
+      // Should show up to 3 additional filenames in parentheses
+      // Files are file00.ts through file09.ts, top 4 are file00-file03
+      // So additional names shown would be file04.ts, file05.ts, file06.ts
+      expect(output).toContain('(file04.ts, file05.ts, file06.ts, ...)');
     });
 
-    it('always shows top 3 files (no expansion needed)', () => {
+    it('always shows top 4 files (no expansion needed)', () => {
       const changes = createMockChanges([
         { path: 'src/index.ts', status: 'modified', insertions: 10, deletions: 2 },
         { path: 'README.md', status: 'added', insertions: 20, deletions: 0 },
         { path: 'test.ts', status: 'modified', insertions: 5, deletions: 1 },
+        { path: 'config.ts', status: 'modified', insertions: 3, deletions: 0 },
       ]);
-      const wt = createDirtyWorktree(3);
+      const wt = createDirtyWorktree(4);
 
       const { lastFrame } = renderWithTheme(
         <WorktreeCard
@@ -315,6 +320,7 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       expect(output).toContain('index.ts');
       expect(output).toContain('README.md');
       expect(output).toContain('test.ts');
+      expect(output).toContain('config.ts');
     });
 
     it('renders status glyphs correctly', () => {
