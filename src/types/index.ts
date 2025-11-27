@@ -110,6 +110,9 @@ export interface Worktree {
 
   /** Content from .git/canopy/note file (for AI agent status communication) */
   aiNote?: string;
+
+  /** Timestamp when the note file was last modified (milliseconds since epoch) */
+  aiNoteTimestamp?: number;
 }
 
 export interface OpenerConfig {

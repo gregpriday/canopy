@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events';
 import { createHash } from 'crypto';
-import { readFile } from 'fs/promises';
+import { readFile, stat } from 'fs/promises';
 import { join as pathJoin } from 'path';
 import { execSync } from 'child_process';
 import type { Worktree, WorktreeChanges, WorktreeMood, AISummaryStatus } from '../../types/index.js';
@@ -33,6 +33,9 @@ export interface WorktreeState extends Worktree {
 
   // Content from .git/canopy/note file (for AI agent status)
   aiNote?: string;
+
+  // Timestamp when the note file was last modified (milliseconds since epoch)
+  aiNoteTimestamp?: number;
 }
 
 /**
@@ -112,6 +115,7 @@ export class WorktreeMonitor extends EventEmitter {
       lastActivityTimestamp: null,
       aiStatus: initialAIStatus,
       aiNote: undefined,
+      aiNoteTimestamp: undefined,
     };
   }
 
@@ -520,7 +524,9 @@ export class WorktreeMonitor extends EventEmitter {
       // PHASE 5.5: READ AI NOTE FILE
       // Polled at same interval as git status
       // ============================================
-      const nextAiNote = await this.readNoteFile();
+      const noteData = await this.readNoteFile();
+      const nextAiNote = noteData?.content;
+      const nextAiNoteTimestamp = noteData?.timestamp;
 
       // ============================================
       // PHASE 6: ATOMIC COMMIT
@@ -537,6 +543,7 @@ export class WorktreeMonitor extends EventEmitter {
         lastActivityTimestamp: nextLastActivityTimestamp,
         mood: nextMood,
         aiNote: nextAiNote,
+        aiNoteTimestamp: nextAiNoteTimestamp,
       };
 
       // ============================================
@@ -657,11 +664,12 @@ export class WorktreeMonitor extends EventEmitter {
   }
 
   /**
-   * Read the AI note file content from the git directory.
+   * Read the AI note file content and timestamp from the git directory.
    * Returns undefined if the file doesn't exist or is empty.
    * Content is truncated to 500 chars and only the last line is returned.
+   * Timestamp is the file's mtime in milliseconds since epoch.
    */
-  private async readNoteFile(): Promise<string | undefined> {
+  private async readNoteFile(): Promise<{ content: string; timestamp: number } | undefined> {
     if (!this.noteEnabled) {
       return undefined;
     }
@@ -674,6 +682,10 @@ export class WorktreeMonitor extends EventEmitter {
     const notePath = pathJoin(gitDir, this.noteFilename);
 
     try {
+      // Get file stats for mtime
+      const fileStat = await stat(notePath);
+      const timestamp = fileStat.mtimeMs;
+
       // Read file content
       const content = await readFile(notePath, 'utf-8');
       const trimmed = content.trim();
@@ -687,9 +699,9 @@ export class WorktreeMonitor extends EventEmitter {
       const lines = trimmed.split('\n');
       const lastLine = lines[lines.length - 1].trim();
       if (lastLine.length > 500) {
-        return lastLine.slice(0, 497) + '...';
+        return { content: lastLine.slice(0, 497) + '...', timestamp };
       }
-      return lastLine;
+      return { content: lastLine, timestamp };
     } catch (error) {
       // File doesn't exist or permission error - treat as non-existent
       // Only log if it's not a simple ENOENT (file not found)

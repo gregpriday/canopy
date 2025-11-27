@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useState, useCallback } from 'react';
+import React, { useLayoutEffect, useMemo, useState, useCallback, useEffect } from 'react';
 import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import { homedir } from 'node:os';
@@ -149,6 +149,9 @@ function extractFirstUrl(text: string): string | null {
   return match ? match[0] : null;
 }
 
+/** TTL for notes on main worktree (10 minutes in milliseconds) */
+const MAIN_WORKTREE_NOTE_TTL_MS = 10 * 60 * 1000;
+
 export interface WorktreeCardProps {
   worktree: Worktree;
   changes: WorktreeChanges;
@@ -161,6 +164,10 @@ export interface WorktreeCardProps {
   hasDevScript?: boolean;
   onToggleServer?: () => void;
   aiNote?: string;
+  /** Timestamp when the note file was last modified (milliseconds since epoch) */
+  aiNoteTimestamp?: number;
+  /** Whether this is the main worktree (main/master branch) - notes have 10-minute TTL */
+  isMainWorktree?: boolean;
   registerClickRegion?: (
     id: string,
     bounds?: { x: number; y: number; width: number; height: number },
@@ -294,6 +301,8 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   hasDevScript,
   onToggleServer,
   aiNote,
+  aiNoteTimestamp,
+  isMainWorktree,
   registerClickRegion,
   terminalWidth,
 }) => {
@@ -473,17 +482,59 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
     }
   };
 
-  const cleanNote = aiNote?.trim();
+  // For main worktree, notes expire after 10 minutes (real-time)
+  // Use state + effect to trigger re-render when note expires
+  const [now, setNow] = useState(() => Date.now());
+
+  // Set up timer to re-check note expiration for main worktree
+  useEffect(() => {
+    // Only need timer for main worktree with a valid note and timestamp
+    if (!isMainWorktree || !aiNote || !aiNoteTimestamp) {
+      return;
+    }
+
+    const expiresAt = aiNoteTimestamp + MAIN_WORKTREE_NOTE_TTL_MS;
+    const timeUntilExpiry = expiresAt - Date.now();
+
+    // Already expired - update state to trigger re-render
+    if (timeUntilExpiry <= 0) {
+      setNow(Date.now());
+      return;
+    }
+
+    // Set timer to update when note expires
+    const timer = setTimeout(() => {
+      setNow(Date.now());
+    }, timeUntilExpiry);
+
+    return () => clearTimeout(timer);
+  }, [isMainWorktree, aiNote, aiNoteTimestamp]);
+
+  // Calculate effective note (applying TTL for main worktree)
+  const effectiveNote = useMemo(() => {
+    const trimmed = aiNote?.trim();
+    if (!trimmed) return undefined;
+
+    // For main worktree, check if note has expired
+    if (isMainWorktree && aiNoteTimestamp) {
+      const age = now - aiNoteTimestamp;
+      if (age > MAIN_WORKTREE_NOTE_TTL_MS) {
+        return undefined; // Note has expired
+      }
+    }
+
+    return trimmed;
+  }, [aiNote, isMainWorktree, aiNoteTimestamp, now]);
 
   // Memoize parsed note segments to avoid re-parsing on every render
   const parsedNoteSegments = useMemo(() => {
-    return cleanNote ? parseNoteWithLinks(cleanNote) : [];
-  }, [cleanNote]);
+    return effectiveNote ? parseNoteWithLinks(effectiveNote) : [];
+  }, [effectiveNote]);
 
   // Extract first URL for click handling
   const firstNoteUrl = useMemo(() => {
-    return cleanNote ? extractFirstUrl(cleanNote) : null;
-  }, [cleanNote]);
+    return effectiveNote ? extractFirstUrl(effectiveNote) : null;
+  }, [effectiveNote]);
 
   // Handler for clicking on note (opens first URL if present)
   const handleNoteClick = useCallback(() => {
@@ -620,7 +671,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
         )}
 
         {/* Agent note (inline, if applicable) */}
-        {cleanNote && (
+        {effectiveNote && (
           <Box
             marginTop={1}
             // @ts-ignore - onClick exists but types don't expose it
@@ -676,8 +727,10 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevServer?.url !== nextServer?.url) return false;
   if (prevServer?.errorMessage !== nextServer?.errorMessage) return false;
 
-  // Compare AI note
+  // Compare AI note and timestamp
   if (prevProps.aiNote !== nextProps.aiNote) return false;
+  if (prevProps.aiNoteTimestamp !== nextProps.aiNoteTimestamp) return false;
+  if (prevProps.isMainWorktree !== nextProps.isMainWorktree) return false;
 
   // Callbacks are stable (created with useCallback in parent)
   return true;

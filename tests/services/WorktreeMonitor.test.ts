@@ -67,6 +67,10 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
+    // Default stat mock - returns mtime for note file timestamp
+    vi.mocked(fs.stat).mockResolvedValue({
+      mtimeMs: Date.now(),
+    } as any);
   });
 
   afterEach(() => {

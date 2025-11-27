@@ -282,6 +282,9 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
           status: 'stopped' as const,
         };
 
+        // Detect if this is the main worktree (for note TTL purposes)
+        const isMainWorktree = pinnedMain?.id === worktree.id;
+
         return (
           <WorktreeCard
             key={worktree.id}
@@ -296,6 +299,8 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             hasDevScript={hasDevScript}
             onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}
             aiNote={worktree.aiNote}
+            aiNoteTimestamp={worktree.aiNoteTimestamp}
+            isMainWorktree={isMainWorktree}
             registerClickRegion={registerClickRegion}
             terminalWidth={terminalWidth}
           />
