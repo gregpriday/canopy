@@ -75,6 +75,20 @@ export type CanopyEventMap = {
   // Dev Server Events
   'server:update': DevServerState;
   'server:error': { worktreeId: string; error: string };
+
+  // Pull Request Events
+  'sys:pr:detected': {
+    worktreeId: string;
+    prNumber: number;
+    prUrl: string;
+    prState: 'open' | 'merged' | 'closed';
+    /** The issue number this PR was detected for */
+    issueNumber: number;
+  };
+  /** Emitted when PR data should be cleared (branch/issue changed or worktree removed) */
+  'sys:pr:cleared': {
+    worktreeId: string;
+  };
 };
 
 // 3. Create Bus

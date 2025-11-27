@@ -24,6 +24,7 @@ export interface WorktreeOverviewProps {
   onCopyTree: (id: string, profile?: string) => void;
   onOpenEditor: (id: string) => void;
   onOpenIssue: (id: string) => void;
+  onOpenPR: (id: string) => void;
   /** Dev server configuration */
   devServerConfig?: DevServerConfig;
   /** Handler for mouse wheel scrolling */
@@ -111,6 +112,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
   onCopyTree,
   onOpenEditor,
   onOpenIssue,
+  onOpenPR,
   devServerConfig,
   onScroll,
   terminalWidth,
@@ -298,6 +300,7 @@ export const WorktreeOverview: React.FC<WorktreeOverviewProps> = ({
             onCopyTree={() => onCopyTree(worktree.id)}
             onOpenEditor={() => onOpenEditor(worktree.id)}
             onOpenIssue={worktree.issueNumber ? () => onOpenIssue(worktree.id) : undefined}
+            onOpenPR={worktree.prUrl ? () => onOpenPR(worktree.id) : undefined}
             serverState={serverState}
             hasDevScript={hasDevScript}
             onToggleServer={() => handleToggleServer(worktree.id, worktree.path)}

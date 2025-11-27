@@ -161,6 +161,7 @@ export interface WorktreeCardProps {
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
   onOpenIssue?: () => void;
+  onOpenPR?: () => void;
   serverState?: DevServerState;
   hasDevScript?: boolean;
   onToggleServer?: () => void;
@@ -237,7 +238,9 @@ const BorderActionButton: React.FC<{
     bounds?: { x: number; y: number; width: number; height: number },
     handler?: () => void
   ) => void;
-}> = ({ id, label, color, borderColor, onPress, registerRegion }) => {
+  /** Key that changes when layout might shift (e.g., when sibling buttons appear/disappear) */
+  layoutKey?: string;
+}> = ({ id, label, color, borderColor, onPress, registerRegion, layoutKey }) => {
   const ref = React.useRef<import('ink').DOMElement | null>(null);
   const [isPressed, setIsPressed] = useState(false);
 
@@ -270,7 +273,7 @@ const BorderActionButton: React.FC<{
     const { x, y } = getAbsolutePosition(yogaNode);
     registerRegion(id, { x, y, width: measured.width, height: measured.height }, handlePress);
     return () => registerRegion(id, undefined, handlePress);
-  }, [registerRegion, id, onPress, handlePress]);
+  }, [registerRegion, id, onPress, handlePress, layoutKey]);
 
   // Button format: ─[ Label ] (no trailing ─, so adjacent buttons have single ─ between them)
   // The brackets and label are colored, the horizontal line matches border
@@ -298,6 +301,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   onCopyTree,
   onOpenEditor,
   onOpenIssue,
+  onOpenPR,
   serverState,
   hasDevScript,
   onToggleServer,
@@ -314,16 +318,17 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
   // Calculate widths for the top border
-  // Format: ╭─────────────────────────────────────────[ Copy ]─[ Code ]─[ Issue ]─╮
+  // Format: ╭─────────────────────────────────────────[ Copy ]─[ Code ]─[ Issue ]─[ PR ]─╮
   // Each button: ─[ Label ] = 1 + 1 + label.length + 2 + 1 = label.length + 5
   // Plus trailing ─ before ╮ = 1
   const copyButtonWidth = 4 + 5; // "Copy" = 4 chars + surrounding
   const codeButtonWidth = 4 + 5; // "Code" = 4 chars + surrounding
   const issueButtonWidth = worktree.issueNumber ? (5 + 5) : 0; // "Issue" = 5 chars + surrounding (only if issue detected)
+  const prButtonWidth = worktree.prNumber ? (2 + 5) : 0; // "PR" = 2 chars + surrounding (only if PR detected)
   const trailingWidth = 1; // trailing ─ before ╮
   // Corner chars: 2 (╭ and ╮)
-  // Total button area: copyButtonWidth + codeButtonWidth + issueButtonWidth + trailingWidth
-  const buttonsWidth = copyButtonWidth + codeButtonWidth + issueButtonWidth + trailingWidth;
+  // Total button area: copyButtonWidth + codeButtonWidth + issueButtonWidth + prButtonWidth + trailingWidth
+  const buttonsWidth = copyButtonWidth + codeButtonWidth + issueButtonWidth + prButtonWidth + trailingWidth;
   const cornersWidth = 2;
   const lineWidth = Math.max(0, terminalWidth - buttonsWidth - cornersWidth);
   // Content width: terminal width minus borders (2) and padding (2)
@@ -549,6 +554,9 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
     }
   }, [firstNoteUrl]);
 
+  // Layout key changes when button configuration changes, forcing re-registration of click regions
+  const buttonLayoutKey = `${worktree.issueNumber ? 'i' : ''}${worktree.prNumber ? 'p' : ''}`;
+
   return (
     <Box flexDirection="column" width={terminalWidth} marginBottom={0}>
       {/* TOP BORDER with embedded action buttons */}
@@ -562,6 +570,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           borderColor={borderColor}
           onPress={onCopyTree}
           registerRegion={registerClickRegion}
+          layoutKey={buttonLayoutKey}
         />
         <BorderActionButton
           id={`${worktree.id}-code`}
@@ -570,6 +579,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           borderColor={borderColor}
           onPress={onOpenEditor}
           registerRegion={registerClickRegion}
+          layoutKey={buttonLayoutKey}
         />
         {worktree.issueNumber && (
           <BorderActionButton
@@ -579,6 +589,18 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
             borderColor={borderColor}
             onPress={onOpenIssue}
             registerRegion={registerClickRegion}
+            layoutKey={buttonLayoutKey}
+          />
+        )}
+        {worktree.prNumber && (
+          <BorderActionButton
+            id={`${worktree.id}-pr`}
+            label="PR"
+            color={palette.git.added}
+            borderColor={borderColor}
+            onPress={onOpenPR}
+            registerRegion={registerClickRegion}
+            layoutKey={buttonLayoutKey}
           />
         )}
         <Text color={borderColor}>{BORDER.horizontal}{BORDER.topRight}</Text>
@@ -725,6 +747,9 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevWt.lastActivityTimestamp !== nextWt.lastActivityTimestamp) return false;
   if (prevWt.aiStatus !== nextWt.aiStatus) return false;
   if (prevWt.issueNumber !== nextWt.issueNumber) return false;
+  if (prevWt.prNumber !== nextWt.prNumber) return false;
+  if (prevWt.prUrl !== nextWt.prUrl) return false;
+  if (prevWt.prState !== nextWt.prState) return false;
 
   // Compare changes (check count and latest mtime for quick equality)
   const prevChanges = prevProps.changes;

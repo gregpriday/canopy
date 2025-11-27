@@ -157,6 +157,9 @@ describe('WorktreeOverview', () => {
         focusedWorktreeId="alpha"
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
+        onOpenIssue={vi.fn()}
+        onOpenPR={vi.fn()}
+        terminalWidth={100}
       />
     );
 
@@ -188,6 +191,9 @@ describe('WorktreeOverview', () => {
         visibleEnd={3}
         onCopyTree={vi.fn()}
         onOpenEditor={vi.fn()}
+        onOpenIssue={vi.fn()}
+        onOpenPR={vi.fn()}
+        terminalWidth={100}
       />
     );
 
@@ -216,12 +222,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="main"
           activeRootPath="/repo/main"
           focusedWorktreeId="feature"
-          expandedWorktreeIds={new Set()}
           visibleStart={1}
           visibleEnd={3}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 
@@ -249,12 +256,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="main"
           activeRootPath="/repo/main"
           focusedWorktreeId="main"
-          expandedWorktreeIds={new Set()}
           visibleStart={0}
           visibleEnd={2}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 
@@ -281,12 +289,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="master"
           activeRootPath="/repo/master"
           focusedWorktreeId="feature"
-          expandedWorktreeIds={new Set()}
           visibleStart={1}
           visibleEnd={3}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 
@@ -312,12 +321,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="develop"
           activeRootPath="/repo/develop"
           focusedWorktreeId="feature"
-          expandedWorktreeIds={new Set()}
           visibleStart={1}
           visibleEnd={3}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 
@@ -341,12 +351,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="main"
           activeRootPath="/repo/main"
           focusedWorktreeId="main"
-          expandedWorktreeIds={new Set()}
           visibleStart={0}
           visibleEnd={1}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 
@@ -376,12 +387,13 @@ describe('WorktreeOverview', () => {
           activeWorktreeId="main"
           activeRootPath="/repo/main"
           focusedWorktreeId="feature1"
-          expandedWorktreeIds={new Set()}
           visibleStart={1}
           visibleEnd={4}
-          onToggleExpand={vi.fn()}
           onCopyTree={vi.fn()}
           onOpenEditor={vi.fn()}
+          onOpenIssue={vi.fn()}
+          onOpenPR={vi.fn()}
+          terminalWidth={100}
         />
       );
 

@@ -64,30 +64,55 @@ export function useWorktreeMonitor(): Map<string, WorktreeState> {
 }
 
 /**
+ * PR data for a worktree (detected via PullRequestService).
+ */
+export interface WorktreePRData {
+  prNumber: number;
+  prUrl: string;
+  prState: 'open' | 'merged' | 'closed';
+  /** The issue number this PR was detected for (used to invalidate when issue changes) */
+  forIssueNumber: number;
+}
+
+/**
  * Convert WorktreeState map to Worktree array for backward compatibility.
  *
  * This helper function transforms the monitor state map back into the
  * traditional Worktree array format that components expect.
  *
  * @param states - Map of worktree states from useWorktreeMonitor
+ * @param prData - Optional map of PR data to merge into worktrees
  * @returns Array of Worktree objects with enriched data
  */
-export function worktreeStatesToArray(states: Map<string, WorktreeState>): Worktree[] {
-  return Array.from(states.values()).map(state => ({
-    id: state.id,
-    path: state.path,
-    name: state.name,
-    branch: state.branch,
-    isCurrent: state.isCurrent,
-    summary: state.summary,
-    summaryLoading: state.summaryLoading,
-    modifiedCount: state.modifiedCount,
-    mood: state.mood,
-    changes: state.changes,
-    lastActivityTimestamp: state.lastActivityTimestamp,
-    aiStatus: state.aiStatus,
-    aiNote: state.aiNote,
-    aiNoteTimestamp: state.aiNoteTimestamp,
-    issueNumber: state.issueNumber,
-  }));
+export function worktreeStatesToArray(
+  states: Map<string, WorktreeState>,
+  prData?: Map<string, WorktreePRData>
+): Worktree[] {
+  return Array.from(states.values()).map(state => {
+    const pr = prData?.get(state.id);
+    // Only include PR data if it was detected for the current issue number
+    // This handles the case where the branch changed and issue number is now different
+    const prIsValid = pr && state.issueNumber && pr.forIssueNumber === state.issueNumber;
+    return {
+      id: state.id,
+      path: state.path,
+      name: state.name,
+      branch: state.branch,
+      isCurrent: state.isCurrent,
+      summary: state.summary,
+      summaryLoading: state.summaryLoading,
+      modifiedCount: state.modifiedCount,
+      mood: state.mood,
+      changes: state.changes,
+      lastActivityTimestamp: state.lastActivityTimestamp,
+      aiStatus: state.aiStatus,
+      aiNote: state.aiNote,
+      aiNoteTimestamp: state.aiNoteTimestamp,
+      issueNumber: state.issueNumber,
+      // Merge PR data only if it matches the current issue
+      prNumber: prIsValid ? pr.prNumber : undefined,
+      prUrl: prIsValid ? pr.prUrl : undefined,
+      prState: prIsValid ? pr.prState : undefined,
+    };
+  });
 }

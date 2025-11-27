@@ -116,6 +116,15 @@ export interface Worktree {
 
   /** GitHub issue number extracted from branch name (e.g., 158 from feature/issue-158-description) */
   issueNumber?: number;
+
+  /** GitHub pull request number linked to this worktree's issue or branch */
+  prNumber?: number;
+
+  /** GitHub pull request URL for quick access */
+  prUrl?: string;
+
+  /** Pull request state: open, merged, or closed */
+  prState?: 'open' | 'merged' | 'closed';
 }
 
 export interface OpenerConfig {

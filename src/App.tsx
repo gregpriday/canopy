@@ -15,15 +15,15 @@ import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
 import { copyFilePath } from './utils/clipboard.js';
 import { execa } from 'execa';
-import { openGitHubRepo, openGitHubIssue } from './utils/github.js';
+import { openGitHubRepo, openGitHubIssue, openGitHubPR } from './utils/github.js';
 // PERF: Removed useWatcher - WorktreeMonitor handles file watching for all worktrees
 import path from 'path';
 // PERF: Removed useGitStatus - WorktreeMonitor provides git status for all worktrees
 import { useProjectIdentity } from './hooks/useProjectIdentity.js';
 import { useCopyTree } from './hooks/useCopyTree.js';
-import { worktreeService } from './services/monitor/index.js';
+import { worktreeService, pullRequestService } from './services/monitor/index.js';
 import { devServerManager } from './services/server/index.js';
-import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMonitor.js';
+import { useWorktreeMonitor, worktreeStatesToArray, type WorktreePRData } from './hooks/useWorktreeMonitor.js';
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
@@ -141,9 +141,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
 
   // Use the new WorktreeMonitor system
   const worktreeStates = useWorktreeMonitor();
+
+  // Track PR data for worktrees (populated by PullRequestService)
+  const [prData, setPRData] = useState<Map<string, WorktreePRData>>(new Map());
+
   const enrichedWorktrees = useMemo(
-    () => worktreeStatesToArray(worktreeStates),
-    [worktreeStates]
+    () => worktreeStatesToArray(worktreeStates, prData),
+    [worktreeStates, prData]
   );
 
   // Build worktreeChanges map for backward compatibility
@@ -370,6 +374,72 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     void startServers();
   }, [lifecycleStatus, worktrees, config.devServer]);
 
+  // PullRequestService: Initialize and start when app is ready
+  const prServiceStarted = useRef(false);
+  useEffect(() => {
+    if (lifecycleStatus !== 'ready' || prServiceStarted.current) {
+      return;
+    }
+    prServiceStarted.current = true;
+
+    // Initialize with the main cwd
+    pullRequestService.initialize(cwd);
+    pullRequestService.start();
+
+    return () => {
+      pullRequestService.stop();
+    };
+  }, [lifecycleStatus, cwd]);
+
+  // Note: PullRequestService now subscribes directly to sys:worktree:update events
+  // and handles candidate registration internally. No need to register candidates here.
+
+  // PullRequestService: Listen for PR detection events
+  useEffect(() => {
+    const unsubscribeDetected = events.on('sys:pr:detected', (payload) => {
+      setPRData(prev => {
+        const next = new Map(prev);
+        next.set(payload.worktreeId, {
+          prNumber: payload.prNumber,
+          prUrl: payload.prUrl,
+          prState: payload.prState,
+          forIssueNumber: payload.issueNumber,
+        });
+        return next;
+      });
+
+      // Show notification when PR is detected
+      events.emit('ui:notify', {
+        type: 'success',
+        message: `PR #${payload.prNumber} detected`,
+      });
+    });
+
+    // Listen for PR cleared events (context changed or worktree removed)
+    const unsubscribeCleared = events.on('sys:pr:cleared', ({ worktreeId }) => {
+      setPRData(prev => {
+        if (!prev.has(worktreeId)) return prev;
+        const next = new Map(prev);
+        next.delete(worktreeId);
+        return next;
+      });
+    });
+
+    return () => {
+      unsubscribeDetected();
+      unsubscribeCleared();
+    };
+  }, []);
+
+  // PullRequestService: Refresh on sys:refresh event
+  useEffect(() => {
+    const unsubscribe = events.on('sys:refresh', () => {
+      void pullRequestService.refresh();
+    });
+
+    return unsubscribe;
+  }, []);
+
   // Note: sys:refresh is handled by WorktreeMonitor internally.
   // PERF: Removed useGitStatus refresh call - WorktreeMonitor handles git status updates.
 
@@ -429,6 +499,21 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
       events.emit('ui:notify', { type: 'success', message: `Opening issue #${target.issueNumber}...` });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to open GitHub issue';
+      events.emit('ui:notify', { type: 'error', message });
+    }
+  }, [sortedWorktrees]);
+
+  const handleOpenPR = useCallback(async (id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target?.prUrl) {
+      return;
+    }
+
+    try {
+      await openGitHubPR(target.prUrl);
+      events.emit('ui:notify', { type: 'success', message: `Opening PR #${target.prNumber}...` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open GitHub PR';
       events.emit('ui:notify', { type: 'error', message });
     }
   }, [sortedWorktrees]);
@@ -1035,6 +1120,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             onCopyTree={handleCopyTreeForWorktree}
             onOpenEditor={handleOpenWorktreeEditor}
             onOpenIssue={handleOpenIssue}
+            onOpenPR={handleOpenPR}
             devServerConfig={devServerConfig}
             onScroll={anyModalOpen ? undefined : handleScroll}
             terminalWidth={terminalWidth}
