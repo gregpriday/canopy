@@ -169,6 +169,56 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
   });
 
   describe('Activity Timestamp Tracking', () => {
+    it('sets lastActivityTimestamp on initial load when worktree has changes (dirty)', async () => {
+      // This test verifies that when a worktree starts with pending changes,
+      // the traffic light shows activity immediately (not gray)
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [{ path: 'existing-change.ts', status: 'modified', insertions: 5, deletions: 2 }],
+        changedFileCount: 1,
+        totalInsertions: 5,
+        totalDeletions: 2,
+        latestFileMtime: Date.now(),
+        lastUpdated: Date.now(),
+      });
+
+      const beforeStart = Date.now();
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+      const afterStart = Date.now();
+
+      // Should have set lastActivityTimestamp on initial load
+      const timestamp = monitor.getState().lastActivityTimestamp;
+      expect(timestamp).not.toBeNull();
+      expect(timestamp).toBeGreaterThanOrEqual(beforeStart);
+      expect(timestamp).toBeLessThanOrEqual(afterStart);
+
+      await monitor.stop();
+    });
+
+    it('does not set lastActivityTimestamp on initial load when worktree is clean', async () => {
+      // Clean worktrees should show gray traffic light (no recent activity)
+      vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
+        worktreeId: baseWorktree.id,
+        rootPath: baseWorktree.path,
+        changes: [],
+        changedFileCount: 0,
+        totalInsertions: 0,
+        totalDeletions: 0,
+        latestFileMtime: 0,
+        lastUpdated: Date.now(),
+      });
+
+      const monitor = new WorktreeMonitor(baseWorktree);
+      await monitor.start();
+
+      // Should NOT set lastActivityTimestamp for clean worktrees
+      expect(monitor.getState().lastActivityTimestamp).toBeNull();
+
+      await monitor.stop();
+    });
+
     it('updates lastActivityTimestamp when changes are detected', async () => {
       let callCount = 0;
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockImplementation(async () => {
