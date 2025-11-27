@@ -160,6 +160,7 @@ export interface WorktreeCardProps {
   activeRootPath: string;
   onCopyTree?: () => void;
   onOpenEditor?: () => void;
+  onOpenIssue?: () => void;
   serverState?: DevServerState;
   hasDevScript?: boolean;
   onToggleServer?: () => void;
@@ -296,6 +297,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   activeRootPath,
   onCopyTree,
   onOpenEditor,
+  onOpenIssue,
   serverState,
   hasDevScript,
   onToggleServer,
@@ -312,15 +314,16 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
   // Calculate widths for the top border
-  // Format: ╭─────────────────────────────────────────[ Copy ]─[ Code ]─╮
+  // Format: ╭─────────────────────────────────────────[ Copy ]─[ Code ]─[ Issue ]─╮
   // Each button: ─[ Label ] = 1 + 1 + label.length + 2 + 1 = label.length + 5
   // Plus trailing ─ before ╮ = 1
   const copyButtonWidth = 4 + 5; // "Copy" = 4 chars + surrounding
   const codeButtonWidth = 4 + 5; // "Code" = 4 chars + surrounding
+  const issueButtonWidth = worktree.issueNumber ? (5 + 5) : 0; // "Issue" = 5 chars + surrounding (only if issue detected)
   const trailingWidth = 1; // trailing ─ before ╮
   // Corner chars: 2 (╭ and ╮)
-  // Total button area: copyButtonWidth + codeButtonWidth + trailingWidth
-  const buttonsWidth = copyButtonWidth + codeButtonWidth + trailingWidth;
+  // Total button area: copyButtonWidth + codeButtonWidth + issueButtonWidth + trailingWidth
+  const buttonsWidth = copyButtonWidth + codeButtonWidth + issueButtonWidth + trailingWidth;
   const cornersWidth = 2;
   const lineWidth = Math.max(0, terminalWidth - buttonsWidth - cornersWidth);
   // Content width: terminal width minus borders (2) and padding (2)
@@ -568,6 +571,16 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           onPress={onOpenEditor}
           registerRegion={registerClickRegion}
         />
+        {worktree.issueNumber && (
+          <BorderActionButton
+            id={`${worktree.id}-issue`}
+            label="Issue"
+            color={palette.accent.primary}
+            borderColor={borderColor}
+            onPress={onOpenIssue}
+            registerRegion={registerClickRegion}
+          />
+        )}
         <Text color={borderColor}>{BORDER.horizontal}{BORDER.topRight}</Text>
       </Box>
 
@@ -711,6 +724,7 @@ export const WorktreeCard = React.memo(WorktreeCardInner, (prevProps, nextProps)
   if (prevWt.modifiedCount !== nextWt.modifiedCount) return false;
   if (prevWt.lastActivityTimestamp !== nextWt.lastActivityTimestamp) return false;
   if (prevWt.aiStatus !== nextWt.aiStatus) return false;
+  if (prevWt.issueNumber !== nextWt.issueNumber) return false;
 
   // Compare changes (check count and latest mtime for quick equality)
   const prevChanges = prevProps.changes;

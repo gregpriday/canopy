@@ -138,3 +138,33 @@ export async function openGitHubUrl(cwd: string, page?: 'issues' | 'pulls'): Pro
 export async function openGitHubRepo(cwd: string): Promise<void> {
   return openGitHubUrl(cwd);
 }
+
+/**
+ * Gets the GitHub issue URL for a specific issue number.
+ * @param cwd - Working directory (to get repo info)
+ * @param issueNumber - Issue number to get URL for
+ * @returns The full GitHub issue URL
+ */
+export async function getIssueUrl(cwd: string, issueNumber: number): Promise<string> {
+  const { stdout } = await execa('gh', ['repo', 'view', '--json', 'url', '-q', '.url'], { cwd });
+  const repoUrl = stdout.trim();
+  return `${repoUrl}/issues/${issueNumber}`;
+}
+
+/**
+ * Opens a specific GitHub issue in the default browser.
+ * @param cwd - Working directory (to get repo info)
+ * @param issueNumber - Issue number to open
+ */
+export async function openGitHubIssue(cwd: string, issueNumber: number): Promise<void> {
+  try {
+    const issueUrl = await getIssueUrl(cwd, issueNumber);
+    const { default: open } = await import('open');
+    await open(issueUrl);
+  } catch (error: any) {
+    if (error.code === 'ENOENT') {
+      throw new Error('GitHub CLI (gh) not found. Please install it.');
+    }
+    throw new Error(error.message || 'Failed to open GitHub issue.');
+  }
+}

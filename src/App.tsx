@@ -15,7 +15,7 @@ import { useAppLifecycle } from './hooks/useAppLifecycle.js';
 import { openFile, openWorktreeInEditor } from './utils/fileOpener.js';
 import { copyFilePath } from './utils/clipboard.js';
 import { execa } from 'execa';
-import { openGitHubRepo } from './utils/github.js';
+import { openGitHubRepo, openGitHubIssue } from './utils/github.js';
 // PERF: Removed useWatcher - WorktreeMonitor handles file watching for all worktrees
 import path from 'path';
 // PERF: Removed useGitStatus - WorktreeMonitor provides git status for all worktrees
@@ -418,6 +418,20 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     }
   }, [effectiveConfig, sortedWorktrees]);
 
+  const handleOpenIssue = useCallback(async (id: string) => {
+    const target = sortedWorktrees.find(wt => wt.id === id);
+    if (!target?.issueNumber) {
+      return;
+    }
+
+    try {
+      await openGitHubIssue(target.path, target.issueNumber);
+      events.emit('ui:notify', { type: 'success', message: `Opening issue #${target.issueNumber}...` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to open GitHub issue';
+      events.emit('ui:notify', { type: 'error', message });
+    }
+  }, [sortedWorktrees]);
 
   const handleOpenGitFox = useCallback(async () => {
     try {
@@ -1020,6 +1034,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
             visibleEnd={visibleEnd}
             onCopyTree={handleCopyTreeForWorktree}
             onOpenEditor={handleOpenWorktreeEditor}
+            onOpenIssue={handleOpenIssue}
             devServerConfig={devServerConfig}
             onScroll={anyModalOpen ? undefined : handleScroll}
             terminalWidth={terminalWidth}

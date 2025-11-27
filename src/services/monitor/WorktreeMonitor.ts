@@ -12,6 +12,7 @@ import { getAIClient } from '../ai/client.js';
 import { categorizeWorktree } from '../../utils/worktreeMood.js';
 import { logWarn, logError, logInfo, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
+import { extractIssueNumberSync, extractIssueNumber } from '../ai/issueExtractor.js';
 
 // Default AI debounce (used when config is not provided)
 const DEFAULT_AI_DEBOUNCE_MS = DEFAULT_CONFIG.ai?.summaryDebounceMs ?? 10000;
@@ -99,6 +100,10 @@ export class WorktreeMonitor extends EventEmitter {
     // Initialize state - determine initial AI status based on API key availability
     const initialAIStatus: AISummaryStatus = getAIClient() ? 'active' : 'disabled';
 
+    // Extract issue number from branch name synchronously (regex only)
+    // We'll also trigger async extraction for AI fallback
+    const initialIssueNumber = worktree.branch ? extractIssueNumberSync(worktree.branch) : null;
+
     this.state = {
       id: worktree.id,
       path: worktree.path,
@@ -116,7 +121,30 @@ export class WorktreeMonitor extends EventEmitter {
       aiStatus: initialAIStatus,
       aiNote: undefined,
       aiNoteTimestamp: undefined,
+      issueNumber: initialIssueNumber ?? undefined,
     };
+
+    // Async extraction with AI fallback (fires in background, updates state if found)
+    if (worktree.branch && !initialIssueNumber) {
+      void this.extractIssueNumberAsync(worktree.branch);
+    }
+  }
+
+  /**
+   * Extract issue number from branch name using AI fallback.
+   * Updates state and emits an update if issue number is found.
+   */
+  private async extractIssueNumberAsync(branchName: string): Promise<void> {
+    try {
+      const issueNumber = await extractIssueNumber(branchName);
+      if (issueNumber && this.isRunning) {
+        this.state.issueNumber = issueNumber;
+        this.emitUpdate();
+      }
+    } catch (error) {
+      // Silently ignore - issue extraction is non-critical
+      logDebug('Failed to extract issue number from branch', { branch: branchName, error: (error as Error).message });
+    }
   }
 
   /**
