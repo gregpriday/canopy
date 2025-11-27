@@ -271,8 +271,8 @@ const BorderActionButton: React.FC<{
     return () => registerRegion(id, undefined, handlePress);
   }, [registerRegion, id, onPress, handlePress]);
 
-  // Button format: ─[ Label ]─
-  // The brackets and label are colored, the horizontal lines match border
+  // Button format: ─[ Label ] (no trailing ─, so adjacent buttons have single ─ between them)
+  // The brackets and label are colored, the horizontal line matches border
   return (
     <Box
       ref={ref}
@@ -283,7 +283,6 @@ const BorderActionButton: React.FC<{
       <Text color={isPressed ? 'black' : borderColor} backgroundColor={isPressed ? 'white' : undefined}>[</Text>
       <Text color={isPressed ? 'black' : color} backgroundColor={isPressed ? 'white' : undefined} bold> {label} </Text>
       <Text color={isPressed ? 'black' : borderColor} backgroundColor={isPressed ? 'white' : undefined}>]</Text>
-      <Text color={borderColor}>{BORDER.horizontal}</Text>
     </Box>
   );
 };
@@ -313,13 +312,15 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
   const headerColor = mood === 'active' ? palette.git.modified : palette.text.primary;
 
   // Calculate widths for the top border
-  // Format: ╭─────────────────────────────────────────[ Copy ]──[ Code ]─╮
-  // Each button: ─[ Label ]─ = 1 + 1 + label.length + 2 + 1 + 1 = label.length + 6
-  const copyButtonWidth = 4 + 6; // "Copy" = 4 chars + surrounding
-  const codeButtonWidth = 4 + 6; // "Code" = 4 chars + surrounding
+  // Format: ╭─────────────────────────────────────────[ Copy ]─[ Code ]─╮
+  // Each button: ─[ Label ] = 1 + 1 + label.length + 2 + 1 = label.length + 5
+  // Plus trailing ─ before ╮ = 1
+  const copyButtonWidth = 4 + 5; // "Copy" = 4 chars + surrounding
+  const codeButtonWidth = 4 + 5; // "Code" = 4 chars + surrounding
+  const trailingWidth = 1; // trailing ─ before ╮
   // Corner chars: 2 (╭ and ╮)
-  // Total button area: copyButtonWidth + codeButtonWidth
-  const buttonsWidth = copyButtonWidth + codeButtonWidth;
+  // Total button area: copyButtonWidth + codeButtonWidth + trailingWidth
+  const buttonsWidth = copyButtonWidth + codeButtonWidth + trailingWidth;
   const cornersWidth = 2;
   const lineWidth = Math.max(0, terminalWidth - buttonsWidth - cornersWidth);
   // Content width: terminal width minus borders (2) and padding (2)
@@ -567,7 +568,7 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
           onPress={onOpenEditor}
           registerRegion={registerClickRegion}
         />
-        <Text color={borderColor}>{BORDER.topRight}</Text>
+        <Text color={borderColor}>{BORDER.horizontal}{BORDER.topRight}</Text>
       </Box>
 
       {/* BODY - use Ink's native border to handle dynamic height (sides + bottom) */}
