@@ -27,7 +27,6 @@ import { useWorktreeMonitor, worktreeStatesToArray } from './hooks/useWorktreeMo
 import { useTerminalDimensions } from './hooks/useTerminalDimensions.js';
 import { saveSessionState, loadSessionState } from './utils/state.js';
 import { events, type ModalId, type ModalContextMap } from './services/events.js'; // Import event bus
-import { clearTerminalScreen } from './utils/terminal.js';
 import { logWarn, logError } from './utils/logger.js';
 import { ThemeProvider } from './theme/ThemeProvider.js';
 import { setupGlobalErrorHandler, createErrorNotification } from './utils/errorHandling.js';
@@ -847,7 +846,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
     });
 
     // PERF: Removed clearGitStatus() - WorktreeService cleans up on stopAll()
-    clearTerminalScreen();
+    // NOTE: Terminal clear is handled in cli.ts after waitUntilExit() to avoid double-clear flicker
     exit();
   };
 
