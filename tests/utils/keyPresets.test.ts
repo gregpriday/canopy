@@ -45,7 +45,7 @@ describe('STANDARD_PRESET', () => {
 	});
 
 	it('includes standard keybindings', () => {
-		expect(STANDARD_PRESET['app.quit']).toEqual(['q']);
+		expect(STANDARD_PRESET['app.quit']).toEqual(['escape']);
 	});
 });
 

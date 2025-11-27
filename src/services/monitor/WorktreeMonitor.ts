@@ -434,11 +434,21 @@ export class WorktreeMonitor extends EventEmitter {
 
       // Update activity timestamp when changes are detected
       // (ActivityTrafficLight component uses this for smooth color transitions)
-      if (stateChanged && !isInitialLoad) {
+      //
+      // Set timestamp when:
+      // 1. State changed (hash is different) AND not initial load - normal activity detection
+      // 2. Initial load AND worktree has changes (dirty) - show activity for already-dirty worktrees
+      const hasPendingChanges = newChanges.changedFileCount > 0;
+      const shouldUpdateTimestamp = (stateChanged && !isInitialLoad) || (isInitialLoad && hasPendingChanges);
+
+      if (shouldUpdateTimestamp) {
         nextLastActivityTimestamp = Date.now();
 
         // Emit file activity events for UI (replaces watcher events)
-        this.emitFileActivityEvents(newChanges, prevChanges);
+        // Only emit when there's an actual state change (not initial load with existing changes)
+        if (stateChanged && !isInitialLoad) {
+          this.emitFileActivityEvents(newChanges, prevChanges);
+        }
       }
 
       // ============================================
