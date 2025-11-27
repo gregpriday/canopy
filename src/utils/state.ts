@@ -3,6 +3,7 @@ import os from 'os';
 import fs from 'fs-extra';
 import { getWorktrees, getCurrentWorktree } from './worktree.js';
 import type { CanopyConfig, Worktree } from '../types/index.js';
+import { logWarn, logInfo } from './logger.js';
 
 /**
  * Initial application state loaded on startup
@@ -39,7 +40,7 @@ export async function loadInitialState(
     currentWorktree = getCurrentWorktree(cwd, worktrees);
   } catch (error) {
     // Not a git repo or git not available - that's OK
-    console.warn('Could not detect worktree:', (error as Error).message);
+    logWarn('Could not detect worktree', { message: (error as Error).message });
   }
 
   // 2. Try to load previous session state for this worktree
@@ -49,7 +50,7 @@ export async function loadInitialState(
       sessionState = await loadSessionState(currentWorktree.id);
     } catch (error) {
       // Session loading failed - that's OK, we'll use defaults
-      console.warn('Could not load session state:', (error as Error).message);
+      logWarn('Could not load session state', { message: (error as Error).message });
     }
   }
 
@@ -87,7 +88,7 @@ export async function loadSessionState(
     const raw = JSON.parse(content);
 
     if (!raw || typeof raw !== 'object') {
-      console.warn('Invalid session state format, ignoring');
+      logWarn('Invalid session state format, ignoring');
       return null;
     }
 
@@ -99,7 +100,7 @@ export async function loadSessionState(
       typeof raw.lastCopyProfile === 'string';
 
     if (!timestampValid || !lastCopyProfileValid) {
-      console.warn('Invalid session state format, ignoring');
+      logWarn('Invalid session state format, ignoring');
       return null;
     }
 
@@ -113,14 +114,14 @@ export async function loadSessionState(
     const ageMs = Date.now() - data.timestamp;
     const maxAgeMs = 30 * 24 * 60 * 60 * 1000; // 30 days
     if (ageMs > maxAgeMs) {
-      console.log('Session state is stale, ignoring');
+      logInfo('Session state is stale, ignoring');
       return null;
     }
 
     return data;
   } catch (error) {
     // JSON parse error, permission error, etc.
-    console.warn('Failed to load session state:', (error as Error).message);
+    logWarn('Failed to load session state', { message: (error as Error).message });
     return null;
   }
 }
@@ -149,7 +150,7 @@ export async function saveSessionState(
     await fs.move(tempPath, sessionPath, { overwrite: true });
   } catch (error) {
     // Non-fatal error - just log it
-    console.warn('Failed to save session state:', (error as Error).message);
+    logWarn('Failed to save session state', { message: (error as Error).message });
   } finally {
     // Clean up stray temp files if move failed midway
     try {

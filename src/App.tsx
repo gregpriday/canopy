@@ -532,7 +532,7 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
           lastCopyProfile,
           timestamp: Date.now(),
         }).catch((err) => {
-          console.error('Error saving session state:', err);
+          logError('Error saving session state', err);
         });
       }
     };
@@ -836,13 +836,13 @@ const AppContent: React.FC<AppProps> = ({ cwd, config: initialConfig, noWatch, n
         lastCopyProfile,
         timestamp: Date.now(),
       }).catch((err) => {
-        console.error('Error saving session state on quit:', err);
+        logError('Error saving session state on quit', err);
       });
     }
 
     // Stop all running dev servers gracefully
     await devServerManager.stopAll().catch((err) => {
-      console.error('Error stopping dev servers on quit:', err);
+      logError('Error stopping dev servers on quit', err);
     });
 
     // PERF: Removed clearGitStatus() - WorktreeService cleans up on stopAll()

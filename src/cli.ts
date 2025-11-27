@@ -167,6 +167,7 @@ async function main(): Promise<void> {
 
     const supportsRaw = Boolean(process.stdin && (process.stdin as any).isTTY && typeof (process.stdin as any).setRawMode === 'function');
     if (!supportsRaw) {
+      // User-facing error message - use console.error directly
       console.error('Raw mode is not supported in this environment. Cannot start interactive UI.');
       process.exit(1);
     }
@@ -204,6 +205,7 @@ async function main(): Promise<void> {
 
   } catch (error) {
     if (error instanceof Error) {
+      // User-facing error message - use console.error directly
       console.error(`Error: ${error.message}`);
       process.exit(1);
     }

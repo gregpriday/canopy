@@ -1,5 +1,6 @@
 import React, { Component, ReactNode } from 'react';
 import { Box, Text } from 'ink';
+import { logError } from '../utils/logger.js';
 
 interface AppErrorBoundaryProps {
   children: ReactNode;
@@ -43,9 +44,8 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log to console for debugging
-    console.error('Error caught by AppErrorBoundary:', error);
-    console.error('Component stack:', errorInfo.componentStack);
+    // Log for debugging
+    logError('Error caught by AppErrorBoundary', error, { componentStack: errorInfo.componentStack });
   }
 
   handleReset = () => {
