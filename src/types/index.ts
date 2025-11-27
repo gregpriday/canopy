@@ -113,6 +113,9 @@ export interface Worktree {
 
   /** Timestamp when the note file was last modified (milliseconds since epoch) */
   aiNoteTimestamp?: number;
+
+  /** GitHub issue number extracted from branch name (e.g., 158 from feature/issue-158-description) */
+  issueNumber?: number;
 }
 
 export interface OpenerConfig {

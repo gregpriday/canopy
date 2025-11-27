@@ -88,5 +88,6 @@ export function worktreeStatesToArray(states: Map<string, WorktreeState>): Workt
     aiStatus: state.aiStatus,
     aiNote: state.aiNote,
     aiNoteTimestamp: state.aiNoteTimestamp,
+    issueNumber: state.issueNumber,
   }));
 }
