@@ -394,6 +394,23 @@ export async function getWorktreeChangesWithStats(
     GIT_WORKTREE_CHANGES_CACHE.set(cwd, result);
     return result;
   } catch (error) {
+    // Re-throw WorktreeRemovedError without wrapping or logging
+    // This is an expected lifecycle event (worktree deleted externally), not an error
+    if (error instanceof WorktreeRemovedError) {
+      throw error;
+    }
+
+    // Handle race condition: directory disappeared between fs.access check and git operations
+    // simple-git errors contain the ENOENT message, convert to WorktreeRemovedError
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (
+      errorMessage.includes('ENOENT') ||
+      errorMessage.includes('no such file or directory') ||
+      errorMessage.includes('Unable to read current working directory')
+    ) {
+      throw new WorktreeRemovedError(cwd, error instanceof Error ? error : undefined);
+    }
+
     const cause = error instanceof Error ? error : new Error(String(error));
     const gitError = new GitError(
       'Failed to get git worktree changes',
