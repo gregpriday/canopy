@@ -1212,11 +1212,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
   });
 
   describe('AI Note File Polling', () => {
-    // Helper to create a stat result with recent mtime (within TTL)
-    const recentStat = () => ({ mtimeMs: Date.now() - 1000 }); // 1 second ago
-    // Helper to create a stat result with stale mtime (beyond 5 min TTL)
-    const staleStat = () => ({ mtimeMs: Date.now() - 10 * 60 * 1000 }); // 10 minutes ago
-
     it('reads AI note file content from .git directory during updates', async () => {
       vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
         worktreeId: baseWorktree.id,
@@ -1226,8 +1221,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         lastUpdated: Date.now(),
       });
 
-      // Mock file exists with recent mtime and has content
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
+      // Mock file exists with content
       vi.mocked(fs.readFile).mockResolvedValue('Building feature X - running tests');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1236,8 +1230,9 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       expect(monitor.getState().aiNote).toBe('Building feature X - running tests');
 
       // Verify it's looking in .git/canopy/note (namespaced path)
-      expect(fs.stat).toHaveBeenCalledWith(
-        expect.stringContaining('.git/canopy/note')
+      expect(fs.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('.git/canopy/note'),
+        'utf-8'
       );
 
       await monitor.stop();
@@ -1255,7 +1250,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       // Mock file does not exist
       const enoentError = new Error('ENOENT') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
-      vi.mocked(fs.stat).mockRejectedValue(enoentError);
+      vi.mocked(fs.readFile).mockRejectedValue(enoentError);
 
       const monitor = new WorktreeMonitor(baseWorktree);
       await monitor.start();
@@ -1274,8 +1269,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         lastUpdated: Date.now(),
       });
 
-      // Mock file exists with recent mtime but is empty
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
+      // Mock file exists but is empty
       vi.mocked(fs.readFile).mockResolvedValue('   \n  ');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1296,7 +1290,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
       });
 
       // Mock file with multiple lines
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
       vi.mocked(fs.readFile).mockResolvedValue('First line status\nSecond line details\nThird line more');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1318,7 +1311,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
 
       // Mock file with very long content
       const longContent = 'A'.repeat(600);
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
       vi.mocked(fs.readFile).mockResolvedValue(longContent);
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1341,7 +1333,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         lastUpdated: Date.now(),
       });
 
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
       vi.mocked(fs.readFile).mockResolvedValue('Test note content');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1371,7 +1362,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         lastUpdated: Date.now(),
       });
 
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
       vi.mocked(fs.readFile).mockResolvedValue('Should not appear');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1396,7 +1386,6 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         lastUpdated: Date.now(),
       });
 
-      vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
       vi.mocked(fs.readFile).mockResolvedValue('Custom note content');
 
       const monitor = new WorktreeMonitor(baseWorktree);
@@ -1406,16 +1395,17 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
 
       await monitor.start();
 
-      // Should have called stat with the custom filename in .git directory
-      expect(fs.stat).toHaveBeenCalledWith(
-        expect.stringContaining('custom_note')
+      // Should have called readFile with the custom filename in .git directory
+      expect(fs.readFile).toHaveBeenCalledWith(
+        expect.stringContaining('custom_note'),
+        'utf-8'
       );
 
       await monitor.stop();
     });
 
-    describe('TTL Filtering', () => {
-      it('hides note if older than TTL (5 minutes)', async () => {
+    describe('Note Display Behavior', () => {
+      it('shows note regardless of file age', async () => {
         vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
           worktreeId: baseWorktree.id,
           rootPath: baseWorktree.path,
@@ -1424,23 +1414,19 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
           lastUpdated: Date.now(),
         });
 
-        // Mock file with stale mtime (10 minutes ago, beyond 5 min TTL)
-        vi.mocked(fs.stat).mockResolvedValue(staleStat() as any);
-        vi.mocked(fs.readFile).mockResolvedValue('Stale note content');
+        // Note file exists with content
+        vi.mocked(fs.readFile).mockResolvedValue('Any note content');
 
         const monitor = new WorktreeMonitor(baseWorktree);
         await monitor.start();
 
-        // Should not show the stale note (TTL filtering)
-        expect(monitor.getState().aiNote).toBeUndefined();
-
-        // readFile should not be called since TTL check happens first
-        // (stat returns stale mtime, so we skip reading)
+        // Should show the note (no TTL filtering)
+        expect(monitor.getState().aiNote).toBe('Any note content');
 
         await monitor.stop();
       });
 
-      it('shows note if within TTL (less than 5 minutes old)', async () => {
+      it('updates note when content changes', async () => {
         vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
           worktreeId: baseWorktree.id,
           rootPath: baseWorktree.path,
@@ -1449,30 +1435,7 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
           lastUpdated: Date.now(),
         });
 
-        // Mock file with recent mtime (1 second ago, within TTL)
-        vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
-        vi.mocked(fs.readFile).mockResolvedValue('Recent note content');
-
-        const monitor = new WorktreeMonitor(baseWorktree);
-        await monitor.start();
-
-        // Should show the recent note
-        expect(monitor.getState().aiNote).toBe('Recent note content');
-
-        await monitor.stop();
-      });
-
-      it('hides note when it becomes stale during execution', async () => {
-        vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        });
-
-        // First call: recent note
-        vi.mocked(fs.stat).mockResolvedValueOnce(recentStat() as any);
+        // First call: initial note
         vi.mocked(fs.readFile).mockResolvedValueOnce('Initial note');
 
         const monitor = new WorktreeMonitor(baseWorktree);
@@ -1481,43 +1444,8 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
         // Should show the note
         expect(monitor.getState().aiNote).toBe('Initial note');
 
-        // Subsequent call: same note but now with stale mtime
-        // (simulating time passing without the note being updated)
-        vi.mocked(fs.stat).mockResolvedValue(staleStat() as any);
-        vi.mocked(fs.readFile).mockResolvedValue('Initial note');
-
-        // Trigger another update
-        await (monitor as any).updateGitStatus(true);
-
-        // Should NOT show the note anymore (TTL expired)
-        expect(monitor.getState().aiNote).toBeUndefined();
-
-        await monitor.stop();
-      });
-
-      it('shows note again when agent updates it after staleness', async () => {
-        vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
-          worktreeId: baseWorktree.id,
-          rootPath: baseWorktree.path,
-          changes: [],
-          changedFileCount: 0,
-          lastUpdated: Date.now(),
-        });
-
-        // First call: stale note (should not show)
-        vi.mocked(fs.stat).mockResolvedValueOnce(staleStat() as any);
-
-        const monitor = new WorktreeMonitor(baseWorktree);
-        await monitor.start();
-
-        // Should NOT show the stale note
-        expect(monitor.getState().aiNote).toBeUndefined();
-
-        // Agent updates the note (new recent timestamp)
-        vi.mocked(fs.stat).mockReset();
-        vi.mocked(fs.readFile).mockReset();
-        vi.mocked(fs.stat).mockResolvedValue(recentStat() as any);
-        vi.mocked(fs.readFile).mockResolvedValue('New fresh note');
+        // Subsequent call: note content changes
+        vi.mocked(fs.readFile).mockResolvedValue('Updated note');
 
         // Trigger another update with different content to force re-emit
         vi.mocked(gitStatus.getWorktreeChangesWithStats).mockResolvedValue({
@@ -1530,8 +1458,8 @@ describe('WorktreeMonitor - Atomic State Updates', () => {
 
         await (monitor as any).updateGitStatus(true);
 
-        // Should show the new note (agent refreshed it)
-        expect(monitor.getState().aiNote).toBe('New fresh note');
+        // Should show the updated note
+        expect(monitor.getState().aiNote).toBe('Updated note');
 
         await monitor.stop();
       });

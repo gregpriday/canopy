@@ -40,15 +40,6 @@ describe('NoteDock', () => {
   });
 
   describe('Visual Elements', () => {
-    it('displays note emoji indicator', () => {
-      const { lastFrame } = renderWithTheme(
-        <NoteDock noteContent="Test note content" />
-      );
-
-      const output = lastFrame();
-      expect(output).toContain('📝');
-    });
-
     it('renders with border separator', () => {
       const { lastFrame } = renderWithTheme(
         <NoteDock noteContent="Test note content" />

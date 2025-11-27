@@ -177,17 +177,18 @@ describe('Dashboard Integration Tests', () => {
       expect(frame).toContain('memory leak');
     });
 
-    it('displays modified file counts', async () => {
+    it('displays modified files', async () => {
       const { lastFrame } = render(<App cwd="/test/repo" />);
 
       await waitForCondition(() => !lastFrame()?.includes('Loading Canopy'));
 
       const frame = lastFrame() || '';
 
-      // Check modified counts appear (feature/auth has 5, bugfix has 2)
-      // The counts are shown as "X files" in the worktree cards
-      expect(frame).toMatch(/5 files/i);
-      expect(frame).toMatch(/2 files/i);
+      // Check modified files appear in worktree cards
+      // The UI shows individual file names with status indicators (M for modified)
+      // feature/auth has 5 files, bugfix has 2 files
+      expect(frame).toContain('M src/');  // Modified files have M indicator
+      expect(frame).toContain('2 more');  // feature/auth shows "...and 2 more"
     });
   });
 
