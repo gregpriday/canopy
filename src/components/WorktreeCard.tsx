@@ -359,19 +359,21 @@ const WorktreeCardInner: React.FC<WorktreeCardProps> = ({
     });
   }, [worktree.path]);
 
-  // Sort changes by priority and churn
+  // Sort changes by churn (most changes first), then by status priority as tiebreaker
   const sortedChanges = useMemo(() => {
     return [...changes.changes].sort((a, b) => {
-      const priorityA = STATUS_PRIORITY[a.status] ?? 99;
-      const priorityB = STATUS_PRIORITY[b.status] ?? 99;
-      if (priorityA !== priorityB) {
-        return priorityA - priorityB;
-      }
-
+      // Primary sort: by churn (insertions + deletions), descending
       const churnA = (a.insertions ?? 0) + (a.deletions ?? 0);
       const churnB = (b.insertions ?? 0) + (b.deletions ?? 0);
       if (churnA !== churnB) {
         return churnB - churnA;
+      }
+
+      // Secondary sort: by status priority
+      const priorityA = STATUS_PRIORITY[a.status] ?? 99;
+      const priorityB = STATUS_PRIORITY[b.status] ?? 99;
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
       }
 
       return a.path.localeCompare(b.path);

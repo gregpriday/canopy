@@ -158,6 +158,8 @@ npm install -g @gpriday/canopy
 
 ### Recommended Setup
 
+**iTerm2 Users:** iTerm2 works great for a multi-pane workflow with Canopy and Claude Code. See [docs/ITERM_SETUP.md](docs/ITERM_SETUP.md) for recommended settings including focus-follows-mouse, clean dimming, and useful key mappings.
+
 **Ghostty Users:** Create a split layout with Canopy in the left pane:
 1. Launch Ghostty
 2. Split vertically (Cmd+D or Ctrl+Shift+\)
@@ -327,6 +329,7 @@ npm run typecheck
 - **[docs/KEYBOARD_SHORTCUTS.md](docs/KEYBOARD_SHORTCUTS.md)** - Full keyboard reference
 - **[docs/DEV_SERVER.md](docs/DEV_SERVER.md)** - Dev server management and configuration
 - **[docs/AI_NOTES.md](docs/AI_NOTES.md)** - AI agent note display integration
+- **[docs/ITERM_SETUP.md](docs/ITERM_SETUP.md)** - iTerm2 configuration for Claude Code workflow
 
 ## License
 
