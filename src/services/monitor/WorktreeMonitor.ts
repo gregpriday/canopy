@@ -892,7 +892,7 @@ export class WorktreeMonitor extends EventEmitter {
     const state = this.getState();
     logDebug('emitUpdate called', {
       id: this.id,
-      summary: state.summary?.substring(0, 50) + '...',
+      summary: state.summary ? `${state.summary.substring(0, 50)}...` : undefined,
       modifiedCount: state.modifiedCount,
       mood: state.mood,
       stack: new Error().stack?.split('\n').slice(2, 5).join(' <- ')
