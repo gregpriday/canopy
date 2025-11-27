@@ -345,6 +345,47 @@ describe('git.ts', () => {
 			expect(result.changes).toHaveLength(1);
 			expect(result.changes[0].status).toBe('modified');
 		});
+
+		it('propagates WorktreeRemovedError without wrapping in GitError', async () => {
+			// Mock fs.access to fail with ENOENT
+			const enoentError = new Error('ENOENT: no such file or directory');
+			(enoentError as NodeJS.ErrnoException).code = 'ENOENT';
+			vi.mocked(mockAccess).mockRejectedValue(enoentError);
+
+			try {
+				await getWorktreeChangesWithStats('/deleted/worktree', true);
+				expect.fail('Should have thrown');
+			} catch (error) {
+				// Error should be exactly WorktreeRemovedError, not wrapped in GitError
+				expect(error).toBeInstanceOf(WorktreeRemovedError);
+				// The error message should be the WorktreeRemovedError message, not GitError's
+				expect((error as Error).message).toBe('Worktree directory no longer exists');
+				// Verify it's not wrapped (no "Failed to get git worktree changes" message)
+				expect((error as Error).message).not.toContain('Failed to get git worktree changes');
+			}
+		});
+
+		it('converts git ENOENT errors to WorktreeRemovedError (race condition)', async () => {
+			// Mock fs.access to succeed (directory exists at check time)
+			vi.mocked(mockAccess).mockResolvedValue(undefined);
+
+			// But then simple-git fails because directory disappeared mid-operation
+			const simpleGit = await import('simple-git');
+			vi.mocked(simpleGit.default).mockReturnValue({
+				status: vi.fn().mockRejectedValue(
+					new Error('fatal: Unable to read current working directory: No such file or directory')
+				),
+			} as any);
+
+			try {
+				await getWorktreeChangesWithStats('/disappearing/worktree', true);
+				expect.fail('Should have thrown');
+			} catch (error) {
+				// Should be converted to WorktreeRemovedError, not wrapped in GitError
+				expect(error).toBeInstanceOf(WorktreeRemovedError);
+				expect((error as Error).message).toBe('Worktree directory no longer exists');
+			}
+		});
 	});
 
 	describe('getCommitCount', () => {
