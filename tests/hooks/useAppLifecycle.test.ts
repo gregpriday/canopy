@@ -19,8 +19,7 @@ describe('useAppLifecycle', () => {
     // Default mock for loadInitialState - returns minimal state
     vi.mocked(state.loadInitialState).mockResolvedValue({
       worktree: null,
-      selectedPath: null,
-      expandedFolders: new Set<string>(),
+      lastCopyProfile: 'default',
     });
   });
 
@@ -129,8 +128,7 @@ describe('useAppLifecycle', () => {
     // Mock loadInitialState to return current worktree
     vi.mocked(state.loadInitialState).mockResolvedValue({
       worktree: mockWorktrees[0],
-      selectedPath: null,
-      expandedFolders: new Set<string>(),
+      lastCopyProfile: 'default',
     });
 
     const { result } = renderHook(() =>
@@ -158,8 +156,7 @@ describe('useAppLifecycle', () => {
     // Mock loadInitialState to return first worktree
     vi.mocked(state.loadInitialState).mockResolvedValue({
       worktree: mockWorktrees[0],
-      selectedPath: null,
-      expandedFolders: new Set<string>(),
+      lastCopyProfile: 'default',
     });
 
     const { result } = renderHook(() =>
