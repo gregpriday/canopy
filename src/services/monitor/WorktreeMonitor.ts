@@ -31,7 +31,7 @@ export interface WorktreeState extends Worktree {
   // AI summary status (active, loading, disabled, error)
   aiStatus: AISummaryStatus;
 
-  // Content from .canopy_note.txt file (for AI agent status)
+  // Content from .git/canopy/note file (for AI agent status)
   aiNote?: string;
 }
 

@@ -13,47 +13,58 @@ The AI Note feature provides:
 
 ## How It Works
 
-1. An AI agent writes a status message to `.git/canopy/note`
-2. Canopy detects the file and displays the last line in the worktree card
-3. URLs in the note are highlighted and clickable (opens in default browser)
-4. Notes older than 24 hours are deleted on startup for disk hygiene
+1. When Canopy detects a worktree, it creates the `canopy/` directory and an empty `note` file in the git directory
+2. An AI agent writes a status message to this file at `<git-dir>/canopy/note`
+3. Each worktree card displays its own note (polled at the same interval as git status)
+4. Only the last line of the file is shown, truncated to 500 characters
+5. URLs in the note are highlighted and clickable (opens in default browser)
+6. Notes older than 24 hours are deleted on startup for disk hygiene (main worktree notes are always deleted)
 
 ## For AI Agents: Writing Notes
 
 ### File Location
 
-Write your status to the note file inside the git directory:
-
-```
-<worktree>/.git/canopy/note
-```
-
-For linked worktrees, the path is:
-
-```
-<main-repo>/.git/worktrees/<worktree-name>/canopy/note
-```
-
-To find the correct path programmatically:
+The note file lives inside the **git directory** (not the worktree directory). Use `git rev-parse --git-dir` to find it:
 
 ```bash
-# Get the git directory for the current worktree
+# Get the git directory, then append /canopy/note
 git rev-parse --git-dir
-# Returns: /path/to/repo/.git (main worktree)
-# Returns: /path/to/repo/.git/worktrees/feature-x (linked worktree)
-
-# Then append /canopy/note
+# Main worktree returns: .git (relative)
+# Linked worktree returns: /path/to/repo/.git/worktrees/feature-x (absolute)
 ```
+
+**Physical locations:**
+
+| Worktree Type | Git Directory | Note File Path |
+|---------------|---------------|----------------|
+| Main worktree | `<repo>/.git` | `<repo>/.git/canopy/note` |
+| Linked worktree | `<repo>/.git/worktrees/<name>` | `<repo>/.git/worktrees/<name>/canopy/note` |
+
+> **Note:** In a linked worktree, the `.git` at the worktree root is a **file** (not a directory) containing a pointer to the actual git directory. Always use `git rev-parse --git-dir` to find the correct location.
+
+### Setting CANOPY_NOTE Environment Variable
+
+For convenience, you can set a `CANOPY_NOTE` environment variable pointing to the note file. This works in both main and linked worktrees:
+
+```bash
+export CANOPY_NOTE="$(git rev-parse --absolute-git-dir)/canopy/note"
+```
+
+Then writing notes becomes simple:
+
+```bash
+echo "Running tests" > "$CANOPY_NOTE"
+```
+
+> **Tip:** Add the export to your shell's startup script or set it in your AI agent's environment configuration.
 
 ### Writing the Note
 
 **Replace the file content entirely** - Canopy only displays the last line, so there's no benefit to appending. Replacing ensures clean state.
 
-```bash
-# Create the directory if needed
-mkdir -p "$(git rev-parse --git-dir)/canopy"
+Since Canopy creates the directory and file automatically, you can simply write to it:
 
-# Write the status (replaces file content)
+```bash
 echo "Creating pull request" > "$(git rev-parse --git-dir)/canopy/note"
 ```
 
@@ -61,17 +72,15 @@ Or in code:
 
 ```typescript
 import { execSync } from 'child_process';
-import { writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { writeFileSync } from 'fs';
+import { join } from 'path';
 
 function writeNote(message: string): void {
   const gitDir = execSync('git rev-parse --git-dir', { encoding: 'utf-8' }).trim();
   const notePath = join(gitDir, 'canopy', 'note');
 
-  // Ensure directory exists
-  mkdirSync(dirname(notePath), { recursive: true });
-
   // Write the note (replaces content)
+  // Canopy creates the directory and file automatically
   writeFileSync(notePath, message + '\n');
 }
 
@@ -157,13 +166,16 @@ The AI Note feature is enabled by default. To disable or customize:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enabled` | boolean | `true` | Enable/disable the AI note feature |
+| `filename` | string | `canopy/note` | Path relative to git directory for the note file |
 
 ## Architecture
 
 ### Components
 
 1. **WorktreeMonitor** (`src/services/monitor/WorktreeMonitor.ts`)
-   - Reads the note file during each polling cycle
+   - Reads the note file during each polling cycle (same interval as git status)
+   - Extracts only the last line of the file
+   - Truncates content to 500 characters
    - Includes note content in worktree state updates
 
 2. **Note Cleanup** (`src/utils/noteCleanup.ts`)
@@ -174,20 +186,16 @@ The AI Note feature is enabled by default. To disable or customize:
 
 3. **NoteDock** (`src/components/NoteDock.tsx`)
    - Displays the note content in a dedicated section
-   - Parses URLs and makes them clickable
-   - Truncates to 500 characters
+   - Parses URLs and makes them clickable (clicking opens in default browser)
 
 ### File Paths
 
-The note is stored within the git directory structure:
+The note is stored within the **git directory** (resolved via `git rev-parse --git-dir`):
 
-```
-# Main worktree
-/path/to/repo/.git/canopy/note
-
-# Linked worktree
-/path/to/repo/.git/worktrees/feature-branch/canopy/note
-```
+| Worktree Type | Note File Path |
+|---------------|----------------|
+| Main worktree | `<repo>/.git/canopy/note` |
+| Linked worktree | `<repo>/.git/worktrees/<name>/canopy/note` |
 
 The `canopy/` subdirectory provides namespacing for future Canopy features that may store additional data in the git directory.
 
@@ -195,15 +203,15 @@ The `canopy/` subdirectory provides namespacing for future Canopy features that 
 
 ### Note Not Appearing
 
-1. **Check file location** - Must be in `.git/canopy/note`, not the worktree root
+1. **Check file location** - Use `git rev-parse --git-dir` to find the git directory, then check for `canopy/note` inside it
 2. **Verify content** - File must have at least one line of text
 3. **Check polling** - Wait up to 2 seconds for the next poll cycle
 4. **Check if deleted** - Main worktree notes are always deleted on startup; linked worktree notes are deleted if older than 24 hours
 
 ### Wrong Worktree
 
-1. **Check git directory** - Use `git rev-parse --git-dir` to find the correct path
-2. **Linked worktrees** - Notes go in `.git/worktrees/<name>/canopy/note`, not the main `.git/`
+1. **Use git rev-parse** - Run `git rev-parse --git-dir` from within the worktree to find the correct git directory
+2. **Linked worktrees** - The `.git` in a linked worktree is a file, not a directory. The actual git directory is at `<main-repo>/.git/worktrees/<name>/`
 
 ## Integration Examples
 
@@ -215,8 +223,8 @@ Create a hook that writes notes at key workflow points:
 #!/bin/bash
 # .claude/hooks/workflow-status.sh
 
+# Canopy creates the directory and file automatically
 NOTE_PATH="$(git rev-parse --git-dir)/canopy/note"
-mkdir -p "$(dirname "$NOTE_PATH")"
 
 case "$1" in
   "start")
@@ -241,9 +249,9 @@ Wrap your AI agent CLI to broadcast status:
 # ai-agent-wrapper.sh
 
 broadcast() {
+  # Canopy creates the directory and file automatically
   local note_path="$(git rev-parse --git-dir 2>/dev/null)/canopy/note"
-  if [[ -n "$note_path" ]]; then
-    mkdir -p "$(dirname "$note_path")"
+  if [[ -f "$note_path" ]]; then
     echo "$1" > "$note_path"
   fi
 }

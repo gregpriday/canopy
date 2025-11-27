@@ -154,7 +154,7 @@ async function main(): Promise<void> {
     loadEnv(parsedArgs.cwd);
 
     // 2. Cleanup stale note files (fire-and-forget, non-blocking)
-    // This removes canopy_note files older than 24 hours for disk hygiene
+    // This removes canopy/note files older than 24 hours for disk hygiene
     void cleanupStaleNotes(parsedArgs.cwd);
 
     // 3. Load configuration

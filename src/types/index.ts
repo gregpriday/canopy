@@ -108,7 +108,7 @@ export interface Worktree {
   /** Timestamp of last git activity (milliseconds since epoch, null if no activity yet) */
   lastActivityTimestamp?: number | null;
 
-  /** Content from .canopy_note.txt file (for AI agent status communication) */
+  /** Content from .git/canopy/note file (for AI agent status communication) */
   aiNote?: string;
 }
 
@@ -183,7 +183,7 @@ export interface AIConfig {
 export interface NoteConfig {
   /** Enable/disable the AI note feature (default: true) */
   enabled?: boolean;
-  /** Override the note filename (default: '.canopy_note.txt') */
+  /** Override the note filename (default: 'canopy/note') */
   filename?: string;
 }
 

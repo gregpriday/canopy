@@ -55,7 +55,7 @@ function parseTextWithLinks(text: string): Array<{ type: 'text' | 'link'; conten
 }
 
 /**
- * NoteDock displays AI agent status notes from .canopy_note.txt.
+ * NoteDock displays AI agent status notes from .git/canopy/note.
  * Only renders when content exists; returns null otherwise.
  * Follows the same visual pattern as ServerDock.
  * URLs are clickable - clicking anywhere on the note opens the first URL.

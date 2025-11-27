@@ -1,13 +1,84 @@
 import { WorktreeMonitor, type WorktreeState } from './WorktreeMonitor.js';
 import type { Worktree, MonitorConfig, AIConfig } from '../../types/index.js';
 import { DEFAULT_CONFIG } from '../../types/index.js';
-import { logInfo, logWarn } from '../../utils/logger.js';
+import { logInfo, logWarn, logDebug } from '../../utils/logger.js';
 import { events } from '../events.js';
+import { execSync } from 'child_process';
+import { mkdir, writeFile, stat } from 'fs/promises';
+import { join as pathJoin, dirname } from 'path';
 
 // Default polling intervals (used when config is not provided)
 const DEFAULT_ACTIVE_WORKTREE_INTERVAL_MS = DEFAULT_CONFIG.monitor?.pollIntervalActive ?? 2000;
 const DEFAULT_BACKGROUND_WORKTREE_INTERVAL_MS = DEFAULT_CONFIG.monitor?.pollIntervalBackground ?? 10000;
 const DEFAULT_AI_DEBOUNCE_MS = DEFAULT_CONFIG.ai?.summaryDebounceMs ?? 10000;
+
+// Default note path within git directory (matches WorktreeMonitor)
+const NOTE_PATH = DEFAULT_CONFIG.note?.filename ?? 'canopy/note';
+
+/**
+ * Get the git directory for a worktree.
+ * For regular repos: .git directory
+ * For worktrees: the actual git directory (e.g., ../.git/worktrees/branch-name)
+ */
+function getGitDir(worktreePath: string): string | null {
+  try {
+    const result = execSync('git rev-parse --git-dir', {
+      cwd: worktreePath,
+      encoding: 'utf-8',
+      timeout: 5000,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+
+    // If relative path, resolve it relative to worktree path
+    if (!result.startsWith('/')) {
+      return pathJoin(worktreePath, result);
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ensure the canopy note file exists for a worktree.
+ * Creates .git/canopy/note (or the configured path) if it doesn't exist.
+ * This allows AI agents to communicate their status via this file.
+ */
+async function ensureNoteFile(worktreePath: string): Promise<void> {
+  const gitDir = getGitDir(worktreePath);
+  if (!gitDir) {
+    logDebug('Cannot ensure note file: not a git repository', { path: worktreePath });
+    return;
+  }
+
+  const notePath = pathJoin(gitDir, NOTE_PATH);
+
+  try {
+    // Check if file already exists
+    await stat(notePath);
+    logDebug('Note file already exists', { path: notePath });
+  } catch {
+    // File doesn't exist - create it
+    try {
+      // Ensure the canopy directory exists
+      const canopyDir = dirname(notePath);
+      await mkdir(canopyDir, { recursive: true });
+
+      // Touch the file (create empty)
+      await writeFile(notePath, '', { flag: 'wx' }); // wx = fail if exists (race condition safe)
+      logInfo('Created canopy note file', { path: notePath });
+    } catch (createError) {
+      // Ignore EEXIST (file was created by another process between stat and writeFile)
+      const code = (createError as NodeJS.ErrnoException).code;
+      if (code !== 'EEXIST') {
+        logWarn('Failed to create canopy note file', {
+          path: notePath,
+          error: (createError as Error).message,
+        });
+      }
+    }
+  }
+}
 
 /**
  * WorktreeService manages all WorktreeMonitor instances.
@@ -124,6 +195,9 @@ class WorktreeService {
       } else {
         // Create new monitor
         logInfo('Creating new WorktreeMonitor', { id: wt.id, path: wt.path });
+
+        // Ensure the canopy note file exists for AI agents to write to
+        await ensureNoteFile(wt.path);
 
         const monitor = new WorktreeMonitor(wt, mainBranch);
 
