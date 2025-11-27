@@ -3,14 +3,36 @@ import { Box, Text, measureElement } from 'ink';
 import path from 'node:path';
 import { homedir } from 'node:os';
 import open from 'open';
+import * as nf from '@m234/nerd-fonts';
 import type { FileChangeDetail, GitStatus, Worktree, WorktreeChanges, WorktreeMood, DevServerState, AISummaryStatus } from '../types/index.js';
 import { useTheme } from '../theme/ThemeProvider.js';
 import { ActivityTrafficLight } from './ActivityTrafficLight.js';
 
+// Robot icon for AI agent files
+const ROBOT_ICON = nf.icons['nf-md-robot'];
+
+/**
+ * Get file icon using @m234/nerd-fonts seti preset.
+ * Special handling for AI agent files (CLAUDE.md, etc.)
+ */
+function getFileIcon(fileName: string): string {
+  const lower = fileName.toLowerCase();
+
+  // AI agent files get robot icon
+  if (lower.endsWith('.md')) {
+    if (lower.includes('agent') || lower.includes('claude') || lower.includes('gemini') || lower.includes('gpt') || lower.includes('copilot')) {
+      return ROBOT_ICON?.value ?? '';
+    }
+  }
+
+  // Use seti preset for everything else
+  return nf.fromPath(fileName, 'seti').value;
+}
+
 // Maximum number of files to show in the card
 const MAX_VISIBLE_FILES = 4;
 // Maximum number of additional filenames to show in the "and X more" line
-const MAX_ADDITIONAL_NAMES = 3;
+const MAX_ADDITIONAL_NAMES = 2;
 
 const STATUS_PRIORITY: Record<GitStatus, number> = {
   modified: 0,
@@ -21,14 +43,11 @@ const STATUS_PRIORITY: Record<GitStatus, number> = {
   ignored: 5,
 };
 
-const STATUS_GLYPHS: Record<GitStatus, string> = {
-  modified: 'M',
-  added: 'A',
-  deleted: 'D',
-  renamed: 'R',
-  untracked: '?',
-  ignored: '·',
-};
+// Git status colors follow standard conventions:
+// - Green: added (new files)
+// - Yellow/Orange: modified (changes)
+// - Red: deleted
+// - Gray: untracked/ignored
 
 // Box drawing characters
 const BORDER = {
@@ -169,7 +188,8 @@ const FileChangeRow = React.memo<{
   const deletionsLabel =
     change.deletions === null ? '' : `-${change.deletions}`;
 
-  const statusColor =
+  // Icon color based on git status
+  const iconColor =
     change.status === 'added'
       ? accentColors.added
       : change.status === 'deleted'
@@ -180,11 +200,13 @@ const FileChangeRow = React.memo<{
 
   const relativePath = formatRelativePath(change.path, rootPath);
   const displayPath = truncateMiddle(relativePath, 46);
+  const fileName = path.basename(change.path);
+  const fileIcon = getFileIcon(fileName);
 
   return (
     <Box width={contentWidth} justifyContent="space-between">
       <Box>
-        <Text color={statusColor}>{STATUS_GLYPHS[change.status] ?? '?'} </Text>
+        <Text color={iconColor}>{fileIcon} </Text>
         <Text>{displayPath}</Text>
       </Box>
       <Box gap={1}>

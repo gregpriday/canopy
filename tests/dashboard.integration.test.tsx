@@ -185,10 +185,10 @@ describe('Dashboard Integration Tests', () => {
       const frame = lastFrame() || '';
 
       // Check modified files appear in worktree cards
-      // The UI shows individual file names with status indicators (M for modified)
+      // The UI shows file paths with file type icons (colored by git status)
       // feature/auth has 5 files, bugfix has 2 files
       // With 4 visible files, feature/auth shows "...and 1 more"
-      expect(frame).toContain('M src/');  // Modified files have M indicator
+      expect(frame).toContain('src/');  // File paths are shown
       expect(frame).toContain('1 more');  // feature/auth shows "...and 1 more" (5 - 4 = 1)
     });
   });

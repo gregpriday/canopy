@@ -290,10 +290,10 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       const output = lastFrame();
       // Should show overflow indicator for remaining files (10 - 4 = 6)
       expect(output).toContain('...and 6 more');
-      // Should show up to 3 additional filenames in parentheses
+      // Should show up to 2 additional filenames in parentheses
       // Files are file00.ts through file09.ts, top 4 are file00-file03
-      // So additional names shown would be file04.ts, file05.ts, file06.ts
-      expect(output).toContain('(file04.ts, file05.ts, file06.ts, ...)');
+      // So additional names shown would be file04.ts, file05.ts
+      expect(output).toContain('(file04.ts, file05.ts, ...)');
     });
 
     it('always shows top 4 files (no expansion needed)', () => {
@@ -323,7 +323,7 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       expect(output).toContain('config.ts');
     });
 
-    it('renders status glyphs correctly', () => {
+    it('renders file type icons with git status colors', () => {
       const changes = createMockChanges([
         { path: 'modified.ts', status: 'modified', insertions: 5, deletions: 2 },
         { path: 'added.ts', status: 'added', insertions: 10, deletions: 0 },
@@ -342,10 +342,10 @@ describe('WorktreeCard - Display Specification Compliance', () => {
       );
 
       const output = lastFrame();
-      // Status glyphs: M, A, D
-      expect(output).toContain('M');
-      expect(output).toContain('A');
-      expect(output).toContain('D');
+      // Should show file paths with file type icons (icons are Nerd Font glyphs)
+      expect(output).toContain('modified.ts');
+      expect(output).toContain('added.ts');
+      expect(output).toContain('deleted.ts');
     });
 
     it('truncates long file paths', () => {

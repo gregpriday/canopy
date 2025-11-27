@@ -39,6 +39,7 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
+    "@m234/nerd-fonts": "^0.4.0",
     "clipboardy": "^5.0.0",
     "cosmiconfig": "^9.0.0",
     "execa": "^9.6.0",
