@@ -100,9 +100,9 @@ export class WorktreeMonitor extends EventEmitter {
     // Initialize state - determine initial AI status based on API key availability
     const initialAIStatus: AISummaryStatus = getAIClient() ? 'active' : 'disabled';
 
-    // Extract issue number from branch name synchronously (regex only)
+    // Extract issue number from branch name and folder synchronously (regex only)
     // We'll also trigger async extraction for AI fallback
-    const initialIssueNumber = worktree.branch ? extractIssueNumberSync(worktree.branch) : null;
+    const initialIssueNumber = worktree.branch ? extractIssueNumberSync(worktree.branch, worktree.name) : null;
 
     this.state = {
       id: worktree.id,
@@ -126,24 +126,27 @@ export class WorktreeMonitor extends EventEmitter {
 
     // Async extraction with AI fallback (fires in background, updates state if found)
     if (worktree.branch && !initialIssueNumber) {
-      void this.extractIssueNumberAsync(worktree.branch);
+      void this.extractIssueNumberAsync(worktree.branch, worktree.name);
     }
   }
 
   /**
    * Extract issue number from branch name using AI fallback.
    * Updates state and emits an update if issue number is found.
+   *
+   * @param branchName - Git branch name to extract issue number from
+   * @param folderName - Worktree folder name for additional context
    */
-  private async extractIssueNumberAsync(branchName: string): Promise<void> {
+  private async extractIssueNumberAsync(branchName: string, folderName?: string): Promise<void> {
     try {
-      const issueNumber = await extractIssueNumber(branchName);
+      const issueNumber = await extractIssueNumber(branchName, folderName);
       if (issueNumber && this.isRunning) {
         this.state.issueNumber = issueNumber;
         this.emitUpdate();
       }
     } catch (error) {
       // Silently ignore - issue extraction is non-critical
-      logDebug('Failed to extract issue number from branch', { branch: branchName, error: (error as Error).message });
+      logDebug('Failed to extract issue number from branch', { branch: branchName, folder: folderName, error: (error as Error).message });
     }
   }
 
@@ -283,6 +286,7 @@ export class WorktreeMonitor extends EventEmitter {
    *
    * Only updates the mutable state object, not the readonly instance properties.
    * Emits an update event if metadata actually changed.
+   * Re-extracts issue number when branch changes.
    *
    * @param worktree - Updated worktree data from git worktree list
    */
@@ -304,6 +308,22 @@ export class WorktreeMonitor extends EventEmitter {
         oldName,
         newName: worktree.name,
       });
+
+      // Re-extract issue number when branch changes
+      if (branchChanged && worktree.branch) {
+        // Try sync extraction first for immediate UI update
+        const syncIssueNumber = extractIssueNumberSync(worktree.branch, worktree.name);
+        this.state.issueNumber = syncIssueNumber ?? undefined;
+
+        // If sync didn't find it, try async with AI fallback
+        if (!syncIssueNumber) {
+          void this.extractIssueNumberAsync(worktree.branch, worktree.name);
+        }
+      } else if (branchChanged && !worktree.branch) {
+        // Branch cleared (detached HEAD or similar) - clear issue number
+        this.state.issueNumber = undefined;
+      }
+
       this.emitUpdate();
     }
   }

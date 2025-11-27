@@ -218,4 +218,96 @@ describe('Issue Extractor Service', () => {
       expect(result2).toBe(500);
     });
   });
+
+  describe('folder name support', () => {
+    describe('extractIssueNumberSync with folderName', () => {
+      it('should extract issue number from folder when branch has no issue', () => {
+        expect(extractIssueNumberSync('feature/add-dark-mode', 'issue-99-dark-mode')).toBe(99);
+      });
+
+      it('should prefer branch issue number over folder issue number', () => {
+        expect(extractIssueNumberSync('feature/issue-42-login', 'issue-99-backup')).toBe(42);
+      });
+
+      it('should extract from folder with GH- pattern', () => {
+        expect(extractIssueNumberSync('feature/new-feature', 'GH-123-worktree')).toBe(123);
+      });
+
+      it('should extract from folder with jira- pattern', () => {
+        expect(extractIssueNumberSync('feature/task', 'jira-456-folder')).toBe(456);
+      });
+
+      it('should handle null folder name', () => {
+        expect(extractIssueNumberSync('feature/issue-100-test', undefined)).toBe(100);
+      });
+
+      it('should handle empty folder name', () => {
+        expect(extractIssueNumberSync('feature/issue-100-test', '')).toBe(100);
+      });
+
+      it('should return null when neither branch nor folder have issue', () => {
+        expect(extractIssueNumberSync('feature/add-dark-mode', 'my-worktree')).toBeNull();
+      });
+
+      it('should handle folder with # pattern', () => {
+        expect(extractIssueNumberSync('feature/fix', '#789-bugfix')).toBe(789);
+      });
+    });
+
+    describe('extractIssueNumber with folderName', () => {
+      it('should use regex on folder and not call AI for standard patterns', async () => {
+        const result = await extractIssueNumber('feature/no-issue', 'issue-200-folder');
+
+        expect(result).toBe(200);
+        expect(mockCreate).not.toHaveBeenCalled();
+      });
+
+      it('should cache results with folder name in cache key', async () => {
+        const result1 = await extractIssueNumber('feature/add-mode', 'issue-300-test');
+        const result2 = await extractIssueNumber('feature/add-mode', 'issue-300-test');
+
+        expect(result1).toBe(300);
+        expect(result2).toBe(300);
+        expect(mockCreate).not.toHaveBeenCalled();
+      });
+
+      it('should use different cache keys for same branch with different folders', async () => {
+        clearIssueCache();
+        const result1 = await extractIssueNumber('feature/work', 'issue-100-folder');
+        clearIssueCache();
+        const result2 = await extractIssueNumber('feature/work', 'issue-200-folder');
+
+        expect(result1).toBe(100);
+        expect(result2).toBe(200);
+      });
+
+      it('should fall back to AI with folder context for unusual patterns', async () => {
+        mockCreate.mockResolvedValue({
+          output_text: JSON.stringify({ issueNumber: 777 })
+        });
+
+        const result = await extractIssueNumber('feature/unusual', 'ticket-777-folder');
+
+        expect(result).toBe(777);
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+          input: expect.stringContaining('Branch: feature/unusual')
+        }));
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+          input: expect.stringContaining('Folder: ticket-777-folder')
+        }));
+      });
+
+      it('should not include folder in AI input when folder matches branch', async () => {
+        mockCreate.mockResolvedValue({
+          output_text: JSON.stringify({ issueNumber: null })
+        });
+
+        await extractIssueNumber('feature/unusual', 'feature/unusual');
+
+        expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
+          input: 'Branch: feature/unusual'
+        }));
+      });
+    });
+  });
 });

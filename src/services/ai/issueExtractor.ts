@@ -18,14 +18,15 @@ const issueCache = new Map<string, number | null>();
 const SKIP_BRANCHES = ['main', 'master', 'develop', 'staging', 'production', 'release', 'hotfix'];
 
 /**
- * Extract issue number from a branch name.
+ * Extract issue number from a branch name and optional folder name.
  * Tries regex patterns first (fast, no API cost), falls back to AI for unusual formats.
  * Results are cached in memory since branch names don't change during a session.
  *
  * @param branchName - Git branch name to extract issue number from
+ * @param folderName - Optional worktree folder name for additional context
  * @returns Issue number if found, null otherwise
  */
-export async function extractIssueNumber(branchName: string): Promise<number | null> {
+export async function extractIssueNumber(branchName: string, folderName?: string): Promise<number | null> {
   // Handle empty or invalid input
   if (!branchName || typeof branchName !== 'string') {
     return null;
@@ -36,64 +37,94 @@ export async function extractIssueNumber(branchName: string): Promise<number | n
     return null;
   }
 
+  // Cache key includes folder name if provided
+  const cacheKey = folderName ? `${trimmedBranch}|${folderName}` : trimmedBranch;
+
   // Check cache first
-  if (issueCache.has(trimmedBranch)) {
-    return issueCache.get(trimmedBranch)!;
+  if (issueCache.has(cacheKey)) {
+    return issueCache.get(cacheKey)!;
   }
 
   // Skip obvious non-issue branches
   const lowerBranch = trimmedBranch.toLowerCase();
   if (SKIP_BRANCHES.some(skip => lowerBranch === skip || lowerBranch.startsWith(`${skip}/`))) {
-    issueCache.set(trimmedBranch, null);
+    issueCache.set(cacheKey, null);
     return null;
   }
 
-  // Try regex patterns first (fast, no API cost)
+  // Try regex patterns first on branch name (fast, no API cost)
   for (const pattern of ISSUE_PATTERNS) {
     const match = trimmedBranch.match(pattern);
     if (match?.[1]) {
       const num = parseInt(match[1], 10);
       if (!isNaN(num) && num > 0) {
-        issueCache.set(trimmedBranch, num);
+        issueCache.set(cacheKey, num);
         return num;
       }
     }
   }
 
+  // Try regex patterns on folder name if provided
+  if (folderName) {
+    const trimmedFolder = folderName.trim();
+    for (const pattern of ISSUE_PATTERNS) {
+      const match = trimmedFolder.match(pattern);
+      if (match?.[1]) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > 0) {
+          issueCache.set(cacheKey, num);
+          return num;
+        }
+      }
+    }
+  }
+
   // AI fallback for unusual patterns
-  const result = await extractIssueNumberWithAI(trimmedBranch);
-  issueCache.set(trimmedBranch, result);
+  const result = await extractIssueNumberWithAI(trimmedBranch, folderName);
+  issueCache.set(cacheKey, result);
   return result;
 }
 
 /**
  * Use AI to extract issue number from unusual branch name formats.
  * This is called only when regex patterns fail to match.
+ *
+ * @param branchName - Git branch name to extract issue number from
+ * @param folderName - Optional worktree folder name for additional context
  */
-async function extractIssueNumberWithAI(branchName: string): Promise<number | null> {
+async function extractIssueNumberWithAI(branchName: string, folderName?: string): Promise<number | null> {
   const client = getAIClient();
   if (!client) {
     return null;
   }
 
+  // Build input with optional folder context
+  const inputParts = [`Branch: ${branchName}`];
+  if (folderName && folderName !== branchName) {
+    inputParts.push(`Folder: ${folderName}`);
+  }
+  const input = inputParts.join('\n');
+
   try {
     const response = await client.responses.create({
       model: 'gpt-5-nano',
-      instructions: `Extract the GitHub issue number from this git branch name.
+      instructions: `Extract the GitHub issue number from this git worktree context.
 Return JSON: {"issueNumber": <number or null>}
 
 Rules:
 - Look for numbers that represent issue references (like "issue-123", "#42", "GH-15")
+- Check both the branch name and folder name (if provided) for issue references
 - If multiple numbers exist, prefer the one that looks like an issue reference
-- Return null if no issue number is found or the branch doesn't reference an issue
+- Return null if no issue number is found or the context doesn't reference an issue
 - Common non-issue branches: main, develop, feature/general-refactor
 
 Examples:
-"feature/issue-158-add-button" -> {"issueNumber": 158}
-"fix/GH-42-login-bug" -> {"issueNumber": 42}
-"feature/add-dark-mode" -> {"issueNumber": null}
-"refactor/cleanup-v2" -> {"issueNumber": null}`,
-      input: branchName,
+Branch: "feature/issue-158-add-button" -> {"issueNumber": 158}
+Branch: "fix/GH-42-login-bug" -> {"issueNumber": 42}
+Branch: "feature/add-dark-mode", Folder: "issue-99-dark-mode" -> {"issueNumber": 99}
+Branch: "feature/add-dark-mode" -> {"issueNumber": null}
+Branch: "refactor/cleanup-v2" -> {"issueNumber": null}`,
+      input,
       text: {
         format: {
           type: 'json_schema',
@@ -154,9 +185,10 @@ Examples:
  * Use this when you need immediate results without waiting for AI.
  *
  * @param branchName - Git branch name to extract issue number from
+ * @param folderName - Optional worktree folder name for additional context
  * @returns Issue number if found via regex, null otherwise
  */
-export function extractIssueNumberSync(branchName: string): number | null {
+export function extractIssueNumberSync(branchName: string, folderName?: string): number | null {
   if (!branchName || typeof branchName !== 'string') {
     return null;
   }
@@ -166,27 +198,46 @@ export function extractIssueNumberSync(branchName: string): number | null {
     return null;
   }
 
+  // Cache key includes folder name if provided
+  const cacheKey = folderName ? `${trimmedBranch}|${folderName}` : trimmedBranch;
+
   // Check cache first
-  if (issueCache.has(trimmedBranch)) {
-    return issueCache.get(trimmedBranch)!;
+  if (issueCache.has(cacheKey)) {
+    return issueCache.get(cacheKey)!;
   }
 
   // Skip obvious non-issue branches and cache the result
   const lowerBranch = trimmedBranch.toLowerCase();
   if (SKIP_BRANCHES.some(skip => lowerBranch === skip || lowerBranch.startsWith(`${skip}/`))) {
-    issueCache.set(trimmedBranch, null);
+    issueCache.set(cacheKey, null);
     return null;
   }
 
-  // Try regex patterns only
+  // Try regex patterns on branch name first
   for (const pattern of ISSUE_PATTERNS) {
     const match = trimmedBranch.match(pattern);
     if (match?.[1]) {
       const num = parseInt(match[1], 10);
       if (!isNaN(num) && num > 0) {
         // Cache successful regex match
-        issueCache.set(trimmedBranch, num);
+        issueCache.set(cacheKey, num);
         return num;
+      }
+    }
+  }
+
+  // Try regex patterns on folder name if provided
+  if (folderName) {
+    const trimmedFolder = folderName.trim();
+    for (const pattern of ISSUE_PATTERNS) {
+      const match = trimmedFolder.match(pattern);
+      if (match?.[1]) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > 0) {
+          // Cache successful regex match
+          issueCache.set(cacheKey, num);
+          return num;
+        }
       }
     }
   }
