@@ -1,0 +1,17 @@
+// In useGitStatus hook
+const statusMap = await withGitErrorBoundary(
+  async () => await getGitStatus(cwd),
+  { fallback: new Map(), notify: true }
+);
+
+// In file tree builder
+const files = await withFileSystemErrorBoundary(
+  async () => await buildFileTree(rootPath),
+  { fallback: [], notify: true }
+);
+
+// In file watcher
+await withRetry(
+  async () => await setupWatcher(path),
+  { maxRetries: 3, backoff: 'exponential', notify: false }
+);
